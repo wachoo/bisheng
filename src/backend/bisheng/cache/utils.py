@@ -180,7 +180,7 @@ def upload_file_to_minio(file: UploadFile, object_name, bucket_name: str = tmp_b
 
 
 @create_cache_folder
-def save_uploaded_file(file, folder_name, file_name, bucket_name: str = tmp_bucket):
+def save_uploaded_file(file, folder_name, file_name):
     """
     Save an uploaded file to the specified folder with a hash of its content as the file name.
 
@@ -188,7 +188,6 @@ def save_uploaded_file(file, folder_name, file_name, bucket_name: str = tmp_buck
         file: The uploaded file object.
         folder_name: The name of the folder to save the file in.
         file_name: The name of the file, including its extension.
-        bucket_name: The name of the bucket_name
     Returns:
         The path to the saved file.
     """
@@ -226,6 +225,61 @@ def save_uploaded_file(file, folder_name, file_name, bucket_name: str = tmp_buck
         # 存储oss
         file_byte = output_file.read()
         minio_client.upload_tmp(file_name, file_byte)
+        file_path = minio_client.get_share_link(file_name, tmp_bucket)
+    else:
+        file_path = folder_path / f'{md5_name}_{file_name}'
+        with open(file_path, 'wb') as new_file:
+            while chunk := output_file.read(8192):
+                new_file.write(chunk)
+    output_file.close()
+    return file_path
+
+
+@create_cache_folder
+def save_uploaded_bucket_file(file, folder_name, file_name, bucket_name: str = tmp_bucket):
+    """
+    Save an uploaded file to the specified folder with a hash of its content as the file name.
+
+    Args:
+        file: The uploaded file object.
+        folder_name: The name of the folder to save the file in.
+        file_name: The name of the file, including its extension.
+    Returns:
+        The path to the saved file.
+    """
+    cache_path = Path(CACHE_DIR)
+    folder_path = cache_path / folder_name
+
+    # Create the folder if it doesn't exist
+    if not folder_path.exists():
+        folder_path.mkdir()
+
+    # Create a hash of the file content
+    sha256_hash = hashlib.sha256()
+    # Reset the file cursor to the beginning of the file
+    file.seek(0)
+    # Iterate over the uploaded file in small chunks to conserve memory
+    while chunk := file.read(8192):  # Read 8KB at a time (adjust as needed)
+        sha256_hash.update(chunk)
+
+    # Use the hex digest of the hash as the file name
+    hex_dig = sha256_hash.hexdigest()
+    md5_name = hex_dig
+
+    # Reset the file cursor to the beginning of the file
+    file.seek(0)
+
+    output_file = file
+    # convert no utf-8 file to utf-8
+    file_ext = file_name.split('.')[-1].lower()
+    if file_ext in ('txt', 'md', 'csv'):
+        output_file = BytesIO()
+        output_file = convert_encoding_cchardet(file, output_file)
+
+    if settings.get_knowledge().get('minio'):
+        minio_client = MinioClient()
+        # 存储oss
+        minio_client.upload_minio_file(file_name, output_file, bucket_name)
         file_path = minio_client.get_share_link(file_name, bucket_name)
     else:
         file_path = folder_path / f'{md5_name}_{file_name}'

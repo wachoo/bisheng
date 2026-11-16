@@ -32,7 +32,7 @@ database_pool:
 # Enable this section with a Desktop-compatible backend image.
 dsh:
   enabled: true
-  platform_public_url: https://8.148.26.50
+  platform_public_url: !env ${BS_DSH_PLATFORM_PUBLIC_URL}
 
 # 缓存配置  redis://[[username]:[password]]@localhost:6379/0
 # 如果设置了密码，需要参考MySQL密码的加密逻辑对密码进行加密。eg: redis://root:gAAAAABlp4b4c59FeVGF_OQRVf6NOUIGdxq8246EBD-b0hdK_jVKRs1x4PoAn0A6C5S6IiFKmWn0Nm5eBUWu-7jxcqw6TiVjQA==@redis:6379/0

@@ -154,6 +154,7 @@ services:
       TZ: Asia/Shanghai
       BISHENG_PRO: ${BISHENG_PRO:-false}
       BISHENG_GATEWAY_HMAC_SECRET: ${BISHENG_GATEWAY_HMAC_SECRET:-}
+      BS_DATABASE_URL: ${BS_DATABASE_URL:?set BS_DATABASE_URL in docker/.env}
       BS_MILVUS_CONNECTION_ARGS: '{"host":"milvus","port":"19530","user":"","password":"","secure":false}'
       BS_MILVUS_IS_PARTITION: 'true'
       BS_MILVUS_PARTITION_SUFFIX: '1'
@@ -213,6 +214,7 @@ services:
       TZ: Asia/Shanghai
       BISHENG_PRO: ${BISHENG_PRO:-false}
       BISHENG_GATEWAY_HMAC_SECRET: ${BISHENG_GATEWAY_HMAC_SECRET:-}
+      BS_DATABASE_URL: ${BS_DATABASE_URL:?set BS_DATABASE_URL in docker/.env}
       BS_MILVUS_CONNECTION_ARGS: '{"host":"milvus","port":"19530","user":"","password":"","secure":false}'
       BS_MILVUS_IS_PARTITION: 'true'
       BS_MILVUS_PARTITION_SUFFIX: '1'

@@ -1,0 +1,11 @@
+FROM cr.dataelem.com/dataelement/bisheng-backend:v3.0.1
+WORKDIR /app
+COPY ./pyproject.toml ./uv.lock ./
+RUN uv sync --frozen --no-dev && uv cache clean
+RUN rm -rf /app/bisheng /app/bisheng_langchain /app/scripts /app/docs /app/test
+COPY ./ ./
+RUN SITE=$(python -c "import site; print(site.getsitepackages()[0])") && \
+    DMSSL="$SITE/dmssl" && \
+    if [ -d "$DMSSL" ]; then mkdir -p "$DMSSL/bin"; mv "$DMSSL"/*.so "$DMSSL/bin/" 2>/dev/null || true; fi
+ENV DM_HOME="/app/.venv/lib/python3.11/site-packages/dmssl/"
+CMD ["sh", "entrypoint.sh"]

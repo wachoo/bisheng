@@ -332,3 +332,8 @@ src/backend/migration_reports
 .cursor/
 config-106120.yaml
 values-106120.yaml
+
+# Deployment-local backups and editor swap files
+*.bak-*
+*.swp
+docker/.env.bak

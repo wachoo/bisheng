@@ -337,3 +337,6 @@ values-106120.yaml
 *.bak-*
 *.swp
 docker/.env.bak
+
+# Local TLS trust anchor for the private-CA HTTPS deployment (never commit)
+/bisheng-ca.crt

@@ -322,7 +322,7 @@ services:
     container_name: bisheng-frontend
     image: ${BISHENG_FRONTEND_IMAGE:?set BISHENG_FRONTEND_IMAGE in docker/.env (see .env.example)}
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       TZ: Asia/Shanghai
     volumes:

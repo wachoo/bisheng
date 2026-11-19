@@ -376,12 +376,14 @@ services:
     #          compose project and cannot resolve `minio`, so BS_MINIO_SHAREPOINT
     #          has to name the host for report templates to load. Restrict it to
     #          the networks that need it and put it behind TLS.
-    #   9001 - admin console, deliberately NOT published: it is a full web UI
-    #          over every stored file and nothing in the stack needs it. Reach
-    #          it with `ssh -L 9001:localhost:9001 <host>` when required.
+    #   9001 - admin console. Published on request so it can be opened from a
+    #          browser directly, but it is a full web UI over every stored
+    #          file: restrict the source range in the security group and never
+    #          keep the default root credentials. `ssh -L 9001:localhost:9001`
+    #          is the safer path when only an operator needs it.
     ports:
       - "9100:9000"
-      - "127.0.0.1:9001:9001"
+      - "9001:9001"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/milvus-minio:/minio_data

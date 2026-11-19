@@ -13,6 +13,7 @@ import i18next from "i18next";
 import { GanttChartIcon, Lock, MoonStar, Sun } from "lucide-react";
 
 import { useDshBrowserConfig } from "@/hooks/useDshBrowserConfig";
+import { getWorkspaceClientUrl } from "@/utils/workspaceUrl";
 import { Tooltip, TooltipProvider } from "@bisheng/ui";
 import { Suspense, useContext, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -205,7 +206,7 @@ export default function MainLayout() {
                                 menu={
                                     <>
                                         {hasWorkbenchEntry && (
-                                            <DropdownItem icon={<GanttChartIcon />} onSelect={() => window.open("/workspace/")}>
+                                            <DropdownItem icon={<GanttChartIcon />} onSelect={() => window.open(getWorkspaceClientUrl("/"))}>
                                                 {t("menu.workspace")}
                                             </DropdownItem>
                                         )}
@@ -466,7 +467,7 @@ export default function MainLayout() {
             <div className="fixed w-full h-full top-0 left-0 bg-[rgba(0,0,0,0.4)] sm:hidden text-sm z-50">
                 <div className="w-10/12 bg-gray-50 mx-auto mt-[30%] rounded-xl px-4 py-10">
                     <p className=" text-sm text-center">{t("menu.forBestExperience")}</p>
-                    {!appConfig.isPro && (
+                    {!appConfig.noFace && (
                         <div className="flex mt-8 justify-center gap-4">
                             <a href={"https://github.com/dataelement/bisheng"} target="_blank">
                                 <GithubIcon className="side-bar-button-size mx-auto" />

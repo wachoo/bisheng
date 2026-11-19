@@ -381,6 +381,7 @@ services:
     #          it with `ssh -L 9001:localhost:9001 <host>` when required.
     ports:
       - "9100:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/milvus-minio:/minio_data

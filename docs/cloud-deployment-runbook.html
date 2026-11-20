@@ -1,0 +1,797 @@
+<title>BiSheng 云部署手册</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Palette: warm paper + slate ink, one signal-amber accent. Light first, dark redefined by tokens. */
+  :root {
+    --bg: #faf9f6;
+    --surface: #ffffff;
+    --surface-2: #f3f2ee;
+    --ink: #191c22;
+    --muted: #5c626d;
+    --rule: #e2e1db;
+    --rule-strong: #cbc9c1;
+    --accent: #a4531a;
+    --accent-soft: #f4e6d9;
+    --code-bg: #f1f0eb;
+    --ok: #1f6b46;
+    --warn: #8a5a12;
+    --crit: #9b2c2c;
+    --shadow: 0 1px 0 rgba(25, 28, 34, .04);
+
+    --font-display: "Space Grotesk", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-body: "Inter", "PingFang SC", "Microsoft YaHei", sans-serif;
+    --font-mono: "JetBrains Mono", "SFMono-Regular", Menlo, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #121417;
+      --surface: #181b20;
+      --surface-2: #1e2229;
+      --ink: #e7e8ea;
+      --muted: #9aa1ac;
+      --rule: #2a2f37;
+      --rule-strong: #3a404a;
+      --accent: #e59a5b;
+      --accent-soft: #2b2118;
+      --code-bg: #1c2027;
+      --ok: #6fca95;
+      --warn: #e0b264;
+      --crit: #ef8a8a;
+      --shadow: none;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #121417;
+    --surface: #181b20;
+    --surface-2: #1e2229;
+    --ink: #e7e8ea;
+    --muted: #9aa1ac;
+    --rule: #2a2f37;
+    --rule-strong: #3a404a;
+    --accent: #e59a5b;
+    --accent-soft: #2b2118;
+    --code-bg: #1c2027;
+    --ok: #6fca95;
+    --warn: #e0b264;
+    --crit: #ef8a8a;
+    --shadow: none;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.65;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 0 72px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1160px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 232px minmax(0, 1fr);
+    gap: 48px;
+    align-items: start;
+  }
+
+  /* ---------- masthead ---------- */
+  header.masthead {
+    grid-column: 1 / -1;
+    padding: 56px 0 28px;
+    border-bottom: 1px solid var(--rule);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .kicker {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+  h1 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.12;
+    letter-spacing: -.015em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  .standfirst {
+    max-width: 66ch;
+    color: var(--muted);
+    font-size: 15.5px;
+    margin: 0;
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 26px;
+    padding-top: 6px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .facts b {
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  /* ---------- nav ---------- */
+  nav.toc {
+    position: sticky;
+    top: 0;
+    padding: 28px 0 40px;
+    font-size: 13px;
+    max-height: 100vh;
+    overflow-y: auto;
+  }
+  nav.toc p {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 10px;
+  }
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    border-left: 1px solid var(--rule);
+  }
+  nav.toc a {
+    display: block;
+    padding: 5px 0 5px 14px;
+    color: var(--muted);
+    text-decoration: none;
+    border-left: 2px solid transparent;
+    margin-left: -1.5px;
+    line-height: 1.35;
+  }
+  nav.toc a:hover,
+  nav.toc a:focus-visible {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    outline: none;
+  }
+  nav.toc .num {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--rule-strong);
+    margin-right: 6px;
+  }
+
+  /* ---------- content ---------- */
+  main { padding: 28px 0 0; min-width: 0; }
+
+  section { padding: 26px 0 10px; border-bottom: 1px solid var(--rule); }
+  section:last-of-type { border-bottom: 0; }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -.01em;
+    margin: 0 0 4px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    text-wrap: balance;
+  }
+  h2 .secnum {
+    font-family: var(--font-mono);
+    font-size: 11.5px;
+    color: var(--accent);
+    letter-spacing: .08em;
+    flex: none;
+  }
+  h3 {
+    font-family: var(--font-body);
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: .01em;
+    margin: 26px 0 8px;
+    color: var(--ink);
+  }
+
+  p { margin: 10px 0; max-width: 68ch; }
+  ul, ol { margin: 10px 0; padding-left: 20px; max-width: 68ch; }
+  li { margin: 4px 0; }
+  li::marker { color: var(--muted); }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+    padding: 1px 5px;
+    white-space: nowrap;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.55;
+    margin: 12px 0 16px;
+    box-shadow: var(--shadow);
+  }
+  pre code {
+    background: none;
+    border: 0;
+    padding: 0;
+    white-space: pre;
+    font-size: inherit;
+  }
+
+  .tablewrap { overflow-x: auto; margin: 12px 0 18px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13px;
+    min-width: 480px;
+  }
+  th, td {
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom-color: var(--rule-strong);
+  }
+  td code { font-size: 12px; }
+  tbody tr:last-child td { border-bottom: 0; }
+  .num-cell { font-variant-numeric: tabular-nums; }
+
+  .note {
+    border-left: 2px solid var(--accent);
+    background: var(--accent-soft);
+    padding: 10px 14px;
+    border-radius: 0 4px 4px 0;
+    margin: 14px 0;
+    font-size: 13.5px;
+  }
+  .note strong { color: var(--ink); }
+  .note p { margin: 4px 0; max-width: none; }
+
+  .warn {
+    border-left: 2px solid var(--crit);
+    background: transparent;
+    border-radius: 0;
+    padding: 2px 0 2px 14px;
+  }
+  .warn strong { color: var(--crit); }
+
+  .status {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    border: 1px solid var(--rule-strong);
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .status.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 45%, transparent); }
+  .status.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .status.crit { color: var(--crit); border-color: color-mix(in srgb, var(--crit) 45%, transparent); }
+
+  footer {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--rule);
+    margin-top: 40px;
+    padding-top: 18px;
+    font-size: 12px;
+    color: var(--muted);
+    font-family: var(--font-mono);
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  @media (max-width: 900px) {
+    .wrap { grid-template-columns: 1fr; gap: 0; }
+    nav.toc {
+      position: static;
+      max-height: none;
+      padding: 20px 0 8px;
+      border-bottom: 1px solid var(--rule);
+    }
+    nav.toc ol {
+      flex-direction: row;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      border-left: 0;
+    }
+    nav.toc a { padding: 4px 0; border-left: 0; }
+    main { padding-top: 8px; }
+    header.masthead { padding-top: 36px; }
+  }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <div class="kicker">Runbook · 2026-11</div>
+    <h1>BiSheng 云部署手册</h1>
+    <p class="standfirst">从一台空 ECS 到完整可用的平台：中间件、镜像、域名与证书、企业微信 SSO、对象存储与在线文档，以及这套环境里踩过的坑和对应的判断方法。</p>
+    <div class="facts">
+      <span>基线 <b>v3.0.1</b></span>
+      <span>编排 <b>Docker Compose</b></span>
+      <span>容器 <b>16</b></span>
+      <span>入口 <b>443 only</b></span>
+    </div>
+  </header>
+
+  <nav class="toc" aria-label="目录">
+    <p>目录</p>
+    <ol>
+      <li><a href="#s0"><span class="num">00</span>环境基线</a></li>
+      <li><a href="#s1"><span class="num">01</span>前置准备</a></li>
+      <li><a href="#s2"><span class="num">02</span>代码与配置</a></li>
+      <li><a href="#s3"><span class="num">03</span>镜像获取与构建</a></li>
+      <li><a href="#s4"><span class="num">04</span>启动整套服务</a></li>
+      <li><a href="#s5"><span class="num">05</span>域名与 TLS</a></li>
+      <li><a href="#s6"><span class="num">06</span>企业微信 SSO</a></li>
+      <li><a href="#s7"><span class="num">07</span>MinIO</a></li>
+      <li><a href="#s8"><span class="num">08</span>OnlyOffice</a></li>
+      <li><a href="#s9"><span class="num">09</span>安全加固</a></li>
+      <li><a href="#s10"><span class="num">10</span>日常运维</a></li>
+      <li><a href="#s11"><span class="num">11</span>故障排查</a></li>
+      <li><a href="#s12"><span class="num">12</span>回滚</a></li>
+      <li><a href="#sa"><span class="num">A</span>目录与端口</a></li>
+    </ol>
+  </nav>
+
+  <main>
+    <section id="s0">
+      <h2><span class="secnum">00</span>环境基线</h2>
+      <p>这套部署把全部组件放在一台 ECS 上，用 Docker Compose 编排。以下数值来自实际运行环境，替换成你自己的即可。</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>项</th><th>取值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td>服务器</td><td><code>ecs.e-c1m4.xlarge</code> 4C / 14 GiB</td><td>全栈单机，内存是主要约束</td></tr>
+            <tr><td>系统</td><td>Alibaba Cloud Linux 4，内核 6.6</td><td>cgroup v2，影响 OnlyOffice 选型</td></tr>
+            <tr><td>Docker</td><td>24.0.9 + Compose 2.26</td><td>systemd cgroup driver</td></tr>
+            <tr><td>磁盘</td><td>40 G，长期 85% 以上</td><td>镜像层占大头，预留 ≥ 10 G</td></tr>
+            <tr><td>代码目录</td><td><code>/root/app/bisheng</code></td><td>git 工作树，部署分支</td></tr>
+            <tr><td>配置目录</td><td><code>/root/app/bisheng/docker</code></td><td>compose 与 <code>.env</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s1">
+      <h2><span class="secnum">01</span>前置准备</h2>
+      <h3>DNS</h3>
+      <p>在域名服务商添加 A 记录指向 ECS 公网 IP，然后确认解析结果：</p>
+      <pre><code>dig +short ai.example.com</code></pre>
+
+      <h3>安全组</h3>
+      <p>入方向只留必要端口，其余按需临时放行。</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>端口</th><th>来源</th><th>用途</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">22</td><td>运维出口 + <code>100.104.0.0/16</code></td><td>SSH 与阿里云 Workbench</td></tr>
+            <tr><td class="num-cell">80</td><td><code>0.0.0.0/0</code></td><td>证书验证与跳转（未备案会被入口拦截）</td></tr>
+            <tr><td class="num-cell">443</td><td><code>0.0.0.0/0</code></td><td>唯一 Web 入口</td></tr>
+            <tr><td class="num-cell">9001</td><td>仅运维 IP</td><td>MinIO 管理台，可选</td></tr>
+            <tr><td class="num-cell">7860 / 3306 / 6379 / 9200 / 19530 / 9100 / 8080</td><td>仅运维 IP</td><td>调试端口，生产建议关闭</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p><code>100.104.0.0/16</code> 是控制台远程连接（Workbench）的来源网段，漏掉它就会出现「实例登录失败」而 SSH 本身是好的。</p>
+
+      <h3>镜像仓库</h3>
+      <pre><code>docker login cr.dataelem.com</code></pre>
+      <p>部分云网络访问 Docker Hub 会失败，公共镜像统一走 <code>docker.m.daocloud.io</code> 或私有仓库。</p>
+    </section>
+
+    <section id="s2">
+      <h2><span class="secnum">02</span>代码与配置</h2>
+      <pre><code>git clone https://github.com/&lt;org&gt;/bisheng.git /root/app/bisheng
+cd /root/app/bisheng
+git checkout v3.0.1-1112-aliyun</code></pre>
+      <p>每套环境一个长期部署分支，功能修复通过 cherry-pick 合入，镜像按发布日打 tag。</p>
+
+      <h3>准备 .env</h3>
+      <pre><code>cd /root/app/bisheng/docker
+cp .env.example .env
+chmod 600 .env</code></pre>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>变量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>BISHENG_BACKEND_IMAGE</code> / <code>_FRONTEND_IMAGE</code></td><td>平台镜像 tag，<code>src-&lt;版本&gt;-&lt;MMDD&gt;</code></td></tr>
+            <tr><td><code>MYSQL_ROOT_PASSWORD</code> / <code>BS_DATABASE_URL</code></td><td>口令需与连接串一致</td></tr>
+            <tr><td><code>MINIO_ROOT_USER</code> / <code>_PASSWORD</code></td><td>根凭据，只给管理台</td></tr>
+            <tr><td><code>MINIO_APP_ACCESS_KEY</code> / <code>_SECRET_KEY</code></td><td>后端对象存储身份</td></tr>
+            <tr><td><code>MINIO_MILVUS_ACCESS_KEY</code> / <code>_SECRET_KEY</code></td><td>Milvus 专用身份</td></tr>
+            <tr><td><code>BS_DSH_PLATFORM_PUBLIC_URL</code></td><td>对外地址，必须与域名一致</td></tr>
+            <tr><td><code>BISHENG_NGINX_CONF_DIR</code></td><td>tls-proxy 的配置目录</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note"><p><strong>.env 是明文凭据。</strong>权限保持 600，不要提交；历史备份里同样有口令，定期清理。</p></div>
+    </section>
+
+    <section id="s3">
+      <h2><span class="secnum">03</span>镜像获取与构建</h2>
+      <h3>中间件</h3>
+      <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。</p>
+
+      <h3>后端</h3>
+      <p>标准构建的第一行是 <code>FROM dataelement/bisheng-backend:base.v10</code>。这个 base 镜像由 <code>src/backend/base.Dockerfile</code> 构建：CI 在推送 <code>base.v*</code> tag 时运行它，版本号取自 tag（<code>base.v10</code> → <code>:base.v10-amd64</code>，再由 multi-arch manifest 合成最终 tag）。</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>层</th><th>内容</th></tr></thead>
+          <tbody>
+            <tr><td>基础</td><td><code>python:3.11-slim</code></td></tr>
+            <tr><td>系统库</td><td>gcc / build-essential、libreoffice、ffmpeg、wget、vim、中文字体、libgl</td></tr>
+            <tr><td>工具</td><td>pandoc 3.6.4（GitHub release）、uv（astral.sh）</td></tr>
+            <tr><td>Python</td><td><code>uv sync --frozen --no-dev</code> 形成的 venv 快照</td></tr>
+            <tr><td>数据</td><td>NLTK punkt / pos_tagger、playwright chromium 及系统依赖</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>它承担的是重量级、变化慢的部分，所以 <code>Dockerfile</code> 只需在其上补依赖差异和源码。自行构建 base 需要同时满足这些网络条件：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>依赖</th><th>来源</th></tr></thead>
+          <tbody>
+            <tr><td><code>python:3.11-slim</code></td><td>Docker Hub（通常最先失败）</td></tr>
+            <tr><td>apt 包</td><td>Debian 源</td></tr>
+            <tr><td>pandoc</td><td><code>github.com/jgm/pandoc/releases</code></td></tr>
+            <tr><td>uv</td><td><code>astral.sh</code></td></tr>
+            <tr><td>chromium</td><td>playwright 下载站</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Docker Hub 不可达的机器上，直接从 <code>base.Dockerfile</code> 构建会在拉取 <code>python:3.11-slim</code> 时失败。实测可行的路径分四步。</p>
+
+      <p><strong>1 · 从镜像代理准备 python 基础镜像</strong></p>
+      <pre><code>docker pull docker.m.daocloud.io/library/python:3.11-slim
+docker tag docker.m.daocloud.io/library/python:3.11-slim python:3.11-slim</code></pre>
+
+      <p><strong>2 · 生成加速版 Dockerfile</strong>（在 <code>base.Dockerfile</code> 的 <code>FROM</code> 之后插入，不改仓库原文件）</p>
+      <pre><code>RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" \
+      /etc/apt/sources.list.d/debian.sources 2&gt;/dev/null || \
+    sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list
+ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
+ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright</code></pre>
+
+      <p><strong>3 · 后台构建</strong>（断开 SSH 不影响）</p>
+      <pre><code>cd src/backend
+nohup sh -c 'docker build -f /tmp/base.Dockerfile.fast \
+  -t dataelement/bisheng-backend:base.v10 . &gt; /tmp/base-build.log 2&gt;&amp;1; \
+  echo "EXIT=$?" &gt;&gt; /tmp/base-build.log' &gt;/dev/null 2&gt;&amp;1 &amp;
+
+tail -f /tmp/base-build.log
+docker images | grep base.v10        # 成功才有输出</code></pre>
+
+      <p><strong>4 · 用标准 Dockerfile 构建正式后端镜像</strong></p>
+      <pre><code>cd src/backend
+docker build -t bisheng-backend:src-v3.0.1-&lt;MMDD&gt; .</code></pre>
+
+      <h3>实测耗时与资源</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>阶段</th><th>耗时（4C / 14 GiB、约 5–6 Mbps）</th></tr></thead>
+          <tbody>
+            <tr><td>apt 依赖（300+ 包，含 gcc / libreoffice）</td><td>10–20 分钟</td></tr>
+            <tr><td>pandoc / uv sync / NLTK / chromium</td><td>15–25 分钟</td></tr>
+            <tr><td>标准 Dockerfile 构建（依赖已缓存）</td><td>5–10 分钟</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note"><p><strong>构建前检查：</strong>磁盘预留 ≥ 10 GB；停掉 OnlyOffice 等非必要容器腾出 2–3 GB 内存；经济型实例出带宽约 5 Mbps（0.7–0.8 MB/s），临时提到 100 Mbps 可快十倍。</p></div>
+      <p>arm64 还需按 CI 的做法先删掉 <code>ibm-db</code>（该驱动不支持 arm64）。镜像代理可用时，直接 <code>docker pull dataelement/bisheng-backend:base.v10</code> 更省事。</p>
+      <p>拉不到 base.v10 时，只能用增量方式：</p>
+      <pre><code>docker create --name tmp bisheng-backend:src-v3.0.1-&lt;旧MMDD&gt;
+docker cp bisheng/.../xxx.py tmp:/app/bisheng/.../xxx.py
+docker commit --change 'CMD ["sh", "entrypoint.sh"]' \
+  tmp bisheng-backend:src-v3.0.1-&lt;MMDD&gt;
+docker rm -f tmp</code></pre>
+      <p>内容正确，但不可复现。基础镜像可用后应重新执行标准构建。</p>
+
+      <h3>前端</h3>
+      <p>在本机构建产物，传到服务器再打包镜像：</p>
+      <pre><code># 本机
+cd src/frontend
+pnpm install --frozen-lockfile
+pnpm --filter bisheng build       # platform
+pnpm --filter bishengchat build   # client
+tar czf /tmp/fe-build.tgz client/build platform/build
+scp /tmp/fe-build.tgz root@&lt;host&gt;:/tmp/</code></pre>
+      <pre><code># 服务器
+mkdir -p /tmp/fe-release &amp;&amp; tar xzf /tmp/fe-build.tgz -C /tmp/fe-release
+cat &gt; /tmp/fe-release/Dockerfile &lt;&lt;'EOF'
+FROM bisheng-frontend:src-v3.0.1-&lt;旧MMDD&gt;
+RUN rm -rf /usr/share/nginx/html/platform /usr/share/nginx/html/client
+COPY platform/build/ /usr/share/nginx/html/platform/
+COPY client/build/ /usr/share/nginx/html/client/
+EOF
+docker build -t bisheng-frontend:src-v3.0.1-&lt;MMDD&gt; /tmp/fe-release</code></pre>
+      <div class="note"><p><strong>先删后拷。</strong>不清理旧目录，历史构建的 chunk 会残留在镜像里，浏览器可能加载到旧资源。</p></div>
+    </section>
+
+    <section id="s4">
+      <h2><span class="secnum">04</span>启动整套服务</h2>
+      <p>主栈 15 个容器，OnlyOffice 作为独立 compose 项目单独启动。</p>
+      <pre><code>cd /root/app/bisheng/docker
+docker compose up -d</code></pre>
+      <p>首次启动由 <code>depends_on</code> 保证顺序，backend 会自动建表并执行迁移。</p>
+
+      <h3>验证</h3>
+      <pre><code>docker ps --format '{{.Names}}\t{{.Status}}'
+curl -sk https://&lt;域名&gt;/                      # 200
+curl -sk https://&lt;域名&gt;/workspace/            # 200
+curl -sk https://&lt;域名&gt;/admin                 # 200
+curl -sk https://&lt;域名&gt;/api/v1/user/wecom/availability   # 200</code></pre>
+      <pre><code>docker exec bisheng-backend curl -sf http://minio:9000/minio/health/live
+docker inspect -f '{{.State.Health.Status}}' bisheng-milvus-standalone</code></pre>
+    </section>
+
+    <section id="s5">
+      <h2><span class="secnum">05</span>域名与 TLS</h2>
+      <h3>只接受域名访问</h3>
+      <p>tls-proxy 里加两个 default server：IP 直连在 TLS 握手阶段被拒，80 直接断连。</p>
+      <pre><code>server { listen 80 default_server;          server_name _; return 444; }
+server { listen 443 ssl default_server;     server_name _; ssl_reject_handshake on; }</code></pre>
+
+      <h3>证书</h3>
+      <p>用 acme.sh 申请 Let's Encrypt。域名未备案时 80 会被入口拦截，只能走 TLS-ALPN-01：</p>
+      <pre><code>/root/.acme.sh/acme.sh --issue --alpn -d &lt;域名&gt; --server letsencrypt \
+  --pre-hook  "docker stop bisheng-tls-proxy" \
+  --post-hook "/usr/local/sbin/bisheng-tls-reload.sh" \
+  --accountemail admin@&lt;域名&gt;</code></pre>
+      <p>备案完成后改用 webroot，续期不再中断服务：</p>
+      <pre><code>/root/.acme.sh/acme.sh --issue -d &lt;域名&gt; --webroot /var/www/acme --server letsencrypt</code></pre>
+      <p>配套两处：compose 挂载 <code>/var/www/acme</code> 只读进 tls-proxy；80 的 server 里加</p>
+      <pre><code>location ^~ /.well-known/acme-challenge/ {
+    root /var/www/acme;
+    default_type text/plain;
+}</code></pre>
+
+      <h3>安装与续期</h3>
+      <pre><code>/root/.acme.sh/acme.sh --install-cert -d &lt;域名&gt; --ecc \
+  --key-file       /etc/nginx/ssl/server.key \
+  --fullchain-file /etc/nginx/ssl/server.crt \
+  --reloadcmd      /usr/local/sbin/bisheng-tls-reload.sh</code></pre>
+      <p><code>bisheng-tls-reload.sh</code> 先确保容器已启动、<code>nginx -t</code> 通过，再 reload——ALPN 续期会停容器，不兜底就会 reload 失败。</p>
+      <div class="warn"><p><strong>中断窗口：</strong>TLS-ALPN 需独占 443，续期时站点中断 10–20 秒；HTTP-01 无中断。cron 由 acme.sh 安装，每天检查 4 次。</p></div>
+    </section>
+
+    <section id="s6">
+      <h2><span class="secnum">06</span>企业微信 SSO</h2>
+      <h3>企微后台</h3>
+      <ol>
+        <li>应用管理 → 自建应用，记录 <code>corpid</code>、<code>agentid</code>、<code>secret</code></li>
+        <li><strong>网页授权及 JS-SDK</strong> → 可信域名，上传 <code>WW_verify_*.txt</code> 到站点根目录完成校验</li>
+        <li><strong>企业微信授权登录</strong> → 可信域名同上（PC 扫码）</li>
+        <li>应用主页填工作台入口</li>
+        <li>可见范围添加部门/成员</li>
+      </ol>
+      <pre><code>https://&lt;域名&gt;/api/v1/user/wecom/authorize?mode=silent&amp;
+  return_to=https%3A%2F%2F&lt;域名&gt;%2Fworkspace%2F</code></pre>
+
+      <h3>平台侧</h3>
+      <p>组织同步里新建一条 <code>wecom</code> 配置并设为 active，全库只能有一条，登录页才会出现入口。</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>现象</th><th>原因</th></tr></thead>
+          <tbody>
+            <tr><td>19334 授权失败</td><td>Redis 里 <code>org_sync:wecom:token:{id}</code> 缓存了被轮换的 token；旧版本需手动 <code>DEL</code></td></tr>
+            <tr><td>回调成功但没有 userid</td><td>成员不在应用可见范围，日志出现 <code>returned no userid</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s7">
+      <h2><span class="secnum">07</span>MinIO</h2>
+      <p>三个身份分开用，root 只留给管理台：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>身份</th><th>使用方</th><th>权限范围</th></tr></thead>
+          <tbody>
+            <tr><td>root</td><td>管理台</td><td>全部</td></tr>
+            <tr><td><code>bisheng-app</code></td><td>backend / worker / beat</td><td><code>bisheng</code> + <code>tmp-dir</code></td></tr>
+            <tr><td><code>bisheng-milvus</code></td><td>milvus</td><td><code>a-bucket</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note"><p><strong>策略必须包含 lifecycle：</strong><code>s3:GetLifecycleConfiguration</code>、<code>s3:PutLifecycleConfiguration</code>。缺了它 backend 启动时 <code>_ensure_tmp_bucket_lifecycle</code> 会 AccessDenied，容器反复重启。MinIO 只认 AWS 风格 action 名，且没有 <code>DeleteLifecycleConfiguration</code>。</p></div>
+
+      <h3>管理台</h3>
+      <p>容器带 <code>--console-address :9001</code>，但默认只映射了 <code>9100:9000</code>。需要时加映射，建议只绑回环：</p>
+      <pre><code>- "9100:9000"
+- "127.0.0.1:9001:9001"
+
+ssh -N -L 9001:127.0.0.1:9001 root@&lt;host&gt;   # 然后开 http://127.0.0.1:9001</code></pre>
+      <p>要公网开放，先在安全组限制来源 IP，并换掉默认口令——管理台是覆盖全部存储文件的完整界面。</p>
+    </section>
+
+    <section id="s8">
+      <h2><span class="secnum">08</span>OnlyOffice</h2>
+      <div class="warn"><p><strong>不要用 7.1.1。</strong>它内置 Erlang OTP 22，在 cgroup v2 内核上 <code>erl_child_setup</code> 自旋 100% CPU，RabbitMQ 永远起不来。用 8.1.3 及以上。</p></div>
+      <pre><code>ONLYOFFICE_IMAGE=docker.m.daocloud.io/onlyoffice/documentserver:8.1.3</code></pre>
+      <p>必须给容器更大的 <code>/dev/shm</code>，默认 64 MB 会让编辑器卡死：</p>
+      <pre><code>services:
+  office:
+    shm_size: "1gb"
+    ports: ["8701:80"]</code></pre>
+      <pre><code>curl -s http://127.0.0.1:8701/healthcheck                       # true
+curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code></pre>
+      <p>首次启动约 9 分钟（生成字体缓存）。平台通过 DB 配置 <code>office_url</code> 下发给前端，<strong>必须是 HTTPS</strong>，否则浏览器按混合内容拦截。推荐给一个子域名，把 SAN 追加进现有证书后反代到 <code>office:80</code>。</p>
+    </section>
+
+    <section id="s9">
+      <h2><span class="secnum">09</span>安全加固</h2>
+      <h3>SSH 来源白名单</h3>
+      <p>iptables 只放行运维网段和 Workbench 网段，其余到 22 的包直接 DROP，3389 一律丢弃：</p>
+      <pre><code>ALLOW="&lt;运维出口网段&gt; 100.104.0.0/16"</code></pre>
+      <p>脚本先删除本单元所有规则再重建，换白名单不会留孤儿规则；由 systemd 单元保证开机恢复。</p>
+
+      <h3>端口最小化</h3>
+      <ul>
+        <li>frontend 的 3001 只绑 <code>127.0.0.1</code>，对外只走 443</li>
+        <li>安全组只留 22 / 80 / 443，调试端口用完即关</li>
+      </ul>
+
+      <h3>凭据</h3>
+      <ul>
+        <li><code>.env</code> 权限 600，不入库，历史备份定期清理</li>
+        <li>MinIO 服务 key 与 root 分离，轮换只换服务 key</li>
+      </ul>
+    </section>
+
+    <section id="s10">
+      <h2><span class="secnum">10</span>日常运维</h2>
+      <h3>更新镜像</h3>
+      <pre><code># 改代码并提交 → 构建新镜像 → 改 .env 的 tag
+docker compose up -d backend backend_worker backend_beat
+docker compose up -d frontend</code></pre>
+      <div class="warn"><p><strong>顺序不能反。</strong>backend 重建后 IP 会变，frontend 的 nginx 缓存旧 IP，所有 <code>/api</code> 请求 502，直到 frontend 重建或重启。</p></div>
+
+      <h3>备份</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>对象</th><th>方式</th></tr></thead>
+          <tbody>
+            <tr><td>MySQL</td><td><code>docker exec bisheng-mysql mysqldump -uroot -p&lt;pw&gt; bisheng &gt; backup.sql</code></td></tr>
+            <tr><td>对象存储 / ES</td><td>挂载卷 <code>docker/data/</code></td></tr>
+            <tr><td>配置</td><td><code>.env</code>、<code>config.yaml</code>、<code>docker/nginx/</code></td></tr>
+            <tr><td>证书</td><td><code>/etc/nginx/ssl</code>、<code>/root/.acme.sh</code></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>日志</h3>
+      <pre><code>docker logs --since 30m bisheng-backend
+docker logs --since 30m bisheng-tls-proxy
+docker logs --since 30m bisheng-backend-worker</code></pre>
+    </section>
+
+    <section id="s11">
+      <h2><span class="secnum">11</span>故障排查</h2>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>现象</th><th>先查什么</th><th>常见原因</th></tr></thead>
+          <tbody>
+            <tr><td>全站 502</td><td>frontend 状态、backend 当前 IP</td><td>backend 重建后 frontend DNS 缓存未刷新</td></tr>
+            <tr><td>企业微信 19334</td><td>后端日志 <code>getuserinfo rejected</code></td><td>token 缓存轮换；可见范围或 agentid 不匹配</td></tr>
+            <tr><td>后端反复重启</td><td><code>ContextInitializationError</code></td><td>MinIO 策略缺 lifecycle 或凭据错误</td></tr>
+            <tr><td>证书不匹配</td><td><code>openssl s_client -servername</code></td><td>SAN 不含域名；续期失败</td></tr>
+            <tr><td>80 返回备案页</td><td>服务器本机 <code>curl 127.0.0.1</code></td><td>阿里云未备案拦截，发生在网络层</td></tr>
+            <tr><td>Workbench 连不上</td><td><code>iptables -S INPUT</code></td><td>SSH 白名单漏 <code>100.104.0.0/16</code></td></tr>
+            <tr><td>OnlyOffice 卡启动</td><td><code>docker logs bisheng-office</code></td><td>镜像 Erlang 版本过旧；shm 过小</td></tr>
+            <tr><td>磁盘告警</td><td><code>docker system df</code></td><td>历史镜像 tag 堆积，<code>docker rmi</code> 清理</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="s12">
+      <h2><span class="secnum">12</span>回滚</h2>
+      <pre><code>sed -i 's/^BISHENG_BACKEND_IMAGE=.*/BISHENG_BACKEND_IMAGE=bisheng-backend:src-v3.0.1-&lt;旧&gt;/' .env
+sed -i 's/^BISHENG_FRONTEND_IMAGE=.*/BISHENG_FRONTEND_IMAGE=bisheng-frontend:src-v3.0.1-&lt;旧&gt;/' .env
+docker compose up -d backend backend_worker backend_beat
+docker compose up -d frontend</code></pre>
+      <ul>
+        <li>代码：<code>git checkout &lt;上一个部署提交&gt;</code>，部署分支保留每次发布提交</li>
+        <li>证书：<code>/etc/nginx/ssl/server.*.bak-*</code></li>
+        <li>配置：<code>docker/.env.bak</code>（部署基线）</li>
+      </ul>
+    </section>
+
+    <section id="sa">
+      <h2><span class="secnum">A</span>目录与端口</h2>
+      <h3>目录</h3>
+      <pre><code>/root/app/bisheng/
+├── docker/
+│   ├── docker-compose.yml          # 主栈
+│   ├── docker-compose-office.yml   # OnlyOffice（独立项目）
+│   ├── .env                        # 600，含明文凭据
+│   ├── bisheng/config/config.yaml  # 挂载进容器（!env 引用）
+│   ├── nginx/tls/                  # tls-proxy 配置
+│   └── data/                       # MySQL / ES / MinIO 数据卷
+├── src/backend/                    # 后端源码（镜像构建输入）
+└── src/frontend/                   # 前端源码（产物本机构建）
+
+/etc/nginx/ssl/                     # server.crt/key
+/var/www/acme/                      # HTTP-01 webroot
+/root/.acme.sh/                     # acme.sh 与证书
+/usr/local/sbin/ssh-source-guard.sh # SSH 白名单</code></pre>
+
+      <h3>端口</h3>
+      <p><code>A → B</code> 表示 Docker 端口映射：宿主机开放 A，容器内监听 B。容器之间通信走容器端口（如 <code>minio:9000</code>），只有从宿主机或外部访问时才用宿主机端口。</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>端口</th><th>协议</th><th>容器</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">443</td><td>HTTPS</td><td>tls-proxy</td><td>唯一 Web 入口</td></tr>
+            <tr><td class="num-cell">80</td><td>HTTP</td><td>tls-proxy</td><td>ACME 验证 + 跳转 443</td></tr>
+            <tr><td class="num-cell">3001</td><td>HTTP</td><td>frontend</td><td>仅 127.0.0.1</td></tr>
+            <tr><td class="num-cell">7860</td><td>HTTP</td><td>backend</td><td>API，仅调试</td></tr>
+            <tr><td class="num-cell">3306</td><td>TCP (MySQL)</td><td>mysql</td><td>业务数据库</td></tr>
+            <tr><td class="num-cell">6379</td><td>TCP (Redis)</td><td>redis</td><td>缓存 / 队列</td></tr>
+            <tr><td class="num-cell">9200</td><td>HTTP</td><td>es</td><td>检索 API</td></tr>
+            <tr><td class="num-cell">9300</td><td>TCP</td><td>es</td><td>集群传输，单节点可不暴露</td></tr>
+            <tr><td class="num-cell">19530</td><td>gRPC</td><td>milvus</td><td>向量库</td></tr>
+            <tr><td class="num-cell">9091</td><td>HTTP</td><td>milvus</td><td>metrics / 健康检查</td></tr>
+            <tr><td class="num-cell">9100 → 9000</td><td>HTTP (S3)</td><td>minio</td><td>对象存储数据面</td></tr>
+            <tr><td class="num-cell">9001</td><td>HTTP</td><td>minio</td><td>管理台，按需</td></tr>
+            <tr><td class="num-cell">8080</td><td>HTTP</td><td>openfga</td><td>权限 API</td></tr>
+            <tr><td class="num-cell">8081</td><td>gRPC</td><td>openfga</td><td>权限 gRPC</td></tr>
+            <tr><td class="num-cell">2112</td><td>HTTP</td><td>openfga</td><td>metrics</td></tr>
+            <tr><td class="num-cell">8701 → 80</td><td>HTTP</td><td>office</td><td>OnlyOffice，可选</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <span>BiSheng 云部署手册 · v3.0.1 基线</span>
+    <span>操作前先确认：安全组、DNS、证书、镜像 tag</span>
+  </footer>
+</div>

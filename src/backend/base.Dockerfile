@@ -40,7 +40,18 @@ RUN uv sync --frozen --no-dev && uv cache clean
 ENV PATH="/app/.venv/bin:$PATH"
 
 # 安装 NLTK 数据
-RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger'); nltk.download('averaged_perceptron_tagger_eng')"
+# nltk.download 失败时只返回 False、不抛异常，镜像会"构建成功"却缺数据；
+# 同时 raw.githubusercontent.com 在部分网络不可达。这里直连优先、GitHub 代理兜底，
+# 最后显式校验四个数据集都在，缺任何一个就让构建失败。
+RUN mkdir -p /usr/share/nltk_data/tokenizers /usr/share/nltk_data/taggers && \
+    for p in tokenizers/punkt tokenizers/punkt_tab taggers/averaged_perceptron_tagger taggers/averaged_perceptron_tagger_eng; do \
+      name=$(basename "$p"); \
+      url="https://raw.githubusercontent.com/nltk/nltk_data/gh-pages/packages/$p.zip"; \
+      curl -fsSL --max-time 120 -o "/tmp/$name.zip" "$url" || \
+        curl -fsSL --max-time 300 -o "/tmp/$name.zip" "https://gh-proxy.com/$url"; \
+      python -c "import zipfile; zipfile.ZipFile('/tmp/$name.zip').extractall('/usr/share/nltk_data/$(dirname "$p")')"; \
+    done && \
+    python -c "import nltk; [nltk.data.find(p) for p in ('tokenizers/punkt','tokenizers/punkt_tab','taggers/averaged_perceptron_tagger','taggers/averaged_perceptron_tagger_eng')]"
 
 # 安装 playwright chromium（包已在 venv 里，此处下载 chromium 二进制及系统依赖）
 RUN playwright install chromium && playwright install-deps

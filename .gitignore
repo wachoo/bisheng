@@ -341,3 +341,6 @@ docker/.env.bak
 
 # Local TLS trust anchor for the private-CA HTTPS deployment (never commit)
 /bisheng-ca.crt
+
+# Local accelerated variant of src/backend/base.Dockerfile (runbook §3.2)
+src/backend/base.Dockerfile.fast

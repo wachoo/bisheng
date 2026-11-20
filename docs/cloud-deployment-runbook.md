@@ -59,7 +59,7 @@ Docker Hub 在部分云网络不可达，公共镜像统一走 `docker.m.daoclou
 ```bash
 git clone https://github.com/<org>/bisheng.git /root/app/bisheng
 cd /root/app/bisheng
-git checkout v3.0.1-1112-aliyun      # 部署分支
+git checkout uat/ecs-ali      # 部署分支
 ```
 
 部署分支约定：每套环境一个长期分支，功能分支通过 cherry-pick 合入。

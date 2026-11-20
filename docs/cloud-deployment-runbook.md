@@ -272,6 +272,24 @@ docker build -t bisheng-frontend:src-v3.0.1-<MMDD> /tmp/fe-release
 
 > 必须删旧目录再 COPY，否则历史构建的旧 chunk 会残留（易导致前端加载到旧资源）。
 
+#### 服务器本机构建（`src/frontend/Dockerfile`）
+
+也可以直接在这台机器上构建，不依赖本机产物：
+
+```bash
+# 基础镜像走代理（Docker Hub 不可达时）
+docker pull docker.m.daocloud.io/library/node:20-alpine
+docker tag  docker.m.daocloud.io/library/node:20-alpine node:20-alpine
+docker tag  docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest   # Dockerfile 最后一段是 FROM nginx
+
+cd src/frontend
+docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-<MMDD> .
+```
+
+- `FROM nginx` 没有固定版本，构建时会拉 Docker Hub 的 `library/nginx:latest`；这台机器访问不了 Docker Hub，**必须先给本地 nginx 打 `latest` 标签**（用 daocloud 镜像，或 TLS 反代在用的 `nginx:1.30-alpine`），否则报 `nginx: failed to do request … i/o timeout`
+- npm 依赖走 `src/frontend/.npmrc` 里的 `registry.npmmirror.com`，1900+ 包，构建约 15–20 分钟
+- 产物镜像约 140 MB（干净分层，比叠加式更新出来的镜像小很多）
+
 ---
 
 ## 4. 启动整套服务
@@ -539,6 +557,15 @@ docker compose exec frontend nginx -s reload   # 重建 backend 后刷新 upstre
 
 > **坑**：backend 重建后容器 IP 会变，frontend 的 nginx 在启动时已把 `backend:7860` 解析成旧 IP，所有 `/api` 请求 502（容器内直连 `127.0.0.1:7860` 却是 200）。`docker compose exec frontend nginx -s reload` 让它重新解析即可；`docker compose up -d frontend` 重建容器也有效，但没必要。
 
+更新前端镜像时同理，方向反过来（frontend → TLS 反代）：
+
+```bash
+docker compose up -d frontend
+cd nginx/tls && docker compose exec -T tls-proxy nginx -s reload
+```
+
+> TLS 反代里是静态的 `proxy_pass http://frontend:3001;`，frontend 重建后 IP 变化，不 reload 就是全站 502。
+
 ### 10.2 重启
 
 ```bash
@@ -569,7 +596,7 @@ docker logs --since 30m bisheng-backend-worker
 
 | 现象 | 首查 | 常见原因 |
 |---|---|---|
-| 全站 502 | frontend 容器状态 + backend IP | backend 重建后 frontend nginx 仍指向旧 IP；`docker compose exec frontend nginx -s reload` |
+| 全站 502 | frontend / TLS 反代状态 + 上下游 IP | backend 重建后 frontend nginx 仍指向旧 IP（reload frontend）；frontend 重建后 TLS 反代仍指向旧 IP（reload tls-proxy） |
 | 企业微信 19334 | 后端日志 `getuserinfo rejected` | token 缓存轮换（旧版本）；可见范围/agentid 不匹配 |
 | 后端反复重启 | `docker logs bisheng-backend` 找 `ContextInitializationError` | MinIO 策略缺 lifecycle / 凭据错误 |
 | 证书错误 | `openssl s_client -connect <域名>:443 -servername <域名>` | SAN 不含域名；续期失败 |

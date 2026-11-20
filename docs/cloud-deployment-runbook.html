@@ -564,6 +564,15 @@ COPY client/build/ /usr/share/nginx/html/client/
 EOF
 docker build -t bisheng-frontend:src-v3.0.1-&lt;MMDD&gt; /tmp/fe-release</code></pre>
       <div class="note"><p><strong>先删后拷。</strong>不清理旧目录，历史构建的 chunk 会残留在镜像里，浏览器可能加载到旧资源。</p></div>
+      <h3>服务器本机构建</h3>
+      <p>也可以在这台机器上直接构建，不依赖本机产物。Dockerfile 最后一段是 <code>FROM nginx</code>（未固定版本），Docker Hub 不可达时要先给本地 nginx 打 <code>latest</code> 标签：</p>
+      <pre><code>docker pull docker.m.daocloud.io/library/node:20-alpine
+docker tag  docker.m.daocloud.io/library/node:20-alpine node:20-alpine
+docker tag  docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest
+
+cd src/frontend
+docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-&lt;MMDD&gt; .</code></pre>
+      <div class="note"><p>不预先给 nginx 打标签会报 <code>nginx: failed to do request … i/o timeout</code>。npm 依赖走 <code>src/frontend/.npmrc</code> 的 <code>registry.npmmirror.com</code>，1900+ 包，约 15–20 分钟；产物镜像约 140 MB。</p></div>
     </section>
 
     <section id="s4">
@@ -705,6 +714,10 @@ curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code><
 docker compose up -d backend backend_worker backend_beat
 docker compose exec frontend nginx -s reload   # 重建 backend 后刷新 upstream 解析</code></pre>
       <div class="warn"><p><strong>顺序不能反。</strong>backend 重建后容器 IP 会变，frontend 的 nginx 在启动时已把 <code>backend:7860</code> 解析成旧 IP，所有 <code>/api</code> 请求 502（容器内直连 <code>127.0.0.1:7860</code> 却是 200）。<code>docker compose exec frontend nginx -s reload</code> 让它重新解析即可；重建 frontend 容器也有效，但没必要。</p></div>
+      <p>更新前端镜像时方向反过来（frontend → TLS 反代）：</p>
+      <pre><code>docker compose up -d frontend
+cd nginx/tls &amp;&amp; docker compose exec -T tls-proxy nginx -s reload</code></pre>
+      <div class="warn"><p>TLS 反代里是静态的 <code>proxy_pass http://frontend:3001;</code>，frontend 重建后 IP 变化，不 reload 就是全站 502。</p></div>
 
       <h3>备份</h3>
       <div class="tablewrap">
@@ -731,7 +744,7 @@ docker logs --since 30m bisheng-backend-worker</code></pre>
         <table>
           <thead><tr><th>现象</th><th>先查什么</th><th>常见原因</th></tr></thead>
           <tbody>
-            <tr><td>全站 502</td><td>frontend 状态、backend 当前 IP</td><td>backend 重建后 frontend nginx 仍指向旧 IP；<code>docker compose exec frontend nginx -s reload</code></td></tr>
+            <tr><td>全站 502</td><td>frontend / TLS 反代状态、上下游 IP</td><td>backend 重建后 frontend nginx 仍指向旧 IP（reload frontend）；frontend 重建后 TLS 反代仍指向旧 IP（reload tls-proxy）</td></tr>
             <tr><td>企业微信 19334</td><td>后端日志 <code>getuserinfo rejected</code></td><td>token 缓存轮换；可见范围或 agentid 不匹配</td></tr>
             <tr><td>后端反复重启</td><td><code>ContextInitializationError</code></td><td>MinIO 策略缺 lifecycle 或凭据错误</td></tr>
             <tr><td>证书不匹配</td><td><code>openssl s_client -servername</code></td><td>SAN 不含域名；续期失败</td></tr>

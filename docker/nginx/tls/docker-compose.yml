@@ -11,7 +11,7 @@ services:
       - ./conf.d:/etc/nginx/conf.d:ro
       - /etc/nginx/ssl:/etc/nginx/ssl:ro
       - /var/www/acme:/var/www/acme:ro
-      - ../../../src/frontend/client/public/WW_verify_7iogm2mkFQiFAekX.txt:/usr/share/nginx/html/WW_verify_7iogm2mkFQiFAekX.txt:ro
+      - ../../../src/frontend/platform/public/WW_verify_7iogm2mkFQiFAekX.txt:/usr/share/nginx/html/WW_verify_7iogm2mkFQiFAekX.txt:ro
     networks:
       - bisheng
 

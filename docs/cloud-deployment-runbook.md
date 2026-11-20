@@ -160,6 +160,7 @@ RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list.d/debia
 ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
 ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+ENV UV_HTTP_TIMEOUT=300
 EOF
   tail -n +2 base.Dockerfile; } > base.Dockerfile.fast
 
@@ -167,6 +168,8 @@ head -8 base.Dockerfile.fast        # 应看到 FROM 之后紧跟 RUN sed …
 ```
 
 （`base.Dockerfile.fast` 已加入 `.gitignore`，不会污染工作区。）
+
+`UV_HTTP_TIMEOUT=300` 是必须的：uv 默认 30s 超时，在约 0.8 MB/s 的经济型带宽上下载 `rapidfuzz`、`playwright` 这类几十 MB 的包会直接失败（实测报 `Failed to download … network timeout`）。
 
 **3. 后台构建（断开 SSH 不影响）**
 

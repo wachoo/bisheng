@@ -121,7 +121,17 @@ class QuotaRedis:
             raise QuotaRejected("request_already_started")
         return UsageEvent.model_validate_json(result[1])
 
-    async def check_and_start(self, event: UsageEvent, *, monthly_token_limit: int | None = None) -> UsageEvent:
+    async def check_and_start(
+        self, event: UsageEvent, *, monthly_token_limit: int | None = None, mode: str = ""
+    ) -> UsageEvent:
+        """Admit one model request.
+
+        ``mode``: ``""`` checks and writes; ``"probe"`` runs every check but writes
+        nothing (task-mode round start); ``"unmetered"`` writes but skips the
+        monthly-limit comparison (calls inside an already-checked round).
+        """
+        if mode not in {"", "probe", "unmetered"}:
+            raise ValueError("Unknown admission mode")
         event = UsageEvent.model_validate(event.model_dump())
         if event.status != "RUNNING" or event.event_version != 1:
             raise ValueError("Admission requires a new server-owned running event")
@@ -146,6 +156,7 @@ class QuotaRedis:
                 event.request_id,
                 str(int(event.started_at.replace(tzinfo=UTC).timestamp() * 1000)),
                 "" if monthly_token_limit is None else str(monthly_token_limit),
+                mode,
             ],
         )
 
@@ -441,7 +452,11 @@ class QuotaRedis:
         return {
             "used": used,
             "limit": limit,
-            "remaining": sum(max(allowed - models.get(model, 0), 0) for model, allowed in model_limits.items()),
+            "remaining": (
+                max(limit - used, 0)
+                if result[9] == "shared"
+                else sum(max(allowed - models.get(model, 0), 0) for model, allowed in model_limits.items())
+            ),
             "model_limits": model_limits,
             "source": "live",
             "as_of": datetime.fromtimestamp(int(result[4]) + int(result[5]) / 1000000, UTC),

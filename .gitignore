@@ -101,6 +101,7 @@ typings/
 # dotenv environment variables file
 .env
 .env.test
+.env.ali
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -282,6 +283,10 @@ docker/.generated/
 docker/data/*
 docker/mysql/data/*
 docker/office/bisheng/*.gz
+# Per-developer secrets for native-dev processes (see docker/.env.app.example).
+# Listed explicitly, not via .env*, because .env.example / .env.local /
+# .env.app.example are all tracked on purpose.
+docker/.env.app
 
 bisheng-sync.sh
 /deploy.sh
@@ -328,3 +333,6 @@ src/backend/migration_reports
 .cursor/
 config-106120.yaml
 values-106120.yaml
+
+# Local TLS trust anchor for the private-CA HTTPS deployment (never commit)
+/bisheng-ca.crt

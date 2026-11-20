@@ -148,23 +148,31 @@ docker tag docker.m.daocloud.io/library/python:3.11-slim python:3.11-slim
 
 **2. 生成加速版 Dockerfile**
 
-在 `base.Dockerfile` 的 `FROM` 之后插入源替换（不改仓库里的原文件）：
+在 `base.Dockerfile` 的 `FROM` 之后插入源替换，并把结果写成**构建上下文内**的 `base.Dockerfile.fast`。BuildKit 会把 `-f` 的裸文件名解析成上下文内的相对路径，放在 `/tmp` 会报
+`failed to read dockerfile: open /var/lib/docker/tmp/buildkit-mount…: no such file or directory`。
 
-```dockerfile
-FROM python:3.11-slim
-# 加速：Debian 源换阿里云镜像，PyPI 与 Playwright 同步走国内
+```bash
+cd src/backend
+{ head -n1 base.Dockerfile
+  cat <<'EOF'
 RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
     sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list
 ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
 ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+EOF
+  tail -n +2 base.Dockerfile; } > base.Dockerfile.fast
+
+head -8 base.Dockerfile.fast        # 应看到 FROM 之后紧跟 RUN sed …
 ```
+
+（`base.Dockerfile.fast` 已加入 `.gitignore`，不会污染工作区。）
 
 **3. 后台构建（断开 SSH 不影响）**
 
 ```bash
 cd src/backend
-nohup sh -c 'docker build -f /tmp/base.Dockerfile.fast \
+nohup sh -c 'docker build -f base.Dockerfile.fast --platform linux/amd64 \
   -t dataelement/bisheng-backend:base.v10 . > /tmp/base-build.log 2>&1; \
   echo "EXIT=$?" >> /tmp/base-build.log' >/dev/null 2>&1 &
 ```
@@ -177,7 +185,14 @@ grep -c "^#[0-9]* .*Get:" /tmp/base-build.log      # 已下包数
 docker images | grep base.v10                       # 成功才有输出
 ```
 
-成功标志是日志出现 `Successfully tagged dataelement/bisheng-backend:base.v10`。
+成功标志：BuildKit 日志出现 `naming to docker.io/dataelement/bisheng-backend:base.v10`，且末尾 `EXIT=0`。`Successfully tagged …` 是旧版 builder 的输出，BuildKit 下不会出现。
+
+完成后校验 NLTK 数据确实装进了基础镜像（`nltk.download` 失败时不报错，旧的 base 曾因此缺数据）：
+
+```bash
+docker run --rm dataelement/bisheng-backend:base.v10 python -c \
+  "import nltk; [nltk.data.find(p) for p in ('tokenizers/punkt','tokenizers/punkt_tab','taggers/averaged_perceptron_tagger','taggers/averaged_perceptron_tagger_eng')]; print('NLTK OK')"
+```
 
 **4. 用标准 Dockerfile 构建正式后端镜像**
 
@@ -194,7 +209,7 @@ docker build -t bisheng-backend:src-v3.0.1-<MMDD> .
 | pandoc / uv sync / NLTK / chromium | 15–25 分钟 |
 | 标准 Dockerfile 构建（依赖已缓存） | 5–10 分钟 |
 
-- **磁盘**：构建前至少预留 10 GB（apt 包 + venv + chromium + 构建层）
+- **磁盘**：构建前至少预留 10 GB（apt 包 + venv + chromium + 构建层）。不足时先 `docker builder prune -f`（实测可回收约 4 GB 构建缓存）和 `docker image prune -f`，再用 `df -h /` 确认
 - **内存**：构建前建议停掉 OnlyOffice 等非必要容器，腾出 2–3 GB
 - **带宽**：经济型实例出带宽约 5 Mbps，下载上限 0.7–0.8 MB/s；临时提到 100 Mbps 可快十倍
 

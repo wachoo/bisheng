@@ -19,7 +19,7 @@ services:
     profiles: [gateway]
     image: ${MYSQL_IMAGE:?set MYSQL_IMAGE in docker/.env (see .env.example)}
     environment:
-      MYSQL_PWD: "1234"
+      MYSQL_PWD: "${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}"
       GATEWAY_DATABASE_PASSWORD: ${BISHENG_GATEWAY_DB_PASSWORD:-}
     volumes:
       - ./gateway/init.sql:/schema.sql:ro
@@ -59,7 +59,7 @@ services:
         condition: service_healthy
       backend:
         condition: service_healthy
-    restart: on-failure
+    restart: unless-stopped
 
   mysql:
     container_name: bisheng-mysql
@@ -68,7 +68,7 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: "1234"  # 数据库密码，如果修改需要同步修改bisheng/congfig/config.yaml配置database_url的mysql连接密码
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}"  # 数据库密码，如果修改需要同步修改bisheng/congfig/config.yaml配置database_url的mysql连接密码
       MYSQL_DATABASE: bisheng
       TZ: Asia/Shanghai
     volumes:
@@ -80,7 +80,7 @@ services:
       interval: 20s
       timeout: 10s
       retries: 4
-    restart: on-failure
+    restart: unless-stopped
 
   openfga-migrate:
     container_name: bisheng-openfga-migrate
@@ -88,7 +88,7 @@ services:
     command: migrate
     environment:
       OPENFGA_DATASTORE_ENGINE: mysql
-      OPENFGA_DATASTORE_URI: "root:1234@tcp(mysql:3306)/openfga?parseTime=true"
+      OPENFGA_DATASTORE_URI: "root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
     depends_on:
       mysql:
         condition: service_healthy
@@ -100,7 +100,7 @@ services:
     environment:
       OPENFGA_DATASTORE_METRICS_ENABLED: "true"
       OPENFGA_DATASTORE_ENGINE: mysql
-      OPENFGA_DATASTORE_URI: "root:1234@tcp(mysql:3306)/openfga?parseTime=true"
+      OPENFGA_DATASTORE_URI: "root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
       OPENFGA_LOG_FORMAT: json
       OPENFGA_PLAYGROUND_ENABLED: "true"
       OPENFGA_CHECK_QUERY_CACHE_ENABLED: "true"
@@ -142,7 +142,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
-    restart: on-failure
+    restart: unless-stopped
 
   backend:
     container_name: bisheng-backend
@@ -154,6 +154,8 @@ services:
       TZ: Asia/Shanghai
       BISHENG_PRO: ${BISHENG_PRO:-false}
       BISHENG_GATEWAY_HMAC_SECRET: ${BISHENG_GATEWAY_HMAC_SECRET:-}
+      BS_DATABASE_URL: ${BS_DATABASE_URL:?set BS_DATABASE_URL in docker/.env}
+      BS_DSH_PLATFORM_PUBLIC_URL: ${BS_DSH_PLATFORM_PUBLIC_URL:?set BS_DSH_PLATFORM_PUBLIC_URL in docker/.env}
       BS_MILVUS_CONNECTION_ARGS: '{"host":"milvus","port":"19530","user":"","password":"","secure":false}'
       BS_MILVUS_IS_PARTITION: 'true'
       BS_MILVUS_PARTITION_SUFFIX: '1'
@@ -163,8 +165,8 @@ services:
       BS_MINIO_CERT_CHECK: 'false'
       BS_MINIO_ENDPOINT: 'minio:9000'
       BS_MINIO_SHAREPOINT: 'minio:9000'
-      BS_MINIO_ACCESS_KEY: '${MINIO_ROOT_USER:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}'
-      BS_MINIO_SECRET_KEY: '${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}'
+      BS_MINIO_ACCESS_KEY: '${MINIO_APP_ACCESS_KEY:?set MINIO_APP_ACCESS_KEY in docker/.env}'
+      BS_MINIO_SECRET_KEY: '${MINIO_APP_SECRET_KEY:?set MINIO_APP_SECRET_KEY in docker/.env}'
       # Shared with code-runner-*; editor "run once" executes in this process.
       BS_SANDBOX_CONF__TOKEN: ${SANDBOX_TOKEN:-bisheng-sandbox-local}
       # One URL per replica. Adding code-runner-3 means appending its URL here.
@@ -186,7 +188,7 @@ services:
     networks:
       - default
       - sandbox_net
-    restart: on-failure
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:7860/health"]
       start_period: 30s
@@ -213,6 +215,8 @@ services:
       TZ: Asia/Shanghai
       BISHENG_PRO: ${BISHENG_PRO:-false}
       BISHENG_GATEWAY_HMAC_SECRET: ${BISHENG_GATEWAY_HMAC_SECRET:-}
+      BS_DATABASE_URL: ${BS_DATABASE_URL:?set BS_DATABASE_URL in docker/.env}
+      BS_DSH_PLATFORM_PUBLIC_URL: ${BS_DSH_PLATFORM_PUBLIC_URL:?set BS_DSH_PLATFORM_PUBLIC_URL in docker/.env}
       BS_MILVUS_CONNECTION_ARGS: '{"host":"milvus","port":"19530","user":"","password":"","secure":false}'
       BS_MILVUS_IS_PARTITION: 'true'
       BS_MILVUS_PARTITION_SUFFIX: '1'
@@ -222,8 +226,8 @@ services:
       BS_MINIO_CERT_CHECK: 'false'
       BS_MINIO_ENDPOINT: 'minio:9000'
       BS_MINIO_SHAREPOINT: 'minio:9000'
-      BS_MINIO_ACCESS_KEY: '${MINIO_ROOT_USER:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}'
-      BS_MINIO_SECRET_KEY: '${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}'
+      BS_MINIO_ACCESS_KEY: '${MINIO_APP_ACCESS_KEY:?set MINIO_APP_ACCESS_KEY in docker/.env}'
+      BS_MINIO_SECRET_KEY: '${MINIO_APP_SECRET_KEY:?set MINIO_APP_SECRET_KEY in docker/.env}'
       # Shared with code-runner-*; override SANDBOX_TOKEN in .env for non-dev.
       BS_SANDBOX_CONF__TOKEN: ${SANDBOX_TOKEN:-bisheng-sandbox-local}
       # One URL per replica. Adding code-runner-3 means appending its URL here.
@@ -241,7 +245,63 @@ services:
     security_opt:
       - seccomp:unconfined
     command: sh entrypoint.sh worker  # 启动celery的异步worker服务，用来处理一些耗时的任务
-    restart: on-failure
+    restart: unless-stopped
+    networks:
+      - default
+      - sandbox_net
+    depends_on:
+      # Application context initialization connects to object storage.
+      minio:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      openfga:
+        condition: service_started
+      # Runners are not on this chain: a missing replica is 28001 at lease time,
+      # not a blocked mysql/redis healthcheck.
+
+
+  backend_beat:
+    container_name: bisheng-backend-beat
+    image: ${BISHENG_BACKEND_IMAGE:?set BISHENG_BACKEND_IMAGE in docker/.env (see .env.example)}
+    environment:
+      <<: *runtime-platform-env
+      TZ: Asia/Shanghai
+      BISHENG_PRO: ${BISHENG_PRO:-false}
+      BISHENG_GATEWAY_HMAC_SECRET: ${BISHENG_GATEWAY_HMAC_SECRET:-}
+      BS_DATABASE_URL: ${BS_DATABASE_URL:?set BS_DATABASE_URL in docker/.env}
+      BS_DSH_PLATFORM_PUBLIC_URL: ${BS_DSH_PLATFORM_PUBLIC_URL:?set BS_DSH_PLATFORM_PUBLIC_URL in docker/.env}
+      BS_MILVUS_CONNECTION_ARGS: '{"host":"milvus","port":"19530","user":"","password":"","secure":false}'
+      BS_MILVUS_IS_PARTITION: 'true'
+      BS_MILVUS_PARTITION_SUFFIX: '1'
+      BS_ELASTICSEARCH_URL: 'http://elasticsearch:9200'
+      BS_ELASTICSEARCH_SSL_VERIFY: '{}'  # 可根据自己部署的密码进行配置 '{"basic_auth": ("elastic", "elastic")}'
+      BS_MINIO_SCHEMA: 'false'
+      BS_MINIO_CERT_CHECK: 'false'
+      BS_MINIO_ENDPOINT: 'minio:9000'
+      BS_MINIO_SHAREPOINT: 'minio:9000'
+      BS_MINIO_ACCESS_KEY: '${MINIO_APP_ACCESS_KEY:?set MINIO_APP_ACCESS_KEY in docker/.env}'
+      BS_MINIO_SECRET_KEY: '${MINIO_APP_SECRET_KEY:?set MINIO_APP_SECRET_KEY in docker/.env}'
+      # Shared with code-runner-*; override SANDBOX_TOKEN in .env for non-dev.
+      BS_SANDBOX_CONF__TOKEN: ${SANDBOX_TOKEN:-bisheng-sandbox-local}
+      # One URL per replica. Adding code-runner-3 means appending its URL here.
+      BS_SANDBOX_CONF__ENDPOINTS: '["http://code-runner-1:8080","http://code-runner-2:8080"]'
+      # Run local code execution under a throwaway uid; set LOCAL_ISOLATION=off in .env to disable.
+      BS_SANDBOX_CONF__LOCAL_ISOLATION: ${LOCAL_ISOLATION:-uid}
+      # Document-parse provider tokens; see the note on the backend service. The
+      # knowledge worker is the process that actually calls the OCR service.
+      PADDLE_OCR_TOKEN: '${PADDLE_OCR_TOKEN:-}'
+      MINERU_V4_API_KEY: '${MINERU_V4_API_KEY:-}'
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/bisheng/config/config.yaml:/app/bisheng/config.yaml:ro
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/bisheng/entrypoint.sh:/app/entrypoint.sh:ro
+      - ${DOCKER_VOLUME_DIRECTORY:-.}/data/bisheng:/app/data
+    security_opt:
+      - seccomp:unconfined
+    command: sh entrypoint.sh beat
+    restart: unless-stopped
     networks:
       - default
       - sandbox_net
@@ -262,13 +322,13 @@ services:
     container_name: bisheng-frontend
     image: ${BISHENG_FRONTEND_IMAGE:?set BISHENG_FRONTEND_IMAGE in docker/.env (see .env.example)}
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       TZ: Asia/Shanghai
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/nginx/nginx.conf:/etc/nginx/nginx.conf
       - ${BISHENG_NGINX_CONF_DIR:-./nginx/conf.d}:/etc/nginx/conf.d
-    restart: on-failure
+    restart: unless-stopped
     depends_on:
       - backend
 
@@ -283,7 +343,7 @@ services:
       TZ: Asia/Shanghai
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/es:/bitnami/elasticsearch/data
-    restart: on-failure
+    restart: unless-stopped
 
   etcd:
     container_name: bisheng-milvus-etcd
@@ -297,7 +357,7 @@ services:
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/milvus-etcd:/etcd
     command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
-    restart: on-failure
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "etcdctl", "endpoint", "health"]
       interval: 30s
@@ -316,16 +376,19 @@ services:
     #          compose project and cannot resolve `minio`, so BS_MINIO_SHAREPOINT
     #          has to name the host for report templates to load. Restrict it to
     #          the networks that need it and put it behind TLS.
-    #   9001 - admin console, deliberately NOT published: it is a full web UI
-    #          over every stored file and nothing in the stack needs it. Reach
-    #          it with `ssh -L 9001:localhost:9001 <host>` when required.
+    #   9001 - admin console. Published on request so it can be opened from a
+    #          browser directly, but it is a full web UI over every stored
+    #          file: restrict the source range in the security group and never
+    #          keep the default root credentials. `ssh -L 9001:localhost:9001`
+    #          is the safer path when only an operator needs it.
     ports:
       - "9100:9000"
+      - "9001:9001"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/milvus-minio:/minio_data
     command: minio server /minio_data --console-address ":9001"
-    restart: on-failure
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
       interval: 30s
@@ -343,12 +406,12 @@ services:
       MINIO_ADDRESS: minio:9000
       # Without these Milvus falls back to its built-in minioadmin default and
       # cannot open its own segments.
-      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}
-      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_USER and MINIO_ROOT_PASSWORD in docker/.env (see .env.example)}
+      MINIO_ACCESS_KEY_ID: ${MINIO_MILVUS_ACCESS_KEY:?set MINIO_MILVUS_ACCESS_KEY in docker/.env}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_MILVUS_SECRET_KEY:?set MINIO_MILVUS_SECRET_KEY in docker/.env}
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - ${DOCKER_VOLUME_DIRECTORY:-.}/data/milvus:/var/lib/milvus
-    restart: on-failure
+    restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
       start_period: 90s
@@ -421,7 +484,7 @@ services:
       - bisheng-apps
     depends_on:
       - docker-socket-proxy
-    restart: on-failure
+    restart: unless-stopped
 
   # D2-B：把「全有全无的 root 等价权限」收成端点级。放行的端点由
   # runtime_manager.docker_backend.SOCKET_PROXY_PERMISSIONS 唯一定义，
@@ -464,7 +527,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - runtime-control
-    restart: on-failure
+    restart: unless-stopped
 
   # D12 L2：托管应用出站的唯一出口。它自己就是 runtime-manager 那个镜像，跑
   # separate entry point; v2 reads bounded policies from backend.
@@ -487,7 +550,7 @@ services:
       RTM_EGRESS_PROXY: 'egress-proxy:3128'
       RTM_EGRESS_LISTEN: '0.0.0.0:3128'
     networks: [default, bisheng-apps, bisheng-build]
-    restart: on-failure
+    restart: unless-stopped
 
   app-proxy:
     container_name: bisheng-app-proxy
@@ -511,7 +574,7 @@ services:
       - default
       - bisheng-apps
     depends_on: [backend]
-    restart: on-failure
+    restart: unless-stopped
 
   # Named replicas (not deploy.replicas). Platform endpoints list each of these.
   # No ports: — isolation is network unreachability, not hiding a host port.
@@ -568,7 +631,7 @@ services:
       SANDBOX_LEASE_TTL_S: "900"
     networks:
       - sandbox_net
-    restart: on-failure
+    restart: unless-stopped
 
   code-runner-2:
     <<: *code_runner

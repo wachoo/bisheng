@@ -334,5 +334,10 @@ src/backend/migration_reports
 config-106120.yaml
 values-106120.yaml
 
+# Deployment-local backups and editor swap files
+*.bak-*
+*.swp
+docker/.env.bak
+
 # Local TLS trust anchor for the private-CA HTTPS deployment (never commit)
 /bisheng-ca.crt

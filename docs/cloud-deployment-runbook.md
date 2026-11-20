@@ -534,10 +534,10 @@ ALLOW="<运维出口网段> 100.104.0.0/16"
 # 2. 构建/加载新镜像，tag 为 src-<版本>-<MMDD>
 # 3. 改 .env 的 BISHENG_*_IMAGE
 docker compose up -d backend backend_worker backend_beat
-docker compose up -d frontend     # 必须在 backend 之后，刷新 DNS
+docker compose exec frontend nginx -s reload   # 重建 backend 后刷新 upstream 解析
 ```
 
-> **坑**：backend 重建后 IP 变化，frontend 的 nginx 缓存了旧 IP，所有 `/api` 请求 502。必须重启/重建 frontend。
+> **坑**：backend 重建后容器 IP 会变，frontend 的 nginx 在启动时已把 `backend:7860` 解析成旧 IP，所有 `/api` 请求 502（容器内直连 `127.0.0.1:7860` 却是 200）。`docker compose exec frontend nginx -s reload` 让它重新解析即可；`docker compose up -d frontend` 重建容器也有效，但没必要。
 
 ### 10.2 重启
 
@@ -569,7 +569,7 @@ docker logs --since 30m bisheng-backend-worker
 
 | 现象 | 首查 | 常见原因 |
 |---|---|---|
-| 全站 502 | frontend 容器状态 + backend IP | backend 重建后 frontend DNS 缓存未刷新 |
+| 全站 502 | frontend 容器状态 + backend IP | backend 重建后 frontend nginx 仍指向旧 IP；`docker compose exec frontend nginx -s reload` |
 | 企业微信 19334 | 后端日志 `getuserinfo rejected` | token 缓存轮换（旧版本）；可见范围/agentid 不匹配 |
 | 后端反复重启 | `docker logs bisheng-backend` 找 `ContextInitializationError` | MinIO 策略缺 lifecycle / 凭据错误 |
 | 证书错误 | `openssl s_client -connect <域名>:443 -servername <域名>` | SAN 不含域名；续期失败 |

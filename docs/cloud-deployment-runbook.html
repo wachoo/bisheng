@@ -464,7 +464,7 @@
 
       <h4>离线 / 纯内网部署</h4>
       <ol>
-        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 12 个 <code>.tar.gz</code>（约 5.8GB）直接 <code>docker load</code>，无需访问 registry。</li>
+        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 12 个 <code>.tar.gz</code>（约 5.8GB）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
         <li><strong>证书</strong>：使用内部 CA 或商业证书，可关闭 ACME 出向。</li>
         <li><strong>模型 / 解析</strong>：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。</li>
         <li><strong>企微</strong>：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行三个企微域名，或配置正向代理。</li>
@@ -623,6 +623,26 @@ docker tag  docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest
 cd src/frontend
 docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-&lt;MMDD&gt; .</code></pre>
       <div class="note"><p>不预先给 nginx 打标签会报 <code>nginx: failed to do request … i/o timeout</code>。npm 依赖走 <code>src/frontend/.npmrc</code> 的 <code>registry.npmmirror.com</code>，1900+ 包，约 15–20 分钟；产物镜像约 140 MB。</p></div>
+
+      <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
+      <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
+      <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
+ls docker/data/img          # 12 个 *.tar.gz + MANIFEST.txt
+
+for f in docker/data/img/*.tar.gz; do
+  echo "== $f"
+  gzip -dc "$f" | docker load
+done</code></pre>
+      <ul>
+        <li>归档是 gzip 压缩的 <code>docker save</code> 产物，<code>docker load</code> 会按内部 <code>manifest.json</code> <strong>保留原始镜像名和 tag</strong>（如 <code>cr.dataelem.com/mysql:8.0</code>），不需要重新打 tag</li>
+        <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
+        <li>归档只含<strong>运行镜像</strong>；<code>dataelement/bisheng-backend:base.v10</code> 是构建基础镜像，不在其中，需要重建时按上文 base 镜像构建处理</li>
+      </ul>
+      <p>校验：</p>
+      <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \
+  | grep -E 'bisheng|mysql|redis|milvus|minio|elasticsearch|etcd|openfga|nginx|onlyoffice'
+cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大小</code></pre>
+      <p>导入后按「代码与配置」一节设置 <code>.env</code> 的 <code>BISHENG_BACKEND_IMAGE</code> / <code>BISHENG_FRONTEND_IMAGE</code> 等，再执行下一节的启动命令。</p>
     </section>
 
     <section id="s4">

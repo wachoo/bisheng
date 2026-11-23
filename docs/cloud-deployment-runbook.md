@@ -90,7 +90,7 @@ Docker 内部端口（3306 / 6379 / 9000 / 9100 / 19530 / 9200 / 7860 / 8080 等
 
 #### 离线 / 纯内网部署
 
-1. **镜像**：`docker/data/img` 下的 12 个 `.tar.gz`（约 5.8GB）直接 `docker load`，无需访问 registry（步骤见 §3.4）。
+1. **镜像**：`docker/data/img` 下的 13 个 `.tar.gz`（约 5.8GB，含 12 个运行镜像和构建用的 `python:3.11-slim`）直接 `docker load`，无需访问 registry（步骤见 §3.4）。
 2. **证书**：使用内部 CA 或商业证书，可关闭 ACME 出向（`acme-v02.api.letsencrypt.org`）。
 3. **模型 / 解析**：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。
 4. **企微**：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行上表三个企微域名，或给平台配置正向代理。
@@ -345,7 +345,7 @@ docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-<MMDD> .
 
 ```bash
 cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
-ls docker/data/img          # 12 个 *.tar.gz + MANIFEST.txt
+ls docker/data/img          # 13 个 *.tar.gz + MANIFEST.txt
 
 for f in docker/data/img/*.tar.gz; do
   echo "== $f"
@@ -364,7 +364,7 @@ cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大�
 ```
 
 - 导入后按 §2.2 设置 `.env` 的 `BISHENG_BACKEND_IMAGE` / `BISHENG_FRONTEND_IMAGE` 等，再执行 §4.2 启动
-- 归档只含**运行镜像**；`dataelement/bisheng-backend:base.v10` 是构建基础镜像，不在其中，需要重新构建时按 §3.2 处理
+- 归档包含 12 个**运行镜像**和 `python:3.11-slim`（构建 `base.v10` 的基础镜像）；`base.v10` 本身不在其中，需要重新构建时按 §3.2 处理（`base.Dockerfile` 的第一行就是 `FROM python:3.11-slim`）
 
 ---
 

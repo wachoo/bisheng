@@ -419,7 +419,13 @@
       <p><code>100.104.0.0/16</code> 是控制台远程连接（Workbench）的来源网段，漏掉它就会出现「实例登录失败」而 SSH 本身是好的。</p>
 
       <h3>镜像仓库</h3>
-      <pre><code>docker login cr.dataelem.com</code></pre>
+      <pre><code>docker login cr.dataelem.com    # 私有仓库，凭据由供应商提供</code></pre>
+      <ul>
+        <li><strong>必须在拉取镜像之前完成</strong>，否则第一次 <code>docker compose up -d</code> 会在拉私有镜像时 401/403</li>
+        <li><code>install.sh</code> 会读取 <code>.env</code> 里的 <code>CR_REGISTRY_USERNAME</code> / <code>CR_REGISTRY_PASSWORD</code> 自动登录；手工部署或单独 <code>docker pull</code> 时要先执行上面的命令</li>
+        <li>验证：<code>docker pull cr.dataelem.com/mysql:8.0</code> 能拉取即登录成功</li>
+        <li>用 <code>docker/data/img</code> 里的离线 tar.gz <code>docker load</code> 导入镜像时<strong>不需要</strong>登录</li>
+      </ul>
       <p>部分云网络访问 Docker Hub 会失败，公共镜像统一走 <code>docker.m.daocloud.io</code> 或私有仓库。</p>
 
       <h3>网络出入口清单</h3>
@@ -498,7 +504,7 @@ chmod 600 .env</code></pre>
     <section id="s3">
       <h2><span class="secnum">03</span>镜像获取与构建</h2>
       <h3>中间件</h3>
-      <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。</p>
+      <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。 <strong>拉取前先完成「镜像仓库」一节的 <code>docker login cr.dataelem.com</code></strong>；离线 tar.gz 导入则跳过登录。</p>
 
       <h3>后端</h3>
       <p>标准构建的第一行是 <code>FROM dataelement/bisheng-backend:base.v10</code>。这个 base 镜像由 <code>src/backend/base.Dockerfile</code> 构建：CI 在推送 <code>base.v*</code> tag 时运行它，版本号取自 tag（<code>base.v10</code> → <code>:base.v10-amd64</code>，再由 multi-arch manifest 合成最终 tag）。</p>

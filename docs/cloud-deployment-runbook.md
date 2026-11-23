@@ -48,6 +48,14 @@ dig +short ai.gzbwa.site
 docker login cr.dataelem.com    # 私有仓库，凭据由供应商提供
 ```
 
+- **必须在拉取镜像之前完成**，否则第一次 `docker compose up -d` 会在拉私有镜像时 401/403
+- `install.sh` 会读取 `.env` 里的 `CR_REGISTRY_USERNAME` / `CR_REGISTRY_PASSWORD` 自动登录；手工部署或单独 `docker pull` 时要先执行上面的命令
+- 验证：
+  ```bash
+  docker pull cr.dataelem.com/mysql:8.0    # 能拉取即登录成功
+  ```
+- 用 `docker/data/img` 里的离线 tar.gz `docker load` 导入镜像时**不需要**登录（见 §1.4 离线部署）
+
 Docker Hub 在部分云网络不可达，公共镜像统一走 `docker.m.daocloud.io` 或 `cr.dataelem.com`。
 
 ### 1.4 网络出入口清单
@@ -142,7 +150,7 @@ chmod 600 .env
 
 ### 3.1 中间件镜像
 
-全部来自私有仓库，直接 `docker pull` 即可（compose 会自动拉取）。
+全部来自私有仓库，直接 `docker pull` 即可（compose 会自动拉取）。**拉取前先完成 §1.3 的 `docker login cr.dataelem.com`**；如果是用离线 tar.gz 导入镜像，则跳过登录。
 
 ### 3.2 后端镜像
 

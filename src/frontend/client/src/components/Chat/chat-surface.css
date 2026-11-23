@@ -104,7 +104,13 @@ body[data-dsh-chat-theme=dark] .dsh-web-chat .dsh-history-new-chat { background:
 .dsh-chat-hero .dsh-composer-submit:disabled { background:rgb(var(--fill-3)); color:rgb(var(--text-3)); opacity:1; }
 .dsh-chat-hero .dsh-composer-submit:hover:enabled { background:#7aaaff; }
 .dsh-chat-hero .dsh-chat-composer .dsh-composer-editor { min-height:52px; }
-.dsh-chat-surface .dsh-composer-toolbar .input-bottom-left { flex:1 1 auto; gap:12px; overflow:visible; }
+.dsh-chat-surface .dsh-composer-toolbar .input-bottom-left { flex:1 1 0%; gap:6px; overflow:visible; container:composer-actions / inline-size; }
+.dsh-composer-shortcuts { display:flex; align-items:center; gap:2px; }
+.dsh-composer-shortcuts .action-label { display:none; }
+.dsh-composer-shortcuts .action-divider { border-inline-start:1px solid rgb(var(--border-base)); padding-inline-start:4px; margin-inline-start:2px; }
+@container composer-actions (min-width:310px) {
+  .dsh-composer-shortcuts .action-label { display:inline; }
+}
 /* Conversation header: 10px top inset and a single 30px title row. */
 .dsh-chat-surface .dsh-chat-header {
   box-sizing:border-box;

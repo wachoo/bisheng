@@ -421,6 +421,50 @@
       <h3>镜像仓库</h3>
       <pre><code>docker login cr.dataelem.com</code></pre>
       <p>部分云网络访问 Docker Hub 会失败，公共镜像统一走 <code>docker.m.daocloud.io</code> 或私有仓库。</p>
+
+      <h3>网络出入口清单</h3>
+      <p>交付给客户运维时可整节作为放行依据。原则：<strong>入向只开 443（+80 用于证书），其余端口保持内网</strong>；出向按实际启用的功能逐项放行，未启用的功能对应域名可以不开。</p>
+
+      <h4>入方向（公网 → 平台）</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>端口</th><th>协议</th><th>来源</th><th>用途</th><th>不开的影响</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">443</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td>唯一 Web 入口：platform <code>/</code>、client <code>/workspace</code>、<code>/api</code> → backend:7860、<code>/apps</code>、企微回调、根目录 <code>WW_verify_*.txt</code></td><td>平台与企微登录全部不可用</td></tr>
+            <tr><td class="num-cell">80</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td>ACME HTTP-01 续期 / 301 跳转 443（TLS-ALPN 或 DNS-01 时可关闭）</td><td>无法用 HTTP-01 续期；已签发证书不受影响</td></tr>
+            <tr><td class="num-cell">443</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td><code>office.&lt;域名&gt;</code> 虚拟主机 → OnlyOffice，浏览器直连，<code>office_url</code> 必须 HTTPS</td><td>文档预览/编辑不可用</td></tr>
+            <tr><td class="num-cell">9001</td><td>TCP</td><td>运维 IP</td><td>MinIO 管理台（可选）</td><td>无影响</td></tr>
+            <tr><td class="num-cell">22</td><td>TCP</td><td>运维出口 + <code>100.104.0.0/16</code></td><td>SSH / 云控制台 Workbench</td><td>无法运维</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Docker 内部端口（3306 / 6379 / 9000 / 9100 / 19530 / 9200 / 7860 / 8080 等）不要对公网开放。企业微信服务器需要回访 443 上的回调地址，入口域名必须公网可达，且与企微后台的「可信域名 / 授权回调域」完全一致。</p>
+
+      <h4>出方向（平台 → 互联网）</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>功能</th><th>目标地址</th><th>端口</th><th>触发条件 / 关闭影响</th></tr></thead>
+          <tbody>
+            <tr><td>企微 SSO / 组织同步</td><td><code>qyapi.weixin.qq.com</code>、<code>open.weixin.qq.com</code>、<code>login.work.weixin.qq.com</code></td><td>443</td><td>使用企微登录或通讯录同步；关闭后无法登录/同步</td></tr>
+            <tr><td>大模型 / 嵌入 / 重排</td><td>按供应商：<code>dashscope.aliyuncs.com</code>、<code>ark.cn-beijing.volces.com</code>、<code>api.openai.com</code> 等</td><td>443</td><td>使用托管模型时；改为自建内网模型则无需</td></tr>
+            <tr><td>文档解析</td><td><code>mineru.net</code>（MinerU V4）、<code>paddleocr.aistudio-app.com</code>（PaddleOCR jobs）</td><td>443</td><td>取决于 <code>knowledges.loader_provider</code>；本地/自建 ETL4LM 则无需</td></tr>
+            <tr><td>语音转写 / TTS</td><td>阿里云 <code>dashscope</code> / <code>nls-gateway</code></td><td>443 / wss</td><td>音视频知识库转写、TTS 时</td></tr>
+            <tr><td>证书签发与续期</td><td><code>acme-v02.api.letsencrypt.org</code></td><td>443</td><td>使用 Let's Encrypt；内部 CA 或商业证书无需</td></tr>
+            <tr><td>安装 / 升级（一次性）</td><td><code>cr.dataelem.com</code>、<code>docker.m.daocloud.io</code>、<code>mirrors.aliyun.com</code>、<code>registry.npmmirror.com</code>、<code>cdn.npmmirror.com</code>、<code>astral.sh</code>、<code>github.com</code>、<code>gh-proxy.com</code>、PyPI 镜像</td><td>443</td><td>构建镜像、安装系统依赖时；离线导入镜像后运行期不需要</td></tr>
+            <tr><td>托管应用运行时</td><td>应用基础镜像所在 registry</td><td>443</td><td>启用 <code>app-runtime</code> 且需要拉取镜像时</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>离线 / 纯内网部署</h4>
+      <ol>
+        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 12 个 <code>.tar.gz</code>（约 5.8GB）直接 <code>docker load</code>，无需访问 registry。</li>
+        <li><strong>证书</strong>：使用内部 CA 或商业证书，可关闭 ACME 出向。</li>
+        <li><strong>模型 / 解析</strong>：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。</li>
+        <li><strong>企微</strong>：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行三个企微域名，或配置正向代理。</li>
+        <li><strong>时间同步</strong>：使用内网 NTP。</li>
+      </ol>
+      <div class="note"><p><strong>最小放行清单：</strong>入向 443（+ 按需 80 与 <code>office.&lt;域名&gt;</code>），出向企微三个域名 + 实际使用的模型/解析域名；其余都是安装期依赖，可离线解决。</p></div>
     </section>
 
     <section id="s2">

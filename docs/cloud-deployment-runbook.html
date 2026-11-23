@@ -464,7 +464,7 @@
 
       <h4>离线 / 纯内网部署</h4>
       <ol>
-        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 14 个 <code>.tar.gz</code>（约 7.3GB，含 12 个运行镜像、构建用的 <code>python:3.11-slim</code> 和 <code>base.v10</code>）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
+        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 15 个 <code>.tar.gz</code>（约 7.4GB，含 12 个运行镜像、构建用的 <code>python:3.11-slim</code> 和 <code>base.v10</code>，以及 CPU 不支持 x86-64-v2 时替换用的 <code>mysql:8.0.43-debian</code>）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
         <li><strong>证书</strong>：使用内部 CA 或商业证书，可关闭 ACME 出向。</li>
         <li><strong>模型 / 解析</strong>：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。</li>
         <li><strong>企微</strong>：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行三个企微域名，或配置正向代理。</li>
@@ -505,11 +505,12 @@ chmod 600 .env</code></pre>
       <h2><span class="secnum">03</span>镜像获取与构建</h2>
       <h3>中间件</h3>
       <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。 <strong>拉取前先完成「镜像仓库」一节的 <code>docker login cr.dataelem.com</code></strong>；离线 tar.gz 导入则跳过登录。</p>
+      <div class="note"><p><strong>MySQL 有两个变体：</strong><code>cr.dataelem.com/mysql:8.0</code> 基于 Oracle Linux 9，glibc 要求 <code>x86-64-v2</code>；<code>mysql:8.0.43-debian</code> 基于 Debian 12，只要求 <code>x86-64-baseline</code>。私有云 CPU 较老、报 <code>Fatal glibc error: CPU does not support x86-64-v2</code> 时改用后者（离线归档已包含）。</p></div>
 
       <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
       <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
       <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
-ls docker/data/img          # 14 个 *.tar.gz + MANIFEST.txt
+ls docker/data/img          # 15 个 *.tar.gz + MANIFEST.txt
 
 for f in docker/data/img/*.tar.gz; do
   echo "== $f"
@@ -519,6 +520,7 @@ done</code></pre>
         <li>归档是 gzip 压缩的 <code>docker save</code> 产物，<code>docker load</code> 会按内部 <code>manifest.json</code> <strong>保留原始镜像名和 tag</strong>（如 <code>cr.dataelem.com/mysql:8.0</code>），不需要重新打 tag</li>
         <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
         <li>归档包含 12 个<strong>运行镜像</strong>、<code>python:3.11-slim</code> 和 <code>dataelement/bisheng-backend:base.v10</code>（应用镜像的构建基础）；离线环境可直接用 <code>base.v10</code> 构建应用镜像，跳过「后端」一节的 base 构建；只有需要重建 base 时才用得上 <code>python:3.11-slim</code></li>
+        <li>额外带一个 <code>mysql:8.0.43-debian</code>（Debian 12，glibc 只要求 <code>x86-64-baseline</code>）：宿主 CPU 不支持 x86-64-v2 时用它替换 <code>cr.dataelem.com/mysql:8.0</code>，见「故障排查」一节</li>
       </ul>
       <p>校验：</p>
       <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \
@@ -823,6 +825,7 @@ docker logs --since 30m bisheng-backend-worker</code></pre>
             <tr><td>Workbench 连不上</td><td><code>iptables -S INPUT</code></td><td>SSH 白名单漏 <code>100.104.0.0/16</code></td></tr>
             <tr><td>OnlyOffice 卡启动</td><td><code>docker logs bisheng-office</code></td><td>镜像 Erlang 版本过旧；shm 过小</td></tr>
             <tr><td>磁盘告警</td><td><code>docker system df</code></td><td>历史镜像 tag 堆积，<code>docker rmi</code> 清理</td></tr>
+            <tr><td>MySQL 启动即退出</td><td><code>docker logs bisheng-mysql</code> 是否含 <code>Fatal glibc error: CPU does not support x86-64-v2</code></td><td>OL9 基础镜像要求 x86-64-v2；改用 <code>mysql:8.0.43-debian</code>（离线归档已带），或让虚拟化层暴露 host CPU</td></tr>
           </tbody>
         </table>
       </div>

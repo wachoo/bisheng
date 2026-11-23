@@ -506,6 +506,26 @@ chmod 600 .env</code></pre>
       <h3>中间件</h3>
       <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。 <strong>拉取前先完成「镜像仓库」一节的 <code>docker login cr.dataelem.com</code></strong>；离线 tar.gz 导入则跳过登录。</p>
 
+      <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
+      <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
+      <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
+ls docker/data/img          # 13 个 *.tar.gz + MANIFEST.txt
+
+for f in docker/data/img/*.tar.gz; do
+  echo "== $f"
+  gzip -dc "$f" | docker load
+done</code></pre>
+      <ul>
+        <li>归档是 gzip 压缩的 <code>docker save</code> 产物，<code>docker load</code> 会按内部 <code>manifest.json</code> <strong>保留原始镜像名和 tag</strong>（如 <code>cr.dataelem.com/mysql:8.0</code>），不需要重新打 tag</li>
+        <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
+        <li>归档包含 12 个<strong>运行镜像</strong>和 <code>python:3.11-slim</code>（构建 <code>base.v10</code> 的基础镜像）；<code>base.v10</code> 本身不在其中，需要重建时按「后端」一节的 base 镜像构建处理</li>
+      </ul>
+      <p>校验：</p>
+      <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \
+  | grep -E 'bisheng|mysql|redis|milvus|minio|elasticsearch|etcd|openfga|nginx|onlyoffice'
+cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大小</code></pre>
+      <p>导入后按「代码与配置」一节设置 <code>.env</code> 的 <code>BISHENG_BACKEND_IMAGE</code> / <code>BISHENG_FRONTEND_IMAGE</code> 等，再执行「启动整套服务」一节的启动命令。</p>
+
       <h3>后端</h3>
       <p>标准构建的第一行是 <code>FROM dataelement/bisheng-backend:base.v10</code>。这个 base 镜像由 <code>src/backend/base.Dockerfile</code> 构建：CI 在推送 <code>base.v*</code> tag 时运行它，版本号取自 tag（<code>base.v10</code> → <code>:base.v10-amd64</code>，再由 multi-arch manifest 合成最终 tag）。</p>
       <div class="tablewrap">
@@ -624,25 +644,6 @@ cd src/frontend
 docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-&lt;MMDD&gt; .</code></pre>
       <div class="note"><p>不预先给 nginx 打标签会报 <code>nginx: failed to do request … i/o timeout</code>。npm 依赖走 <code>src/frontend/.npmrc</code> 的 <code>registry.npmmirror.com</code>，1900+ 包，约 15–20 分钟；产物镜像约 140 MB。</p></div>
 
-      <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
-      <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
-      <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
-ls docker/data/img          # 13 个 *.tar.gz + MANIFEST.txt
-
-for f in docker/data/img/*.tar.gz; do
-  echo "== $f"
-  gzip -dc "$f" | docker load
-done</code></pre>
-      <ul>
-        <li>归档是 gzip 压缩的 <code>docker save</code> 产物，<code>docker load</code> 会按内部 <code>manifest.json</code> <strong>保留原始镜像名和 tag</strong>（如 <code>cr.dataelem.com/mysql:8.0</code>），不需要重新打 tag</li>
-        <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
-        <li>归档包含 12 个<strong>运行镜像</strong>和 <code>python:3.11-slim</code>（构建 <code>base.v10</code> 的基础镜像）；<code>base.v10</code> 本身不在其中，需要重建时按上文 base 镜像构建处理</li>
-      </ul>
-      <p>校验：</p>
-      <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \
-  | grep -E 'bisheng|mysql|redis|milvus|minio|elasticsearch|etcd|openfga|nginx|onlyoffice'
-cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大小</code></pre>
-      <p>导入后按「代码与配置」一节设置 <code>.env</code> 的 <code>BISHENG_BACKEND_IMAGE</code> / <code>BISHENG_FRONTEND_IMAGE</code> 等，再执行下一节的启动命令。</p>
     </section>
 
     <section id="s4">

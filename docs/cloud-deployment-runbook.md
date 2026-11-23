@@ -50,6 +50,46 @@ docker login cr.dataelem.com    # 私有仓库，凭据由供应商提供
 
 Docker Hub 在部分云网络不可达，公共镜像统一走 `docker.m.daocloud.io` 或 `cr.dataelem.com`。
 
+### 1.4 网络出入口清单
+
+> 交付给客户运维时可整节作为放行依据。原则：**入向只开 443（+80 用于证书），其余端口保持内网**；出向按实际启用的功能逐项放行，未启用的功能对应域名可以不开。
+
+#### 入方向（公网 → 平台）
+
+| 端口 | 协议 | 来源 | 用途 | 不开的影响 |
+|---|---|---|---|---|
+| 443 | TCP | `0.0.0.0/0` | 唯一 Web 入口：platform `/`、client `/workspace`、`/api` → backend:7860、`/apps`、企微回调 `/api/v1/user/wecom/callback`、根目录 `WW_verify_*.txt` | 平台与企微登录全部不可用 |
+| 80 | TCP | `0.0.0.0/0` | ACME HTTP-01 续期 / 301 跳转 443（走 TLS-ALPN 或 DNS-01 时可关闭） | 无法用 HTTP-01 续期；已签发证书不受影响 |
+| 443（`office.<域名>` 虚拟主机） | TCP | `0.0.0.0/0` | OnlyOffice 文档服务，浏览器直连，`office_url` 必须 HTTPS | 文档预览/编辑不可用 |
+| 9001 | TCP | 运维 IP | MinIO 管理台（可选） | 无影响 |
+| 22 | TCP | 运维出口 IP + `100.104.0.0/16` | SSH / 云控制台 Workbench | 无法运维 |
+
+Docker 内部端口（3306 / 6379 / 9000 / 9100 / 19530 / 9200 / 7860 / 8080 等）不要对公网开放。
+
+> 企业微信服务器需要回访 443 上的回调地址，所以入口域名必须公网可达，且与企微后台的「可信域名 / 授权回调域」完全一致。
+
+#### 出方向（平台 → 互联网）
+
+| 功能 | 目标地址 | 端口 | 触发条件 / 关闭影响 |
+|---|---|---|---|
+| 企微 SSO / 组织同步 | `qyapi.weixin.qq.com`、`open.weixin.qq.com`、`login.work.weixin.qq.com` | 443 | 使用企微登录或企微通讯录同步；关闭后无法登录/同步 |
+| 大模型 / 嵌入 / 重排 | 按所选供应商：`dashscope.aliyuncs.com`、`ark.cn-beijing.volces.com`、`api.openai.com` 等 | 443 | 使用托管模型时；改为自建内网模型则无需 |
+| 文档解析 | `mineru.net`（MinerU V4）、`paddleocr.aistudio-app.com`（PaddleOCR jobs） | 443 | 取决于 `knowledges.loader_provider`；本地/自建 ETL4LM 解析则无需 |
+| 语音转写 / TTS | 阿里云 `dashscope` / `nls-gateway` | 443 / wss | 音视频知识库转写、TTS 时 |
+| 证书签发与续期 | `acme-v02.api.letsencrypt.org` | 443 | 使用 Let's Encrypt；内部 CA 或商业证书无需 |
+| 安装 / 升级（一次性） | `cr.dataelem.com`、`docker.m.daocloud.io`、`mirrors.aliyun.com`、`registry.npmmirror.com`、`cdn.npmmirror.com`、`astral.sh`、`github.com`、`gh-proxy.com`、PyPI 镜像 | 443 | 构建镜像、安装系统依赖时；离线导入镜像后运行期不需要 |
+| 托管应用运行时 | 应用基础镜像所在 registry | 443 | 启用 `app-runtime` 且需要拉取镜像时 |
+
+#### 离线 / 纯内网部署
+
+1. **镜像**：`docker/data/img` 下的 12 个 `.tar.gz`（约 5.8GB）直接 `docker load`，无需访问 registry。
+2. **证书**：使用内部 CA 或商业证书，可关闭 ACME 出向（`acme-v02.api.letsencrypt.org`）。
+3. **模型 / 解析**：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。
+4. **企微**：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行上表三个企微域名，或给平台配置正向代理。
+5. **时间同步**：使用内网 NTP。
+
+**最小放行清单**：入向 443（+ 按需 80 与 `office.<域名>`），出向企微三个域名 + 实际使用的模型/解析域名；其余都是安装期依赖，可离线解决。
+
 ---
 
 ## 2. 代码与配置

@@ -1,11 +1,26 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+from urllib.parse import quote
 
 import pytest
 from sqlalchemy.dialects import sqlite
 
 from bisheng.knowledge.domain.models.knowledge_file import KnowledgeFileDao
 from bisheng.knowledge.domain.services.knowledge_service import KnowledgeService
+
+
+def test_channel_upload_cleanup_uses_original_temporary_object_key(monkeypatch):
+    storage = MagicMock(tmp_bucket="temporary")
+    storage.get_minio_share_host.return_value = "http://minio:9000"
+    monkeypatch.setattr(
+        "bisheng.knowledge.domain.services.knowledge_service.get_minio_storage_sync", lambda: storage
+    )
+    key = "channel_articles/unique/铁路招标公告（修订） 100%+附录.md"
+    KnowledgeService.remove_unused_file(f"http://minio:9000/temporary/{quote(key)}?signature=test")
+    storage.remove_object_sync.assert_called_once_with(bucket_name="temporary", object_name=key)
+    KnowledgeService.remove_unused_file(f"http://minio:9000/permanent/{quote(key)}")
+    KnowledgeService.remove_unused_file(f"http://other:9000/temporary/{quote(key)}")
+    assert storage.remove_object_sync.call_count == 1
 
 
 def _compile_sql(statement) -> str:

@@ -339,11 +339,14 @@ values-106120.yaml
 
 # Local accelerated variant of src/backend/base.Dockerfile (runbook §3.2)
 src/backend/base.Dockerfile.fast
+base.Dockerfile.fast
 
 # Local development overrides — keep them on the workstation (runbook/Makefile assume they exist locally)
 docker/.env.local*
 docker/.env.bak*
+docker/.env.gzb
 docker/docker-compose.local*.yml
+docker/docker-compose.gzb*.yml
 docker/docker-compose.yml.bak*
 docker/docker-compose-office.yml.bak*
 docker/bisheng/config/config.yaml.bak*

@@ -90,7 +90,7 @@ Docker 内部端口（3306 / 6379 / 9000 / 9100 / 19530 / 9200 / 7860 / 8080 等
 
 #### 离线 / 纯内网部署
 
-1. **镜像**：`docker/data/img` 下的 15 个 `.tar.gz`（约 7.4GB，含 12 个运行镜像、构建用的 `python:3.11-slim` 和 `base.v10`，以及 CPU 不支持 x86-64-v2 时替换用的 `mysql:8.0.43-debian`）直接 `docker load`，无需访问 registry（步骤见 §3.2）。
+1. **镜像**：`docker/data/img` 下的 16 个 `.tar.gz`（约 7.5GB，含 12 个运行镜像、构建用的 `python:3.11-slim` / `base.v10` / `node:20-alpine`，以及 CPU 不支持 x86-64-v2 时替换用的 `mysql:8.0.43-debian`）直接 `docker load`，无需访问 registry（步骤见 §3.2）。
 2. **证书**：使用内部 CA 或商业证书，可关闭 ACME 出向（`acme-v02.api.letsencrypt.org`）。
 3. **模型 / 解析**：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。
 4. **企微**：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行上表三个企微域名，或给平台配置正向代理。
@@ -160,7 +160,7 @@ chmod 600 .env
 
 ```bash
 cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
-ls docker/data/img          # 15 个 *.tar.gz + MANIFEST.txt
+ls docker/data/img          # 16 个 *.tar.gz + MANIFEST.txt
 
 for f in docker/data/img/*.tar.gz; do
   echo "== $f"
@@ -181,6 +181,7 @@ cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大�
 - 导入后按 §2.2 设置 `.env` 的 `BISHENG_BACKEND_IMAGE` / `BISHENG_FRONTEND_IMAGE` 等，再执行 §4.2 启动
 - 归档包含 12 个**运行镜像**、`python:3.11-slim` 和 `dataelement/bisheng-backend:base.v10`（应用镜像的构建基础）；离线环境可直接用 `base.v10` 构建应用镜像，跳过 §3.3 的 base 构建；只有需要重建 base 时才用得上 `python:3.11-slim`（`base.Dockerfile` 第一行就是 `FROM python:3.11-slim`）
 - 额外带一个 `mysql:8.0.43-debian`（Debian 12，glibc 只要求 `x86-64-baseline`）：宿主 CPU 不支持 x86-64-v2 时用它替换 `cr.dataelem.com/mysql:8.0`，见 §11 故障排查
+- 额外带 `node:20-alpine`（前端镜像的构建基础）：离线构建前端时与归档里的 `nginx:1.30-alpine` 配合使用——`docker tag docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest`，再按 §3.4 执行 `docker build -f Dockerfile`
 
 ### 3.3 后端镜像
 

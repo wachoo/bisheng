@@ -779,6 +779,26 @@ curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code><
         <li><code>.env</code> 权限 600，不入库，历史备份定期清理</li>
         <li>MinIO 服务 key 与 root 分离，轮换只换服务 key</li>
       </ul>
+
+      <h3>数据库账号矩阵</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>账号</th><th>来源</th><th>权限</th><th>使用方</th><th>密码存放</th></tr></thead>
+          <tbody>
+            <tr><td><code>root</code></td><td><code>%</code></td><td>全局</td><td>MySQL 健康检查（建 <code>openfga</code> 库）、运维/备份</td><td><code>.env</code> 的 <code>MYSQL_ROOT_PASSWORD</code>（明文）</td></tr>
+            <tr><td><code>bisheng_app</code></td><td><code>%</code></td><td><code>bisheng.*</code> 全部</td><td>backend / backend_worker / backend_beat</td><td><code>BS_DATABASE_URL</code> 内的 Fernet 加密串</td></tr>
+            <tr><td><code>openfga_app</code></td><td><code>%</code></td><td><code>openfga.*</code> 全部</td><td>openfga-migrate / openfga</td><td><code>.env</code> 的 <code>OPENFGA_DB_PASSWORD</code>（明文）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>两个业务账号都是<strong>库级</strong> <code>ALL PRIVILEGES</code>（迁移需要 DDL），没有 <code>SUPER</code> / <code>FILE</code> / <code>PROCESS</code> / <code>CREATE USER</code> 等全局权限，也进不了对方的库。收紧来源时把 <code>'%'</code> 改成 <code>'172.%'</code>，代价是本地直连不可用、只能走 SSH 隧道。</p>
+      <pre><code>CREATE USER 'bisheng_app'@'%' IDENTIFIED BY '&lt;随机 48 位 hex&gt;';
+GRANT ALL PRIVILEGES ON `bisheng`.* TO 'bisheng_app'@'%';
+CREATE USER 'openfga_app'@'%' IDENTIFIED BY '&lt;另一个随机 48 位 hex&gt;';
+GRANT ALL PRIVILEGES ON `openfga`.* TO 'openfga_app'@'%';</code></pre>
+      <p><code>bisheng_app</code> 的密码在 <code>BS_DATABASE_URL</code> 里是 Fernet token（<code>settings.py</code> 的 <code>set_database_url</code> 会先解密），需用 <code>settings.py:24</code> 的固定密钥解开——属于混淆而非真保密；<code>root</code> 与 <code>openfga_app</code> 的密码在 <code>.env</code> 里是明文。</p>
+      <p>轮换：<code>bisheng_app</code> 改密码后需重新加密写回 <code>BS_DATABASE_URL</code> 并重建 backend/worker/beat；<code>openfga_app</code> 更新 <code>OPENFGA_DB_PASSWORD</code> 后先重建 <code>openfga-migrate</code>（等退出 0）再重建 <code>openfga</code>；<code>root</code> 轮换要连带重建 mysql 及依赖服务，不推荐频繁操作。</p>
+      <p>连接：日常走 SSH 隧道 <code>ssh -fN -L 13306:127.0.0.1:3306 root@&lt;host&gt;</code>；直连 3306 报 <code>1045</code> 时先核对 <code>SELECT user, host FROM mysql.user</code>——账号按「用户@来源」匹配，来源不符与密码错误是同一条报错。</p>
     </section>
 
     <section id="s10">
@@ -827,6 +847,7 @@ docker logs --since 30m bisheng-backend-worker</code></pre>
             <tr><td>OnlyOffice 卡启动</td><td><code>docker logs bisheng-office</code></td><td>镜像 Erlang 版本过旧；shm 过小</td></tr>
             <tr><td>磁盘告警</td><td><code>docker system df</code></td><td>历史镜像 tag 堆积，<code>docker rmi</code> 清理</td></tr>
             <tr><td>MySQL 启动即退出</td><td><code>docker logs bisheng-mysql</code> 是否含 <code>Fatal glibc error: CPU does not support x86-64-v2</code></td><td>OL9 基础镜像要求 x86-64-v2；改用 <code>mysql:8.0.43-debian</code>（离线归档已带），或让虚拟化层暴露 host CPU</td></tr>
+            <tr><td>MySQL 1045 Access denied</td><td><code>SELECT user, host FROM mysql.user</code>、密码来源</td><td>账号按「用户@来源」匹配：<code>@'172.%'</code> 的账号从公网直连必拒；<code>BS_DATABASE_URL</code> 内是加密串，不能直接当密码用（见「数据库账号矩阵」）</td></tr>
           </tbody>
         </table>
       </div>

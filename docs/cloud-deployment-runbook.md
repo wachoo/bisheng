@@ -622,6 +622,52 @@ ALLOW="<运维出口网段> 100.104.0.0/16"
 - 定期清理 `.env.bak-*`（含历史明文口令）
 - MinIO 服务 key 与 root 分离；离职/轮换时只换服务 key
 
+### 9.4 数据库账号矩阵
+
+| 账号 | 来源 | 权限 | 使用方 | 密码存放 |
+|---|---|---|---|---|
+| `root` | `%` | 全局 | MySQL 健康检查（建 `openfga` 库）、运维/备份 | `.env` 的 `MYSQL_ROOT_PASSWORD`（明文） |
+| `bisheng_app` | `%` | `bisheng.*` 全部 | backend / backend_worker / backend_beat | `BS_DATABASE_URL` 内的 **Fernet 加密串** |
+| `openfga_app` | `%` | `openfga.*` 全部 | openfga-migrate / openfga | `.env` 的 `OPENFGA_DB_PASSWORD`（明文） |
+
+两个业务账号都是**库级** `ALL PRIVILEGES`（启动时跑 `alembic`/OpenFGA 迁移需要 DDL），没有 `SUPER` / `FILE` / `PROCESS` / `CREATE USER` 等全局权限，也进不了对方的库。若想收紧来源，把 `'%'` 改成 Docker 网段（如 `'172.%'`），代价是本地直连不可用、只能走 SSH 隧道。
+
+新环境创建：
+
+```sql
+CREATE USER 'bisheng_app'@'%' IDENTIFIED BY '<随机 48 位 hex>';
+GRANT ALL PRIVILEGES ON `bisheng`.* TO 'bisheng_app'@'%';
+CREATE USER 'openfga_app'@'%' IDENTIFIED BY '<另一个随机 48 位 hex>';
+GRANT ALL PRIVILEGES ON `openfga`.* TO 'openfga_app'@'%';
+```
+
+读取密码：
+
+- `root` / `openfga_app`：直接 `grep '^MYSQL_ROOT_PASSWORD=' .env` / `grep '^OPENFGA_DB_PASSWORD=' .env`
+- `bisheng_app`：`BS_DATABASE_URL` 里是 Fernet token（`settings.py` 的 `set_database_url` 会先解密再拼 URL），用仓库里的固定密钥解开：
+
+```bash
+TOKEN=$(grep '^BS_DATABASE_URL=' .env | sed -E 's#.*bisheng_app:([^@]+)@.*#\1#')
+docker run --rm --entrypoint python <backend-image> -c "
+from cryptography.fernet import Fernet; import sys
+print(Fernet('<settings.py:24 的 key>').decrypt(sys.argv[1].encode()).decode())" "$TOKEN"
+```
+
+> 该密钥硬编码在 `bisheng/core/config/settings.py:24`，属于**混淆而非真保密**——能读仓库和 `.env` 的人就能解开。
+
+轮换：
+
+| 账号 | 步骤 |
+|---|---|
+| `bisheng_app` | `ALTER USER 'bisheng_app'@'%' IDENTIFIED BY '<new>'` → 用 Fernet 加密新密码写回 `BS_DATABASE_URL` → `docker compose up -d --no-deps backend backend_worker backend_beat` |
+| `openfga_app` | `ALTER USER 'openfga_app'@'%' IDENTIFIED BY '<new>'` → 更新 `OPENFGA_DB_PASSWORD` → `docker compose up -d --no-deps openfga-migrate`（等它退出 0）后再 `docker compose up -d --no-deps openfga` |
+| `root` | 改 `MYSQL_ROOT_PASSWORD` 并重建 mysql 及所有依赖它的服务；不推荐频繁轮换 |
+
+连接方式：
+
+- 日常/生产：SSH 隧道 `ssh -fN -L 13306:127.0.0.1:3306 root@<host>`，客户端连 `127.0.0.1:13306`，来源天然是 Docker 网关，不受账号 host 限制影响
+- 直连 `3306`：仅在安全组对白名单网段放行时可用；报 `1045 Access denied ... (using password: YES)` 时先确认 `SELECT user, host FROM mysql.user` 与密码来源——账号是 `用户@来源` 一起匹配的，来源不符和密码错误报同一条 1045
+
 ---
 
 ## 10. 日常运维
@@ -685,6 +731,7 @@ docker logs --since 30m bisheng-backend-worker
 | 控制台 Workbench 连不上 | `iptables -S INPUT` | SSH 白名单漏 `100.104.0.0/16` |
 | 磁盘告警 | `docker system df` | 旧镜像层；用 `docker rmi` 清历史 tag |
 | MySQL 启动即退出 | `docker logs bisheng-mysql` 是否含 `Fatal glibc error: CPU does not support x86-64-v2` | OL9 基础镜像要求 x86-64-v2；改用 `mysql:8.0.43-debian`（离线归档已带），或让虚拟化层暴露 host CPU |
+| MySQL 1045 Access denied | `SELECT user, host FROM mysql.user`、密码来源 | 账号按「用户@来源」匹配：`@'172.%'` 的账号从公网直连必拒；`BS_DATABASE_URL` 内是 Fernet 加密串，不能直接当密码用（见 §9.4） |
 | OnlyOffice 卡启动 | `docker logs bisheng-office` | Erlang 版本 / shm 过小 |
 
 ---

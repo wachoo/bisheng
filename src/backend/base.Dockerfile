@@ -18,10 +18,11 @@ RUN apt-get update && \
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
 
-# 安装 pandoc
+# 安装 pandoc（GitHub 直连不稳定，失败时走代理；与下面的 NLTK 数据同样处理）
 RUN mkdir -p /opt/pandoc && \
     cd /opt/pandoc && \
-    wget https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-${PANDOC_ARCH}.tar.gz && \
+    ( wget -q --tries=3 --timeout=60 https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-${PANDOC_ARCH}.tar.gz || \
+      wget -q --tries=3 --timeout=120 https://gh-proxy.com/https://github.com/jgm/pandoc/releases/download/3.6.4/pandoc-3.6.4-linux-${PANDOC_ARCH}.tar.gz ) && \
     tar xvf pandoc-3.6.4-linux-${PANDOC_ARCH}.tar.gz && \
     cp pandoc-3.6.4/bin/pandoc /usr/bin/ && \
     rm -rf /opt/pandoc

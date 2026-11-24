@@ -38,9 +38,12 @@ APP_ENV_SRC  := set -a; . $(APP_ENV) 2>/dev/null || true; set +a;
 # --- middleware (docker compose) ---------------------------------------------
 # docker/.env holds the CR image tags + credentials and is picked up
 # automatically (project directory = directory of the first -f file).
-# The local-arm64 override swaps in Apple Silicon builds of every component.
-COMPOSE := docker compose --env-file $(DOCKER_DIR)/.env --env-file $(DOCKER_DIR)/.env.local \
-           -f $(DOCKER_DIR)/docker-compose.yml -f $(DOCKER_DIR)/docker-compose.local-arm64.yml
+# The workstation overrides (.env.local, the Apple Silicon compose file) are
+# git-ignored, so include them only when they exist — a fresh clone still works.
+LOCAL_ENV   := $(wildcard $(DOCKER_DIR)/.env.local)
+LOCAL_ARM64 := $(wildcard $(DOCKER_DIR)/docker-compose.local-arm64.yml)
+COMPOSE := docker compose --env-file $(DOCKER_DIR)/.env $(if $(LOCAL_ENV),--env-file $(LOCAL_ENV)) \
+           -f $(DOCKER_DIR)/docker-compose.yml $(if $(LOCAL_ARM64),-f $(LOCAL_ARM64))
 
 INFRA_CORE := mysql redis minio openfga          # backend cannot start without these
 INFRA_RAG  := etcd milvus elasticsearch          # knowledge base / RAG only

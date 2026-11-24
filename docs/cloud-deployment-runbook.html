@@ -367,12 +367,13 @@
       <li><a href="#s4"><span class="num">04</span>启动整套服务</a></li>
       <li><a href="#s5"><span class="num">05</span>域名与 TLS</a></li>
       <li><a href="#s6"><span class="num">06</span>企业微信 SSO</a></li>
-      <li><a href="#s7"><span class="num">07</span>MinIO</a></li>
-      <li><a href="#s8"><span class="num">08</span>OnlyOffice</a></li>
-      <li><a href="#s9"><span class="num">09</span>安全加固</a></li>
-      <li><a href="#s10"><span class="num">10</span>日常运维</a></li>
-      <li><a href="#s11"><span class="num">11</span>故障排查</a></li>
-      <li><a href="#s12"><span class="num">12</span>回滚</a></li>
+      <li><a href="#s7"><span class="num">07</span>桌面应用</a></li>
+      <li><a href="#s8"><span class="num">08</span>MinIO</a></li>
+      <li><a href="#s9"><span class="num">09</span>OnlyOffice</a></li>
+      <li><a href="#s10"><span class="num">10</span>安全加固</a></li>
+      <li><a href="#s11"><span class="num">11</span>日常运维</a></li>
+      <li><a href="#s12"><span class="num">12</span>故障排查</a></li>
+      <li><a href="#s13"><span class="num">13</span>回滚</a></li>
       <li><a href="#sa"><span class="num">A</span>目录与端口</a></li>
     </ol>
   </nav>
@@ -419,8 +420,58 @@
       <p><code>100.104.0.0/16</code> 是控制台远程连接（Workbench）的来源网段，漏掉它就会出现「实例登录失败」而 SSH 本身是好的。</p>
 
       <h3>镜像仓库</h3>
-      <pre><code>docker login cr.dataelem.com</code></pre>
+      <pre><code>docker login cr.dataelem.com    # 私有仓库，凭据由供应商提供</code></pre>
+      <ul>
+        <li><strong>必须在拉取镜像之前完成</strong>，否则第一次 <code>docker compose up -d</code> 会在拉私有镜像时 401/403</li>
+        <li><code>install.sh</code> 会读取 <code>.env</code> 里的 <code>CR_REGISTRY_USERNAME</code> / <code>CR_REGISTRY_PASSWORD</code> 自动登录；手工部署或单独 <code>docker pull</code> 时要先执行上面的命令</li>
+        <li>验证：<code>docker pull cr.dataelem.com/mysql:8.0</code> 能拉取即登录成功</li>
+        <li>用 <code>docker/data/img</code> 里的离线 tar.gz <code>docker load</code> 导入镜像时<strong>不需要</strong>登录</li>
+      </ul>
       <p>部分云网络访问 Docker Hub 会失败，公共镜像统一走 <code>docker.m.daocloud.io</code> 或私有仓库。</p>
+
+      <h3>网络出入口清单</h3>
+      <p>交付给客户运维时可整节作为放行依据。原则：<strong>入向只开 443（+80 用于证书），其余端口保持内网</strong>；出向按实际启用的功能逐项放行，未启用的功能对应域名可以不开。</p>
+
+      <h4>入方向（公网 → 平台）</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>端口</th><th>协议</th><th>来源</th><th>用途</th><th>不开的影响</th></tr></thead>
+          <tbody>
+            <tr><td class="num-cell">443</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td>唯一 Web 入口：platform <code>/</code>、client <code>/workspace</code>、<code>/api</code> → backend:7860、<code>/apps</code>、企微回调、根目录 <code>WW_verify_*.txt</code></td><td>平台与企微登录全部不可用</td></tr>
+            <tr><td class="num-cell">80</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td>ACME HTTP-01 续期 / 301 跳转 443（TLS-ALPN 或 DNS-01 时可关闭）</td><td>无法用 HTTP-01 续期；已签发证书不受影响</td></tr>
+            <tr><td class="num-cell">443</td><td>TCP</td><td><code>0.0.0.0/0</code></td><td><code>office.&lt;域名&gt;</code> 虚拟主机 → OnlyOffice，浏览器直连，<code>office_url</code> 必须 HTTPS</td><td>文档预览/编辑不可用</td></tr>
+            <tr><td class="num-cell">9001</td><td>TCP</td><td>运维 IP</td><td>MinIO 管理台（可选）</td><td>无影响</td></tr>
+            <tr><td class="num-cell">22</td><td>TCP</td><td>运维出口 + <code>100.104.0.0/16</code></td><td>SSH / 云控制台 Workbench</td><td>无法运维</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>Docker 内部端口（3306 / 6379 / 9000 / 9100 / 19530 / 9200 / 7860 / 8080 等）不要对公网开放。企业微信服务器需要回访 443 上的回调地址，入口域名必须公网可达，且与企微后台的「可信域名 / 授权回调域」完全一致。</p>
+
+      <h4>出方向（平台 → 互联网）</h4>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>功能</th><th>目标地址</th><th>端口</th><th>触发条件 / 关闭影响</th></tr></thead>
+          <tbody>
+            <tr><td>企微 SSO / 组织同步</td><td><code>qyapi.weixin.qq.com</code>、<code>open.weixin.qq.com</code>、<code>login.work.weixin.qq.com</code></td><td>443</td><td>使用企微登录或通讯录同步；关闭后无法登录/同步</td></tr>
+            <tr><td>大模型 / 嵌入 / 重排</td><td>按供应商：<code>dashscope.aliyuncs.com</code>、<code>ark.cn-beijing.volces.com</code>、<code>api.openai.com</code> 等</td><td>443</td><td>使用托管模型时；改为自建内网模型则无需</td></tr>
+            <tr><td>文档解析</td><td><code>mineru.net</code>（MinerU V4）、<code>paddleocr.aistudio-app.com</code>（PaddleOCR jobs）</td><td>443</td><td>取决于 <code>knowledges.loader_provider</code>；本地/自建 ETL4LM 则无需</td></tr>
+            <tr><td>语音转写 / TTS</td><td>阿里云 <code>dashscope</code> / <code>nls-gateway</code></td><td>443 / wss</td><td>音视频知识库转写、TTS 时</td></tr>
+            <tr><td>证书签发与续期</td><td><code>acme-v02.api.letsencrypt.org</code></td><td>443</td><td>使用 Let's Encrypt；内部 CA 或商业证书无需</td></tr>
+            <tr><td>安装 / 升级（一次性）</td><td><code>cr.dataelem.com</code>、<code>docker.m.daocloud.io</code>、<code>mirrors.aliyun.com</code>、<code>registry.npmmirror.com</code>、<code>cdn.npmmirror.com</code>、<code>astral.sh</code>、<code>github.com</code>、<code>gh-proxy.com</code>、PyPI 镜像</td><td>443</td><td>构建镜像、安装系统依赖时；离线导入镜像后运行期不需要</td></tr>
+            <tr><td>托管应用运行时</td><td>应用基础镜像所在 registry</td><td>443</td><td>启用 <code>app-runtime</code> 且需要拉取镜像时</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h4>离线 / 纯内网部署</h4>
+      <ol>
+        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 16 个 <code>.tar.gz</code>（约 7.5GB，含 12 个运行镜像、构建用的 <code>python:3.11-slim</code> / <code>base.v10</code> / <code>node:20-alpine</code>，以及 CPU 不支持 x86-64-v2 时替换用的 <code>mysql:8.0.43-debian</code>）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
+        <li><strong>证书</strong>：使用内部 CA 或商业证书，可关闭 ACME 出向。</li>
+        <li><strong>模型 / 解析</strong>：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。</li>
+        <li><strong>企微</strong>：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行三个企微域名，或配置正向代理。</li>
+        <li><strong>时间同步</strong>：使用内网 NTP。</li>
+      </ol>
+      <div class="note"><p><strong>最小放行清单：</strong>入向 443（+ 按需 80 与 <code>office.&lt;域名&gt;</code>），出向企微三个域名 + 实际使用的模型/解析域名；其余都是安装期依赖，可离线解决。</p></div>
     </section>
 
     <section id="s2">
@@ -454,7 +505,30 @@ chmod 600 .env</code></pre>
     <section id="s3">
       <h2><span class="secnum">03</span>镜像获取与构建</h2>
       <h3>中间件</h3>
-      <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。</p>
+      <p>全部来自私有仓库，compose 会自动拉取，无需单独处理。 <strong>拉取前先完成「镜像仓库」一节的 <code>docker login cr.dataelem.com</code></strong>；离线 tar.gz 导入则跳过登录。</p>
+      <div class="note"><p><strong>MySQL 有两个变体：</strong><code>cr.dataelem.com/mysql:8.0</code> 基于 Oracle Linux 9，glibc 要求 <code>x86-64-v2</code>；<code>mysql:8.0.43-debian</code> 基于 Debian 12，只要求 <code>x86-64-baseline</code>。私有云 CPU 较老、报 <code>Fatal glibc error: CPU does not support x86-64-v2</code> 时改用后者（离线归档已包含）。</p></div>
+
+      <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
+      <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
+      <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
+ls docker/data/img          # 16 个 *.tar.gz + MANIFEST.txt
+
+for f in docker/data/img/*.tar.gz; do
+  echo "== $f"
+  gzip -dc "$f" | docker load
+done</code></pre>
+      <ul>
+        <li>归档是 gzip 压缩的 <code>docker save</code> 产物，<code>docker load</code> 会按内部 <code>manifest.json</code> <strong>保留原始镜像名和 tag</strong>（如 <code>cr.dataelem.com/mysql:8.0</code>），不需要重新打 tag</li>
+        <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
+        <li>归档包含 12 个<strong>运行镜像</strong>、<code>python:3.11-slim</code> 和 <code>dataelement/bisheng-backend:base.v10</code>（应用镜像的构建基础）；离线环境可直接用 <code>base.v10</code> 构建应用镜像，跳过「后端」一节的 base 构建；只有需要重建 base 时才用得上 <code>python:3.11-slim</code></li>
+        <li>额外带一个 <code>mysql:8.0.43-debian</code>（Debian 12，glibc 只要求 <code>x86-64-baseline</code>）：宿主 CPU 不支持 x86-64-v2 时用它替换 <code>cr.dataelem.com/mysql:8.0</code>，见「故障排查」一节</li>
+        <li>额外带 <code>node:20-alpine</code>（前端镜像的构建基础）：离线构建前端时与归档里的 <code>nginx:1.30-alpine</code> 配合使用——<code>docker tag docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest</code>，再按「前端」一节执行 <code>docker build -f Dockerfile</code></li>
+      </ul>
+      <p>校验：</p>
+      <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \
+  | grep -E 'bisheng|mysql|redis|milvus|minio|elasticsearch|etcd|openfga|nginx|onlyoffice'
+cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大小</code></pre>
+      <p>导入后按「代码与配置」一节设置 <code>.env</code> 的 <code>BISHENG_BACKEND_IMAGE</code> / <code>BISHENG_FRONTEND_IMAGE</code> 等，再执行「启动整套服务」一节的启动命令。</p>
 
       <h3>后端</h3>
       <p>标准构建的第一行是 <code>FROM dataelement/bisheng-backend:base.v10</code>。这个 base 镜像由 <code>src/backend/base.Dockerfile</code> 构建：CI 在推送 <code>base.v*</code> tag 时运行它，版本号取自 tag（<code>base.v10</code> → <code>:base.v10-amd64</code>，再由 multi-arch manifest 合成最终 tag）。</p>
@@ -489,22 +563,36 @@ chmod 600 .env</code></pre>
       <pre><code>docker pull docker.m.daocloud.io/library/python:3.11-slim
 docker tag docker.m.daocloud.io/library/python:3.11-slim python:3.11-slim</code></pre>
 
-      <p><strong>2 · 生成加速版 Dockerfile</strong>（在 <code>base.Dockerfile</code> 的 <code>FROM</code> 之后插入，不改仓库原文件）</p>
-      <pre><code>RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" \
-      /etc/apt/sources.list.d/debian.sources 2&gt;/dev/null || \
+      <p><strong>2 · 生成加速版 Dockerfile</strong>（在 <code>base.Dockerfile</code> 的 <code>FROM</code> 之后插入，并把结果写成<strong>构建上下文内</strong>的 <code>base.Dockerfile.fast</code>。BuildKit 会把 <code>-f</code> 的裸文件名解析成上下文内相对路径，放 <code>/tmp</code> 会报 <code>failed to read dockerfile: open /var/lib/docker/tmp/buildkit-mount…: no such file or directory</code>）</p>
+      <pre><code>cd src/backend
+{ head -n1 base.Dockerfile
+  cat &lt;&lt;'EOF'
+RUN sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list.d/debian.sources 2&gt;/dev/null || \
     sed -i "s|deb.debian.org|mirrors.aliyun.com|g" /etc/apt/sources.list
 ENV UV_DEFAULT_INDEX=https://mirrors.aliyun.com/pypi/simple
 ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
-ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright</code></pre>
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright
+ENV UV_HTTP_TIMEOUT=300
+EOF
+  tail -n +2 base.Dockerfile; } &gt; base.Dockerfile.fast
+
+head -8 base.Dockerfile.fast        # 应看到 FROM 之后紧跟 RUN sed …</code></pre>
+      <p>（<code>base.Dockerfile.fast</code> 已加入 <code>.gitignore</code>，不会污染工作区。）</p>
+      <p><code>UV_HTTP_TIMEOUT=300</code> 是必须的：uv 默认 30s 超时，在约 0.8 MB/s 的经济型带宽上下载 <code>rapidfuzz</code>、<code>playwright</code> 这类几十 MB 的包会直接失败（实测报 <code>Failed to download … network timeout</code>）。</p>
 
       <p><strong>3 · 后台构建</strong>（断开 SSH 不影响）</p>
       <pre><code>cd src/backend
-nohup sh -c 'docker build -f /tmp/base.Dockerfile.fast \
+nohup sh -c 'docker build -f base.Dockerfile.fast --platform linux/amd64 \
   -t dataelement/bisheng-backend:base.v10 . &gt; /tmp/base-build.log 2&gt;&amp;1; \
   echo "EXIT=$?" &gt;&gt; /tmp/base-build.log' &gt;/dev/null 2&gt;&amp;1 &amp;
 
 tail -f /tmp/base-build.log
 docker images | grep base.v10        # 成功才有输出</code></pre>
+
+      <p>成功标志：BuildKit 日志出现 <code>naming to docker.io/dataelement/bisheng-backend:base.v10</code>，且末尾 <code>EXIT=0</code>；旧版 builder 的 <code>Successfully tagged …</code> 在 BuildKit 下不会出现。</p>
+      <p>完成后校验 NLTK 数据确实装进了基础镜像：</p>
+      <pre><code>docker run --rm dataelement/bisheng-backend:base.v10 python -c \
+  "import nltk; [nltk.data.find(p) for p in ('tokenizers/punkt','tokenizers/punkt_tab','taggers/averaged_perceptron_tagger','taggers/averaged_perceptron_tagger_eng')]; print('NLTK OK')"</code></pre>
 
       <p><strong>4 · 用标准 Dockerfile 构建正式后端镜像</strong></p>
       <pre><code>cd src/backend
@@ -521,7 +609,7 @@ docker build -t bisheng-backend:src-v3.0.1-&lt;MMDD&gt; .</code></pre>
           </tbody>
         </table>
       </div>
-      <div class="note"><p><strong>构建前检查：</strong>磁盘预留 ≥ 10 GB；停掉 OnlyOffice 等非必要容器腾出 2–3 GB 内存；经济型实例出带宽约 5 Mbps（0.7–0.8 MB/s），临时提到 100 Mbps 可快十倍。</p></div>
+      <div class="note"><p><strong>构建前检查：</strong>磁盘预留 ≥ 10 GB（不足时先 <code>docker builder prune -f</code>、<code>docker image prune -f</code>，再用 <code>df -h /</code> 确认）；停掉 OnlyOffice 等非必要容器腾出 2–3 GB 内存；经济型实例出带宽约 5 Mbps（0.7–0.8 MB/s），临时提到 100 Mbps 可快十倍。</p></div>
       <p>arm64 还需按 CI 的做法先删掉 <code>ibm-db</code>（该驱动不支持 arm64）。镜像代理可用时，直接 <code>docker pull dataelement/bisheng-backend:base.v10</code> 更省事。</p>
       <p>拉不到 base.v10 时，只能用增量方式：</p>
       <pre><code>docker create --name tmp bisheng-backend:src-v3.0.1-&lt;旧MMDD&gt;
@@ -550,6 +638,16 @@ COPY client/build/ /usr/share/nginx/html/client/
 EOF
 docker build -t bisheng-frontend:src-v3.0.1-&lt;MMDD&gt; /tmp/fe-release</code></pre>
       <div class="note"><p><strong>先删后拷。</strong>不清理旧目录，历史构建的 chunk 会残留在镜像里，浏览器可能加载到旧资源。</p></div>
+      <h3>服务器本机构建</h3>
+      <p>也可以在这台机器上直接构建，不依赖本机产物。Dockerfile 最后一段是 <code>FROM nginx</code>（未固定版本），Docker Hub 不可达时要先给本地 nginx 打 <code>latest</code> 标签：</p>
+      <pre><code>docker pull docker.m.daocloud.io/library/node:20-alpine
+docker tag  docker.m.daocloud.io/library/node:20-alpine node:20-alpine
+docker tag  docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest
+
+cd src/frontend
+docker build -f Dockerfile -t bisheng-frontend:src-v3.0.2-&lt;MMDD&gt; .</code></pre>
+      <div class="note"><p>不预先给 nginx 打标签会报 <code>nginx: failed to do request … i/o timeout</code>。npm 依赖走 <code>src/frontend/.npmrc</code> 的 <code>registry.npmmirror.com</code>，1900+ 包，约 15–20 分钟；产物镜像约 140 MB。</p></div>
+
     </section>
 
     <section id="s4">
@@ -627,7 +725,53 @@ server { listen 443 ssl default_server;     server_name _; ssl_reject_handshake 
     </section>
 
     <section id="s7">
-      <h2><span class="secnum">07</span>MinIO</h2>
+      <h2><span class="secnum">07</span>桌面应用（DSH Desktop）</h2>
+      <p>登录在浏览器完成（PKCE + <code>bisheng://</code> 深链回跳），Chat 与 Work 工具调用统一走平台。不需要 Java 网关，也不校验商业 License。</p>
+
+      <h3>开关与公开地址</h3>
+      <p>两项都配在 <code>docker/.env</code>，compose 注入 backend / worker / beat，<code>config.yaml</code> 的 <code>dsh:</code> 段用 <code>!env</code> 引用：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>变量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>BS_DSH_ENABLED</code></td><td><code>true</code> 开启桌面接入；模板默认 <code>false</code></td></tr>
+            <tr><td><code>BS_DSH_PLATFORM_PUBLIC_URL</code></td><td>用户实际访问的地址：带协议与对外端口、不带路径</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warn"><p><strong>公开地址必须与用户输入一致（含端口）。</strong>桌面登录的 Origin 校验、嵌入 Chat 与 Work/MCP 工具的地址都由它派生；<code>!env</code> 变量缺失时后端拒绝启动。改完执行 <code>docker compose up -d backend backend_worker backend_beat</code>。</p></div>
+
+      <h3>反向代理</h3>
+      <p>最外层 TLS 代理原样透传 Host：</p>
+      <pre><code>proxy_set_header Host $http_host;
+proxy_set_header X-Forwarded-Proto $scheme;</code></pre>
+      <p><code>/api/v1/dsh/*</code>、兼容别名 <code>/api/dsh/*</code> 与 <code>/desktop-login</code> 指向平台。Host/Origin 与公开地址不一致时，Work 工具初始化返回 <strong>421</strong>。</p>
+
+      <h3>管理面</h3>
+      <p>开启后左侧导航出现「DSH」（仅管理员可见），三块都要配：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>标签</th><th>配置</th></tr></thead>
+          <tbody>
+            <tr><td>接入</td><td>下载地址（默认 <code>https://www.dshdesktop.com/zh/enterprise/</code>，内网改自有安装包地址，留空不显示下载按钮）+ 深链地址（默认 <code>bisheng://login</code>）</td></tr>
+            <tr><td>模型</td><td>把模型授权给用户 / 部门 / 用户组</td></tr>
+            <tr><td>额度</td><td>在模型管理里给部门或个人配月额度</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>授权决定「能不能用」，额度决定「能用多少」。</p>
+
+      <h3>用户侧</h3>
+      <ol>
+        <li>浏览器打开 <code>https://&lt;域名&gt;/desktop-login</code> 确认登录（企微 SSO 用户同样适用）</li>
+        <li>点「打开桌面应用」由 <code>bisheng://</code> 拉起客户端；未安装先点「下载」</li>
+        <li>客户端里的服务器地址与 <code>BS_DSH_PLATFORM_PUBLIC_URL</code> 一致</li>
+      </ol>
+      <div class="note"><p>纯内网部署时默认下载地址指向公网站点，需自建安装包分发；改公开地址后需重启后端并让客户端重新连接。</p></div>
+    </section>
+
+    <section id="s8">
+      <h2><span class="secnum">08</span>MinIO</h2>
       <p>三个身份分开用，root 只留给管理台：</p>
       <div class="tablewrap">
         <table>
@@ -650,8 +794,8 @@ ssh -N -L 9001:127.0.0.1:9001 root@&lt;host&gt;   # 然后开 http://127.0.0.1:9
       <p>要公网开放，先在安全组限制来源 IP，并换掉默认口令——管理台是覆盖全部存储文件的完整界面。</p>
     </section>
 
-    <section id="s8">
-      <h2><span class="secnum">08</span>OnlyOffice</h2>
+    <section id="s9">
+      <h2><span class="secnum">09</span>OnlyOffice</h2>
       <div class="warn"><p><strong>不要用 7.1.1。</strong>它内置 Erlang OTP 22，在 cgroup v2 内核上 <code>erl_child_setup</code> 自旋 100% CPU，RabbitMQ 永远起不来。用 8.1.3 及以上。</p></div>
       <pre><code>ONLYOFFICE_IMAGE=docker.m.daocloud.io/onlyoffice/documentserver:8.1.3</code></pre>
       <p>必须给容器更大的 <code>/dev/shm</code>，默认 64 MB 会让编辑器卡死：</p>
@@ -664,8 +808,8 @@ curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code><
       <p>首次启动约 9 分钟（生成字体缓存）。平台通过 DB 配置 <code>office_url</code> 下发给前端，<strong>必须是 HTTPS</strong>，否则浏览器按混合内容拦截。推荐给一个子域名，把 SAN 追加进现有证书后反代到 <code>office:80</code>。</p>
     </section>
 
-    <section id="s9">
-      <h2><span class="secnum">09</span>安全加固</h2>
+    <section id="s10">
+      <h2><span class="secnum">10</span>安全加固</h2>
       <h3>SSH 来源白名单</h3>
       <p>iptables 只放行运维网段和 Workbench 网段，其余到 22 的包直接 DROP，3389 一律丢弃：</p>
       <pre><code>ALLOW="&lt;运维出口网段&gt; 100.104.0.0/16"</code></pre>
@@ -682,15 +826,39 @@ curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code><
         <li><code>.env</code> 权限 600，不入库，历史备份定期清理</li>
         <li>MinIO 服务 key 与 root 分离，轮换只换服务 key</li>
       </ul>
+
+      <h3>数据库账号矩阵</h3>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>账号</th><th>来源</th><th>权限</th><th>使用方</th><th>密码存放</th></tr></thead>
+          <tbody>
+            <tr><td><code>root</code></td><td><code>%</code></td><td>全局</td><td>MySQL 健康检查（建 <code>openfga</code> 库）、运维/备份</td><td><code>.env</code> 的 <code>MYSQL_ROOT_PASSWORD</code>（明文）</td></tr>
+            <tr><td><code>bisheng_app</code></td><td><code>%</code></td><td><code>bisheng.*</code> 全部</td><td>backend / backend_worker / backend_beat</td><td><code>BS_DATABASE_URL</code> 内的 Fernet 加密串</td></tr>
+            <tr><td><code>openfga_app</code></td><td><code>%</code></td><td><code>openfga.*</code> 全部</td><td>openfga-migrate / openfga</td><td><code>.env</code> 的 <code>OPENFGA_DB_PASSWORD</code>（明文）</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>两个业务账号都是<strong>库级</strong> <code>ALL PRIVILEGES</code>（迁移需要 DDL），没有 <code>SUPER</code> / <code>FILE</code> / <code>PROCESS</code> / <code>CREATE USER</code> 等全局权限，也进不了对方的库。收紧来源时把 <code>'%'</code> 改成 <code>'172.%'</code>，代价是本地直连不可用、只能走 SSH 隧道。</p>
+      <pre><code>CREATE USER 'bisheng_app'@'%' IDENTIFIED BY '&lt;随机 48 位 hex&gt;';
+GRANT ALL PRIVILEGES ON `bisheng`.* TO 'bisheng_app'@'%';
+CREATE USER 'openfga_app'@'%' IDENTIFIED BY '&lt;另一个随机 48 位 hex&gt;';
+GRANT ALL PRIVILEGES ON `openfga`.* TO 'openfga_app'@'%';</code></pre>
+      <p><code>bisheng_app</code> 的密码在 <code>BS_DATABASE_URL</code> 里是 Fernet token（<code>settings.py</code> 的 <code>set_database_url</code> 会先解密），需用 <code>settings.py:24</code> 的固定密钥解开——属于混淆而非真保密；<code>root</code> 与 <code>openfga_app</code> 的密码在 <code>.env</code> 里是明文。</p>
+      <p>轮换：<code>bisheng_app</code> 改密码后需重新加密写回 <code>BS_DATABASE_URL</code> 并重建 backend/worker/beat；<code>openfga_app</code> 更新 <code>OPENFGA_DB_PASSWORD</code> 后先重建 <code>openfga-migrate</code>（等退出 0）再重建 <code>openfga</code>；<code>root</code> 轮换要连带重建 mysql 及依赖服务，不推荐频繁操作。</p>
+      <p>连接：日常走 SSH 隧道 <code>ssh -fN -L 13306:127.0.0.1:3306 root@&lt;host&gt;</code>；直连 3306 报 <code>1045</code> 时先核对 <code>SELECT user, host FROM mysql.user</code>——账号按「用户@来源」匹配，来源不符与密码错误是同一条报错。</p>
     </section>
 
-    <section id="s10">
-      <h2><span class="secnum">10</span>日常运维</h2>
+    <section id="s11">
+      <h2><span class="secnum">11</span>日常运维</h2>
       <h3>更新镜像</h3>
       <pre><code># 改代码并提交 → 构建新镜像 → 改 .env 的 tag
 docker compose up -d backend backend_worker backend_beat
-docker compose up -d frontend</code></pre>
-      <div class="warn"><p><strong>顺序不能反。</strong>backend 重建后 IP 会变，frontend 的 nginx 缓存旧 IP，所有 <code>/api</code> 请求 502，直到 frontend 重建或重启。</p></div>
+docker compose exec frontend nginx -s reload   # 重建 backend 后刷新 upstream 解析</code></pre>
+      <div class="warn"><p><strong>顺序不能反。</strong>backend 重建后容器 IP 会变，frontend 的 nginx 在启动时已把 <code>backend:7860</code> 解析成旧 IP，所有 <code>/api</code> 请求 502（容器内直连 <code>127.0.0.1:7860</code> 却是 200）。<code>docker compose exec frontend nginx -s reload</code> 让它重新解析即可；重建 frontend 容器也有效，但没必要。</p></div>
+      <p>更新前端镜像时方向反过来（frontend → TLS 反代）：</p>
+      <pre><code>docker compose up -d frontend
+cd nginx/tls &amp;&amp; docker compose exec -T tls-proxy nginx -s reload</code></pre>
+      <div class="warn"><p>TLS 反代里是静态的 <code>proxy_pass http://frontend:3001;</code>，frontend 重建后 IP 变化，不 reload 就是全站 502。</p></div>
 
       <h3>备份</h3>
       <div class="tablewrap">
@@ -711,13 +879,13 @@ docker logs --since 30m bisheng-tls-proxy
 docker logs --since 30m bisheng-backend-worker</code></pre>
     </section>
 
-    <section id="s11">
-      <h2><span class="secnum">11</span>故障排查</h2>
+    <section id="s12">
+      <h2><span class="secnum">12</span>故障排查</h2>
       <div class="tablewrap">
         <table>
           <thead><tr><th>现象</th><th>先查什么</th><th>常见原因</th></tr></thead>
           <tbody>
-            <tr><td>全站 502</td><td>frontend 状态、backend 当前 IP</td><td>backend 重建后 frontend DNS 缓存未刷新</td></tr>
+            <tr><td>全站 502</td><td>frontend / TLS 反代状态、上下游 IP</td><td>backend 重建后 frontend nginx 仍指向旧 IP（reload frontend）；frontend 重建后 TLS 反代仍指向旧 IP（reload tls-proxy）</td></tr>
             <tr><td>企业微信 19334</td><td>后端日志 <code>getuserinfo rejected</code></td><td>token 缓存轮换；可见范围或 agentid 不匹配</td></tr>
             <tr><td>后端反复重启</td><td><code>ContextInitializationError</code></td><td>MinIO 策略缺 lifecycle 或凭据错误</td></tr>
             <tr><td>证书不匹配</td><td><code>openssl s_client -servername</code></td><td>SAN 不含域名；续期失败</td></tr>
@@ -725,13 +893,15 @@ docker logs --since 30m bisheng-backend-worker</code></pre>
             <tr><td>Workbench 连不上</td><td><code>iptables -S INPUT</code></td><td>SSH 白名单漏 <code>100.104.0.0/16</code></td></tr>
             <tr><td>OnlyOffice 卡启动</td><td><code>docker logs bisheng-office</code></td><td>镜像 Erlang 版本过旧；shm 过小</td></tr>
             <tr><td>磁盘告警</td><td><code>docker system df</code></td><td>历史镜像 tag 堆积，<code>docker rmi</code> 清理</td></tr>
+            <tr><td>MySQL 启动即退出</td><td><code>docker logs bisheng-mysql</code> 是否含 <code>Fatal glibc error: CPU does not support x86-64-v2</code></td><td>OL9 基础镜像要求 x86-64-v2；改用 <code>mysql:8.0.43-debian</code>（离线归档已带），或让虚拟化层暴露 host CPU</td></tr>
+            <tr><td>MySQL 1045 Access denied</td><td><code>SELECT user, host FROM mysql.user</code>、密码来源</td><td>账号按「用户@来源」匹配：<code>@'172.%'</code> 的账号从公网直连必拒；<code>BS_DATABASE_URL</code> 内是加密串，不能直接当密码用（见「数据库账号矩阵」）</td></tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <section id="s12">
-      <h2><span class="secnum">12</span>回滚</h2>
+    <section id="s13">
+      <h2><span class="secnum">13</span>回滚</h2>
       <pre><code>sed -i 's/^BISHENG_BACKEND_IMAGE=.*/BISHENG_BACKEND_IMAGE=bisheng-backend:src-v3.0.1-&lt;旧&gt;/' .env
 sed -i 's/^BISHENG_FRONTEND_IMAGE=.*/BISHENG_FRONTEND_IMAGE=bisheng-frontend:src-v3.0.1-&lt;旧&gt;/' .env
 docker compose up -d backend backend_worker backend_beat

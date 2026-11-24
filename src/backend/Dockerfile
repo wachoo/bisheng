@@ -7,8 +7,9 @@ COPY ./pyproject.toml ./uv.lock ./
 RUN uv sync --frozen --no-dev && uv cache clean
 ENV PATH="/app/.venv/bin:$PATH"
 
-# 安装 NLTK 数据（依赖 Python 环境，放在 uv sync 之后）
-RUN python -c "import nltk; nltk.download('punkt'); nltk.download('punkt_tab'); nltk.download('averaged_perceptron_tagger'); nltk.download('averaged_perceptron_tagger_eng')"
+# NLTK 数据由 base 镜像提供（base.Dockerfile 用 curl + 校验安装，失败会让基础镜像
+# 构建失败）。这里不要再调 nltk.download：它失败时只返回 False、不抛异常，且
+# raw.githubusercontent.com 在受限网络里会长时间挂住，让应用镜像构建超时。
 
 COPY ./ ./
 

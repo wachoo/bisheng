@@ -31,7 +31,7 @@ database_pool:
 # Example: https://work.example.com or http://192.0.2.15:18081
 # Enable this section with a Desktop-compatible backend image.
 dsh:
-  enabled: true
+  enabled: !env ${BS_DSH_ENABLED}
   platform_public_url: !env ${BS_DSH_PLATFORM_PUBLIC_URL}
 
 # 缓存配置  redis://[[username]:[password]]@localhost:6379/0

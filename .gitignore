@@ -347,7 +347,13 @@ src/backend/base.Dockerfile.fast
 
 # Local development overrides — keep them on the workstation (runbook/Makefile assume they exist locally)
 docker/.env.local*
-docker/docker-compose.local-arm64.yml
+docker/.env.bak*
+docker/docker-compose.local*.yml
+docker/docker-compose.yml.bak*
+docker/docker-compose-office.yml.bak*
+docker/bisheng/config/config.yaml.bak*
+docker/nginx/tls/docker-compose.yml.bak*
+docker/nginx/tls/conf.d/bisheng.conf.bak*
 
 # Pre-downloaded pandoc tarball for GitHub-blocked builds (runbook §3.2)
 src/backend/pandoc-*.tar.gz

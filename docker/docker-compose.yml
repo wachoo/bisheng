@@ -13,6 +13,9 @@ x-runtime-platform-env: &runtime-platform-env
   # Generate this node descriptor on the Docker host; see deploy/runtime-manager/README.md.
   BISHENG_RUNTIME_HOST_ISOLATION_NODES: '${BISHENG_RUNTIME_HOST_ISOLATION_NODES:-}'
   BISHENG_RUNTIME_SERVICE_KEYS: '{"manager-node-1":{"secret":"${BISHENG_RUNTIME_MANAGER_SECRET:-}","node_id":"${BISHENG_RUNTIME_NODE_ID:-docker-node-1}","roles":["manager"]},"egress-node-1":{"secret":"${BISHENG_RUNTIME_EGRESS_SECRET:-}","node_id":"${BISHENG_RUNTIME_NODE_ID:-docker-node-1}","roles":["egress"]},"host-isolation-node-1":{"secret":"${BISHENG_RUNTIME_HOST_ISOLATION_SECRET:-}","node_id":"${BISHENG_RUNTIME_NODE_ID:-docker-node-1}","roles":["host-isolation"]},"entry-reader":{"secret":"${BISHENG_RUNTIME_ENTRY_SECRET:-}","roles":["entry"]}}'
+  # DSH（桌面端）默认关闭；开启时 platform_public_url 必须是客户端实际访问的 origin
+  BS_DSH_ENABLED: ${BS_DSH_ENABLED:-false}
+  BS_DSH_PLATFORM_PUBLIC_URL: ${BS_DSH_PLATFORM_PUBLIC_URL:-http://localhost:3001}
 
 services:
   gateway-db-init:

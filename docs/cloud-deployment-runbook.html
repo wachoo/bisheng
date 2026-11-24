@@ -464,7 +464,7 @@
 
       <h4>离线 / 纯内网部署</h4>
       <ol>
-        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 15 个 <code>.tar.gz</code>（约 7.4GB，含 12 个运行镜像、构建用的 <code>python:3.11-slim</code> 和 <code>base.v10</code>，以及 CPU 不支持 x86-64-v2 时替换用的 <code>mysql:8.0.43-debian</code>）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
+        <li><strong>镜像</strong>：<code>docker/data/img</code> 下的 16 个 <code>.tar.gz</code>（约 7.5GB，含 12 个运行镜像、构建用的 <code>python:3.11-slim</code> / <code>base.v10</code> / <code>node:20-alpine</code>，以及 CPU 不支持 x86-64-v2 时替换用的 <code>mysql:8.0.43-debian</code>）直接 <code>docker load</code>，无需访问 registry（步骤见「离线镜像导入」）。</li>
         <li><strong>证书</strong>：使用内部 CA 或商业证书，可关闭 ACME 出向。</li>
         <li><strong>模型 / 解析</strong>：改为内网端点（vLLM、自建 MinerU、ETL4LM），并在系统配置里改 URL。</li>
         <li><strong>企微</strong>：完全不出网时企微 SSO 与组织同步不可用；必须使用则放行三个企微域名，或配置正向代理。</li>
@@ -510,7 +510,7 @@ chmod 600 .env</code></pre>
       <h3>离线镜像导入（<code>docker/data/img</code>）</h3>
       <p>完全不出网的机器用这批归档恢复运行镜像，不需要访问任何 registry：</p>
       <pre><code>cd /root/app/bisheng        # 归档随仓库放在 docker/data/img
-ls docker/data/img          # 15 个 *.tar.gz + MANIFEST.txt
+ls docker/data/img          # 16 个 *.tar.gz + MANIFEST.txt
 
 for f in docker/data/img/*.tar.gz; do
   echo "== $f"
@@ -521,6 +521,7 @@ done</code></pre>
         <li>需要约 <strong>15 GB 可用空间</strong>（导入后是解压的镜像层，压缩包约 5.8 GB），导入前用 <code>df -h /</code> 确认</li>
         <li>归档包含 12 个<strong>运行镜像</strong>、<code>python:3.11-slim</code> 和 <code>dataelement/bisheng-backend:base.v10</code>（应用镜像的构建基础）；离线环境可直接用 <code>base.v10</code> 构建应用镜像，跳过「后端」一节的 base 构建；只有需要重建 base 时才用得上 <code>python:3.11-slim</code></li>
         <li>额外带一个 <code>mysql:8.0.43-debian</code>（Debian 12，glibc 只要求 <code>x86-64-baseline</code>）：宿主 CPU 不支持 x86-64-v2 时用它替换 <code>cr.dataelem.com/mysql:8.0</code>，见「故障排查」一节</li>
+        <li>额外带 <code>node:20-alpine</code>（前端镜像的构建基础）：离线构建前端时与归档里的 <code>nginx:1.30-alpine</code> 配合使用——<code>docker tag docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest</code>，再按「前端」一节执行 <code>docker build -f Dockerfile</code></li>
       </ul>
       <p>校验：</p>
       <pre><code>docker images --format '{{.Repository}}:{{.Tag}}' | sort \

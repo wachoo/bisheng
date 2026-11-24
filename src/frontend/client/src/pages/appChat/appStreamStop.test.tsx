@@ -34,7 +34,7 @@ class TestSocket {
 }
 
 let sequence = 0;
-function openConversation(flowType: number, awaitingFirstToken = false) {
+function openConversation(flowType: number, awaitingFirstToken = false, connecting = false) {
     const chatId = `stream-stop-${++sequence}`;
     const wrapper = ({ children }: { children: ReactNode }) => (
         <RecoilRoot initializeState={({ set }) => {
@@ -60,11 +60,49 @@ function openConversation(flowType: number, awaitingFirstToken = false) {
         return { chat: useRecoilValue(currentChatState), running: useRecoilValue(currentRunningState),
             submit: useSetRecoilState(submitDataState) };
     }, { wrapper });
-    act(() => TestSocket.latest.onopen?.());
+    if (connecting) TestSocket.latest.readyState = TestSocket.CONNECTING;
+    else act(() => TestSocket.latest.onopen?.());
     return { ...hook, chatId, socket: TestSocket.latest };
 }
 
 beforeEach(() => { Object.defineProperty(window, 'WebSocket', { value: TestSocket, configurable: true }); });
+
+test.each([false, true])('a question during reconnect uses the pending socket once (transport open: %s)', (transportOpen) => {
+    const { result, socket, chatId, unmount } = openConversation(5, true, true);
+    if (transportOpen) {
+        socket.readyState = TestSocket.OPEN;
+        act(() => socket.onopen?.());
+    }
+    const data = { chat_id: chatId, inputs: { input: 'one question' } };
+    act(() => result.current.submit({ action: 'skill_input', input: 'one question', data }));
+    expect(TestSocket.latest).toBe(socket);
+    expect(socket.send.mock.calls.some(([frame]) => JSON.parse(frame).inputs?.input)).toBe(false);
+    socket.readyState = TestSocket.OPEN;
+    act(() => {
+        if (!transportOpen) socket.onopen?.();
+        socket.receive({ category: 'processing', type: 'close' });
+    });
+    expect(result.current.running?.showStop).toBe(true);
+    act(() => socket.receive({ category: 'processing', type: 'close' }));
+    expect(result.current.running?.running).toBe(false);
+    expect(socket.send.mock.calls.filter(([frame]) => JSON.parse(frame).inputs?.input)).toEqual([[JSON.stringify(data)]]);
+    unmount();
+    closeAppChatWebSocket(chatId);
+});
+
+test('a stopped question waiting for connection is never replayed', () => {
+    const { result, socket, chatId, unmount } = openConversation(5, true, true);
+    act(() => result.current.submit({ action: 'skill_input', input: 'cancelled', data: { chat_id: chatId, inputs: { input: 'cancelled' } } }));
+    act(() => result.current.submit({ action: 'stop' }));
+    socket.readyState = TestSocket.OPEN;
+    act(() => {
+        socket.onopen?.();
+        socket.receive({ category: 'processing', type: 'close' });
+    });
+    expect(socket.send.mock.calls.some(([frame]) => JSON.parse(frame).inputs?.input)).toBe(false);
+    unmount();
+    closeAppChatWebSocket(chatId);
+});
 
 test.each([5, 10])('flow type %s manual stop freezes partial output through late frames and terminal close', (flowType) => {
     const { result, socket, chatId, unmount } = openConversation(flowType);
@@ -152,6 +190,25 @@ test('production assistant stop frames restore input and persist the truncated t
     expect(result.current.chat?.messages.slice(-1)[0]).toMatchObject({ message: 'APP_NEXT_OK', end: true });
     expect(result.current.running?.inputDisabled).toBe(false);
     expect(trace.history.filter(row => row.category === 'answer').map(row => row.message)).toEqual([partial, 'APP_NEXT_OK']);
+    unmount();
+    closeAppChatWebSocket(chatId);
+});
+test('a tool completion already in flight supplies its details after manual stop', () => {
+    const { result, socket, chatId, unmount } = openConversation(5);
+    const extra = JSON.stringify({ run_id: 'tool1' });
+    act(() => socket.receive({ category: 'tool', type: 'start', extra, message: '{"tool_key":"search","input_str":"query"}' }));
+    act(() => result.current.submit({ action: 'stop' }));
+    act(() => {
+        socket.receive({ category: 'tool', type: 'end', extra, message: '{"tool_key":"search","output":"hit"}' });
+        socket.receive({ category: 'answer', type: 'end', message_id: 42, message: '', extra: JSON.stringify({
+            assistant_timeline: [{ type: 'tool', run_id: 'tool1', tool_key: 'search', status: 'done' }],
+        }) });
+        socket.receive({ category: 'processing', type: 'close' });
+    });
+    expect(result.current.chat?.messages.filter(row => row.category === 'tool')).toMatchObject([
+        { message: { tool_key: 'search', input_str: 'query', output: 'hit' } },
+    ]);
+    expect(result.current.chat?.messages[2]).toMatchObject({ message: 'partial answer', id: 42, stopped: true });
     unmount();
     closeAppChatWebSocket(chatId);
 });

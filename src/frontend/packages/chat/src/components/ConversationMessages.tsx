@@ -1,4 +1,4 @@
-import { useRef, type ReactNode, type RefObject } from 'react';
+import { Fragment, useRef, type ReactNode, type RefObject } from 'react';
 import { Outlined } from 'bisheng-icons';
 import { asRecord, displayText, sourceId } from '../core/normalizeHistory';
 import { splitMessageContent } from '../core/messageContent';
@@ -8,6 +8,8 @@ import { ChoiceMessage } from './ChoiceMessage';
 import { MessageBubble, ReasoningDetails } from './MessageBubble';
 import { MessageFrame } from './MessageFrame';
 import { GreetingMessage } from './GreetingMessage';
+import { assistantGroups, isAssistantTool } from '../core/assistantTimeline';
+import { AssistantTimeline } from './AssistantTimeline';
 
 export interface ConversationLabels {
   confirm: string;
@@ -15,6 +17,15 @@ export interface ConversationLabels {
   thinking: string;
   completed: string;
   stopped?: string;
+  deepThinking?: string;
+  deepThought?: string;
+  reasoningContent?: string;
+  tool?: string;
+  toolInput?: string;
+  toolResult?: string;
+  knowledge?: string;
+  knowledgeResults?: (count: number) => string;
+  toolError?: string;
 }
 export interface ConversationMessageSlots {
   content: (text: string, message: ChatMessage) => ReactNode;
@@ -29,13 +40,15 @@ export interface ConversationMessagesProps {
   messages: readonly ChatMessage[];
   canExecute: boolean;
   initiallyShowReasoning?: boolean;
+  assistantTimeline?: boolean;
+  running?: boolean;
   labels: ConversationLabels;
   slots: ConversationMessageSlots;
   onChoice?: (message: ChatMessage, value: string) => void | Promise<void>;
   onError?: (error: unknown) => void;
 }
-interface ConversationRowProps extends Omit<ConversationMessagesProps, 'messages'> { message: ChatMessage }
-function ConversationRow({ message, canExecute, initiallyShowReasoning, labels, slots, onChoice, onError }: ConversationRowProps) {
+interface ConversationRowProps extends Omit<ConversationMessagesProps, 'messages'> { message: ChatMessage; grouped?: boolean }
+function ConversationRow({ message, grouped, canExecute, initiallyShowReasoning, labels, slots, onChoice, onError }: ConversationRowProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const payload = asRecord(message.payload);
   const { text, reasoning } = splitMessageContent(message.text);
@@ -44,6 +57,8 @@ function ConversationRow({ message, canExecute, initiallyShowReasoning, labels, 
   const stopped = message.raw.stopped === true || message.raw.remark === 'break_answer';
   const stopStatus = stopped && labels.stopped ? <p role="status" className="ml-4 mt-2 text-body-sm text-text-3">{labels.stopped}</p> : undefined;
   if (message.kind === 'hidden') return null;
+  if (grouped && (isAssistantTool(message) || message.kind === 'reasoning')) return <>{slots.attachments?.(message)}</>;
+  if (grouped && message.kind === 'answer' && !text && !message.files.length && !message.sourceMessageId && !stopped && !message.raw.receiver) return null;
   if (['divider', 'separator'].includes(message.category)) {
     return <div className="flex items-center justify-center py-4 text-gray-400 text-sm">{slots.content(text, message)}</div>;
   }
@@ -84,7 +99,7 @@ function ConversationRow({ message, canExecute, initiallyShowReasoning, labels, 
   const reasoningText = message.reasoning || reasoning;
   return <MessageBubble speaker={message.kind === 'user' ? 'user' : 'assistant'} title={title} logo={logo} sender={displayText(message.raw.sender)} contentRef={contentRef}
     selection={slots.selection?.(message)}
-    reasoning={<ReasoningDetails initiallyOpen={initiallyShowReasoning} text={reasoningText} stopped={stopped} pending={!message.final && !stopped} labels={labels} />}
+    reasoning={!grouped && <ReasoningDetails initiallyOpen={initiallyShowReasoning} text={reasoningText} stopped={stopped} pending={!message.final && !stopped} labels={labels} />}
     hideBody={!!reasoningText && !text && !message.files.length}
     status={stopStatus}
     pending={!stopped && message.kind !== 'user' && !message.final && !text && !message.files.length}
@@ -97,5 +112,12 @@ function ConversationRow({ message, canExecute, initiallyShowReasoning, labels, 
 }
 /** Both hosts bind services/actions around this single category dispatcher. */
 export function ConversationMessages({ messages, ...props }: ConversationMessagesProps) {
+  if (props.assistantTimeline) return <>{assistantGroups(messages, props.running ?? false).map(group => <Fragment key={group.key}>
+    {!!group.steps.length && <AssistantTimeline steps={group.steps} summary={group.summary} running={group.running} stopped={group.stopped}
+      labels={props.labels} initiallyShowReasoning={props.initiallyShowReasoning} runPresentation={props.slots.runPresentation} />}
+    {group.messages.map(message => <ConversationRow key={message.key} message={message}
+      grouped={!!group.steps.length && (!isAssistantTool(message) || group.steps.some(step => step.kind === 'tool' && step.message === message))}
+      {...props} />)}
+  </Fragment>)}</>;
   return <>{messages.map(message => <ConversationRow key={message.key} message={message} {...props} />)}</>;
 }

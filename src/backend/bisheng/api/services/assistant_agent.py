@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from langchain_classic.tools.render import format_tool_to_openai_tool
 from langchain_core.callbacks import Callbacks
 from langchain_core.language_models import BaseLanguageModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, ToolMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import ArgsSchema, BaseTool
 from langgraph.prebuilt import create_react_agent
@@ -26,6 +26,7 @@ from bisheng.citation.domain.services.citation_prompt_helper import (
     cache_citation_registry_items_sync,
     collect_rag_citation_registry_items,
     collect_web_citation_registry_items,
+    ensure_citation_rules,
     exclude_known_registry_items,
     is_web_citation_tool,
     is_web_fetch_tool,
@@ -440,6 +441,8 @@ class AssistantAgent(AssistantUtils):
             prompt = self.ASSISTANT_PROMPT_COHERE.format(preamble=prompt)
         # Conditional backstop: only inject citation rules when the assistant's own prompt
         # doesn't already carry them (e.g. seeded via auto-optimization), avoiding duplication.
+        if self.has_citation_tools():
+            prompt = ensure_citation_rules(prompt)
         if self.current_agent_executor == "ReAct":
             # Inisialisasiagent
             self.agent = ConfigurableAssistant(
@@ -548,30 +551,25 @@ class AssistantAgent(AssistantUtils):
             logger.error(f"record assistant history error: {e!s}")
 
     async def trim_messages(self, messages: list[Any]) -> list[Any]:
-        # Dapatkanencoding
+        if len(messages) <= 1:
+            return messages
+        # Keep the newest suffix that fits, always including the current
+        # question. A tool response cannot be sent without its calling AI turn.
         enc = self.cl100k_base()
-
-        def get_finally_message(new_messages: list[Any]) -> list[Any]:
-            # No more processing until only one record has been trimmed
-            if len(new_messages) == 1:
-                return new_messages
-            total_count = 0
-            for one in new_messages:
-                if isinstance(one, HumanMessage):
-                    total_count += len(enc.encode(one.content))
-                elif isinstance(one, AIMessage):
-                    total_count += len(enc.encode(one.content))
-                    if "tool_calls" in one.additional_kwargs:
-                        total_count += len(
-                            enc.encode(json.dumps(one.additional_kwargs["tool_calls"], ensure_ascii=False))
-                        )
-                else:
-                    total_count += len(enc.encode(str(one.content)))
-            if total_count > self.assistant.max_token:
-                return get_finally_message(new_messages[1:])
-            return new_messages
-
-        return get_finally_message(messages)
+        start = len(messages)
+        total = 0
+        for i in range(len(messages) - 1, -1, -1):
+            message = messages[i]
+            content = message.content if isinstance(message, (HumanMessage, AIMessage)) else str(message.content)
+            total += len(enc.encode(content))
+            if isinstance(message, AIMessage) and "tool_calls" in message.additional_kwargs:
+                total += len(enc.encode(json.dumps(message.additional_kwargs["tool_calls"], ensure_ascii=False)))
+            if total > self.assistant.max_token and i < len(messages) - 1:
+                break
+            start = i
+        while start < len(messages) and isinstance(messages[start], ToolMessage):
+            start += 1
+        return messages[start:]
 
     async def run(self, query: str, chat_history: list = None, callback: Callbacks = None) -> list[BaseMessage]:
         """

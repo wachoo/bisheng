@@ -177,7 +177,7 @@ export default function ChatView({ data, cid, v, readOnly, isGuestMode = false, 
           </div>
         ) : (
           <div className="flex min-h-0 flex-1 overflow-hidden">
-            <div className="relative flex min-w-0 flex-1 min-h-0 flex-col overflow-hidden">
+            <div className="bisheng-chat-column relative flex min-w-0 flex-1 min-h-0 flex-col overflow-hidden">
               <HeaderTitle
                 readOnly={readOnly}
                 hideShare={hideShare}
@@ -189,7 +189,7 @@ export default function ChatView({ data, cid, v, readOnly, isGuestMode = false, 
                 }}
               />
               <div className="flex min-h-0 flex-1 overflow-hidden">
-                <div className="relative mx-auto h-full min-h-0 w-full max-w-[800px] flex-1">
+                <div className="relative h-full min-h-0 min-w-0 flex-1">
                   <ChatMessages
                     useName={user?.username}
                     title={data.name}
@@ -206,7 +206,7 @@ export default function ChatView({ data, cid, v, readOnly, isGuestMode = false, 
               {!readOnly &&
                 (cid && selectionState.active && selectionState.chatId === cid ? (
                   /* F028: input is replaced by the selection toolbar at 100% width */
-                  <div className="z-10 w-full max-w-[800px] mx-auto shrink-0 bg-[#fff] dark:bg-[#1B1B1B] py-1.5">
+                  <div className="bisheng-chat-reading z-10 shrink-0 bg-[#fff] dark:bg-[#1B1B1B] py-1.5">
                     <MessageSelectionToolbar
                       chatId={cid}
                       messages={selectableMessages}

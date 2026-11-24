@@ -50,3 +50,99 @@
   line-height: 24px;
   overflow-wrap: anywhere;
 }
+
+.bisheng-chat-column {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.bisheng-chat-reading,
+.bisheng-composer-width {
+  box-sizing: border-box;
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 16px;
+}
+
+.bisheng-chat-reading {
+  max-width: calc(clamp(680px, 64cqw, 920px) + 32px);
+}
+
+.bisheng-chat-reading .bisheng-message[data-speaker="assistant"] .bisheng-message__column {
+  flex: 1;
+}
+
+.bisheng-chat-reading .bisheng-message[data-speaker="user"] .bisheng-message__column {
+  max-width: min(calc(clamp(680px, 64cqw, 920px) * .702), 82%);
+}
+
+.bisheng-chat-reading .bisheng-chat-markdown {
+  --markdown-font-size: 14px;
+  min-width: 0;
+  font-size: 14px;
+  line-height: 24px;
+  color: rgb(var(--text-1));
+  overflow-wrap: anywhere;
+}
+
+.bisheng-chat-reading .bisheng-chat-markdown :is(p, li) { line-height: 24px; }
+.bisheng-chat-reading .bisheng-chat-markdown > p + p { margin-top: 16px; }
+.bisheng-chat-reading .bisheng-chat-markdown > :first-child { margin-top: 0; }
+.bisheng-chat-reading .bisheng-chat-markdown > :last-child { margin-bottom: 0; }
+.bisheng-chat-reading .bisheng-chat-markdown :is(pre, table) { max-width: 100%; overflow-x: auto; }
+.bisheng-chat-reading .bisheng-chat-markdown table { display: block; width: fit-content; }
+
+.bisheng-message-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 0 0;
+  color: rgb(var(--text-3));
+}
+
+[data-speaker="user"] .bisheng-message-actions { margin-top: 6px; }
+.bisheng-message-actions button:not([data-citation-references-trigger]) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  min-height: 28px;
+  border-radius: 8px;
+}
+
+.bisheng-message-actions button:focus-visible,
+.bisheng-composer-toolbar button:focus-visible { outline: 2px solid rgb(var(--brand-500)); outline-offset: 2px; }
+.bisheng-message-time { font-size: 12px; line-height: 24px; font-variant-numeric: tabular-nums; }
+.bisheng-composer-width { max-width: calc(clamp(680px, 64cqw, 920px) + 64px); padding-block: 8px 20px; }
+.bisheng-composer-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 0;
+  border-radius: 28px;
+  background: rgb(var(--dsh-composer-bg, var(--bg-page)));
+  box-shadow: 0 0 0 .5px rgb(var(--border-base)), 0 2px 8px rgb(0 0 0 / 4%);
+}
+:is(.dark, [data-dsh-chat-theme="dark"]) .bisheng-composer-shell { background: rgb(var(--fill-2)); }
+.bisheng-composer-shell:focus-within { outline: 1px solid rgb(var(--border-deep)); }
+.bisheng-composer-shell .bisheng-composer-editor {
+  box-sizing: border-box;
+  min-height: 36px;
+  max-height: min(240px, 30vh);
+  padding: 4px 14px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 24px;
+}
+.bisheng-composer-toolbar { flex-wrap: wrap; min-height: 42px; padding: 2px 8px 6px; }
+.bisheng-composer-toolbar > :first-child { margin-left: auto; }
+.bisheng-composer-toolbar > .bisheng-composer-leading { margin: 0 auto 0 0; }
+.bisheng-composer-toolbar .bisheng-composer-submit { width: 34px; height: 34px; }
+@media (max-width: 767px) {
+  .bisheng-composer-width { padding: 8px 12px max(12px, env(safe-area-inset-bottom)); }
+  .bisheng-composer-shell .bisheng-composer-editor { font-size: 16px; }
+}
+@media (pointer: coarse) {
+  .bisheng-message-actions button:not([data-citation-references-trigger]) { min-width: 32px; min-height: 32px; }
+}

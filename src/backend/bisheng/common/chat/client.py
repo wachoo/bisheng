@@ -4,7 +4,6 @@ import time
 from collections.abc import Callable, Mapping
 from copy import copy
 from dataclasses import dataclass
-from queue import Queue
 from types import MappingProxyType
 
 from fastapi import Request, WebSocket
@@ -15,8 +14,10 @@ from bisheng.api.services.assistant_agent import AssistantAgent
 from bisheng.api.services.audit_log import AuditLogService
 from bisheng.api.v1.callback import AsyncGptsDebugCallbackHandler
 from bisheng.api.v1.schemas import ChatMessage, ChatResponse
+from bisheng.assistant.domain.services.assistant_turn import AssistantTurn, current_assistant_turn
 from bisheng.citation.domain.schemas.citation_schema import CitationRegistryItemSchema
 from bisheng.citation.domain.services.citation_prompt_helper import (
+    restore_bare_assistant_citations,
     save_message_citations,
     select_registry_items_for_persistence,
     strip_unregistered_citation_markers,
@@ -88,8 +89,6 @@ class ChatClient:
         self.message_tasks: set[asyncio.Task] = set()
         self.finalizing_tasks: set[asyncio.Task] = set()
         self.background_tasks: set[asyncio.Task] = set()
-        # A queue of streaming outputs to accept the content of the streaming output, processing newquestionEmpty at all times
-        self.stream_queue = Queue()
 
     async def close(self):
         pass
@@ -148,7 +147,21 @@ class ChatClient:
                 ),
             )
 
-    async def add_message(self, msg_type: str, message: str, category: str, remark: str = ""):
+    def message_extra(self, assistant_timeline: list[dict] | None = None) -> str:
+        extra = {"client_key": self.client_key}
+        if assistant_timeline is not None:
+            extra["assistant_timeline"] = assistant_timeline
+        return json.dumps(extra, ensure_ascii=False)
+
+    async def add_message(
+        self,
+        msg_type: str,
+        message: str,
+        category: str,
+        remark: str = "",
+        *,
+        assistant_timeline: list[dict] | None = None,
+    ):
         self.chat_history.append({"category": category, "message": message, "remark": remark})
         if not self.chat_id:
             # debugMode does not need to save history
@@ -161,7 +174,7 @@ class ChatClient:
                 message=message,
                 category=category,
                 type=msg_type,
-                extra=json.dumps({"client_key": self.client_key}, ensure_ascii=False),
+                extra=self.message_extra(assistant_timeline),
                 flow_id=self.client_id,
                 chat_id=self.chat_id,
                 user_id=self.user_id,
@@ -206,6 +219,7 @@ class ChatClient:
         message_id: int | None = None,
         citation_registry_items: list[CitationRegistryItemSchema] | None = None,
         citations: list[CitationRegistryItemSchema] | None = None,
+        assistant_timeline: list[dict] | None = None,
     ):
         is_bot = 0 if msg_type == "human" else 1
         if citations is None:
@@ -220,7 +234,7 @@ class ChatClient:
                 user_id=self.user_id,
                 flow_id=self.client_id,
                 chat_id=self.chat_id,
-                extra=json.dumps({"client_key": self.client_key}, ensure_ascii=False),
+                extra=self.message_extra(assistant_timeline),
                 intermediate_steps=intermediate_steps,
                 citations=citations,
                 citation_registry_items=citation_registry_items,
@@ -273,37 +287,37 @@ class ChatClient:
             return
         # Load Historical Sessions from Database
         if self.chat_id:
-            res = ChatMessageDao.get_messages_by_chat_id(
+            res = await ChatMessageDao.aget_messages_by_chat_id(
                 self.chat_id, ["question", "answer", "tool_call", "tool_result"], self.latest_history_num * 4
             )
-            res.reverse()
             for one in res:
                 self.chat_history.append({"message": one.message, "category": one.category, "remark": one.remark})
 
     async def get_latest_history(self) -> list[BaseMessage]:
-        # Invalid historical messages need to be culled and only complete Q&A sessions are included
-        tmp = []
-        find_i = 0
-        is_answer = True
-        # Get from Chat History
-        for i in range(len(self.chat_history) - 1, -1, -1):
-            one_item = self.chat_history[i]
-            if find_i >= self.latest_history_num:
-                break
-            # Answers without interruptions
-            if one_item["category"] == "answer" and one_item.get("remark") != "break_answer" and is_answer:
-                tmp.insert(0, AIMessage(content=one_item["message"]))
-                is_answer = False
-            elif one_item["category"] == "question" and not is_answer:
-                tmp.insert(0, HumanMessage(content=json.loads(one_item["message"])["input"]))
-                is_answer = True
-                find_i += 1
-            elif one_item["category"] == "tool_call":
-                tmp.insert(0, AIMessage(**json.loads(one_item["message"])))
-            elif one_item["category"] == "tool_result":
-                tmp.insert(0, LiberalToolMessage(**json.loads(one_item["message"])))
-
-        return tmp
+        # A limited DB window can begin halfway through a tool exchange, and
+        # a failed/stopped turn can end with no usable answer. Only replay
+        # exchanges contained between a question and its completed answer.
+        turns = []
+        answer = None
+        tools = []
+        for row in reversed(self.chat_history):
+            category = row["category"]
+            if category == "answer":
+                answer = row["message"] if row.get("remark") != "break_answer" else None
+                tools = []
+            elif category == "question":
+                if answer is not None:
+                    question = HumanMessage(content=json.loads(row["message"])["input"])
+                    turns.append([question, *reversed(tools), AIMessage(content=answer)])
+                    if len(turns) == self.latest_history_num:
+                        break
+                answer = None
+                tools = []
+            elif answer is not None and category == "tool_call":
+                tools.append(AIMessage(**json.loads(row["message"])))
+            elif answer is not None and category == "tool_result":
+                tools.append(LiberalToolMessage(**json.loads(row["message"])))
+        return [message for turn in reversed(turns) for message in turn]
 
     async def init_gpts_callback(self):
         if self.gpts_async_callback is not None:
@@ -315,7 +329,6 @@ class ChatClient:
                     "flow_id": self.client_id,
                     "chat_id": self.chat_id,
                     "user_id": self.user_id,
-                    "stream_queue": self.stream_queue,
                 }
             )
         ]
@@ -332,37 +345,26 @@ class ChatClient:
                 if isinstance(result, Exception):
                     logger.opt(exception=result).error("Assistant stop finalization failed for {}", self.client_key)
 
-    async def save_stopped_response(self):
-        # Write streaming output to database
-        answer = ""
-        reasoning_answer = ""
-        while not self.stream_queue.empty():
-            msg = self.stream_queue.get()
-            if msg.get("type") == "answer":
-                answer += msg.get("content", "")
-            elif msg.get("type") == "reasoning":
-                reasoning_answer += msg.get("content", "")
-
-        # If there is streaming output, record the streaming output to the database
-        if reasoning_answer:
-            res = await self.add_message("bot", reasoning_answer, "reasoning_answer", "break_answer")
+    async def save_stopped_response(self, turn: AssistantTurn):
+        timeline = turn.timeline()
+        reasoning = "".join(step["text"] for step in timeline if step["type"] == "reasoning")
+        if reasoning:
+            res = await self.add_message("bot", reasoning, "reasoning_answer", "break_answer")
             await self.send_response("reasoning_answer", "end", "", message_id=res.id if res else None)
         # An empty answer carries the terminal marker when stopped before the first token.
-        res = await self.add_message("bot", answer, "answer", "break_answer")
-        await self.send_response("answer", "end", "", message_id=res.id if res else None)
-
-    async def clear_stream_queue(self):
-        while not self.stream_queue.empty():
-            self.stream_queue.get()
+        res = await self.add_message(
+            "bot", "".join(turn.answer_chunks), "answer", "break_answer", assistant_timeline=timeline
+        )
+        await self.send_response("answer", "end", "", message_id=res.id if res else None, assistant_timeline=timeline)
 
     async def handle_gpts_message(self, message: dict[any, any]):
         if not message:
             return
         logger.debug(f"receive client message, client_key: {self.client_key} message: {message}")
         question_saved = False
+        turn = AssistantTurn()
+        turn_token = current_assistant_turn.set(turn)
         try:
-            # Start each round with its own stream buffer, including immediate stops.
-            await self.clear_stream_queue()
             inputs = message.get("inputs", {})
             input_msg = inputs.get("input")
             if not input_msg:
@@ -397,7 +399,10 @@ class ChatClient:
             answer = result[-1].content
 
             # Record contains
-            new_history = result[len(chat_history) : -1]
+            # Token trimming may shorten the input history. The current user
+            # message in the returned transcript is the actual turn boundary.
+            turn_start = next((i + 1 for i in range(len(result) - 2, -1, -1) if isinstance(result[i], HumanMessage)), 0)
+            new_history = result[turn_start:-1]
             for one in new_history:
                 if isinstance(one, AIMessage):
                     _ = await self.add_message("bot", one.model_dump_json(), "tool_call")
@@ -411,24 +416,19 @@ class ChatClient:
             if getattr(self.gpts_agent.llm, "streaming", False):
                 answer_end_type = "end_cover"
 
-            # Get from Queuereasoning content
-            reasoning_content = ""
-            while not self.stream_queue.empty():
-                msg = self.stream_queue.get()
-                if msg.get("type") == "reasoning":
-                    reasoning_content += msg.get("content")
+            timeline = turn.timeline()
+            reasoning_content = "".join(step["text"] for step in timeline if step["type"] == "reasoning")
 
-            citation_items = select_registry_items_for_persistence(
-                self.gpts_agent.collect_citation_registry_items(),
-                answer,
-            )
+            registered_items = self.gpts_agent.collect_citation_registry_items()
+            answer = restore_bare_assistant_citations(answer, registered_items)
+            citation_items = select_registry_items_for_persistence(registered_items, answer)
             # A marker the registry cannot back must not reach storage: it would
             # render as a footnote whose detail lookup 404s, reading as a system
             # failure rather than the model having invented the id.
             answer = strip_unregistered_citation_markers(answer, citation_items)
 
             res = await self.add_message("bot", reasoning_content, "reasoning_answer")
-            res = await self.add_message("bot", answer, "answer")
+            res = await self.add_message("bot", answer, "answer", assistant_timeline=timeline)
             if res:
                 await save_message_citations(
                     message_id=res.id,
@@ -451,6 +451,7 @@ class ChatClient:
                 message_id=res.id if res else None,
                 citation_registry_items=citation_items,
                 citations=citation_items,
+                assistant_timeline=timeline,
             )
             logger.info(f"gptsAgentOver assistant_id:{self.client_id} chat_id:{self.chat_id} question:{input_msg}")
             logger.info(f"gptsAgentOver assistant_id:{self.client_id} chat_id:{self.chat_id} answer:{answer}")
@@ -463,7 +464,7 @@ class ChatClient:
             self.finalizing_tasks.add(asyncio.current_task())
             if question_saved:
                 try:
-                    await self.save_stopped_response()
+                    await self.save_stopped_response(turn)
                 except Exception as exc:
                     logger.exception("Failed to save stopped assistant response")
                     await AssistantOtherError(exception=exc).websocket_close_message(
@@ -480,6 +481,7 @@ class ChatClient:
             await self.send_response("system", "start", "")
             await e.websocket_close_message(websocket=self.websocket, close_ws=False)
         finally:
+            current_assistant_turn.reset(turn_token)
             self.finalizing_tasks.add(asyncio.current_task())
             await self.send_response("processing", "close", "")
 

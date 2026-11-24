@@ -73,6 +73,7 @@ const store = createStore<State & Actions>((set, get) => ({
      * rather than leaving a success tick it never earned.
      */
     closeDanglingRunLogs() {
+        set({ running: false });
         const messages = get().messages
         if (!messages.some(msg => runLogsTypes.includes(msg.category) && !msg.end)) return
         set({
@@ -84,16 +85,17 @@ const store = createStore<State & Actions>((set, get) => ({
         })
     },
     clearMsgs() {
-        set({ historyGeneration: get().historyGeneration + 1, hisMessages: [], messages: [], historyEnd: true });
+        set({ historyGeneration: get().historyGeneration + 1, hisMessages: [], messages: [], running: false, historyEnd: true });
     },
     destory() {
         set({
-            historyGeneration: get().historyGeneration + 1, chatId: '', messages: [] })
+            historyGeneration: get().historyGeneration + 1, chatId: '', messages: [], running: false })
     },
     createSendMsg(inputs, inputKey) {
         console.log('change createSendMsg', inputs, inputKey);
 
         set((state) => ({
+            running: true,
             messages:
                 [...state.messages, {
                     isSend: true,
@@ -115,9 +117,9 @@ const store = createStore<State & Actions>((set, get) => ({
     updateCurrentMessage(data, cover = false) {
         set({ messages: assistantStreamForHost(get().messages, data, get().chatId, cover) as unknown as ChatMessageType[] });
     },
-    setInputLocked(inputLocked) { set({ inputLocked }); },
+    setInputLocked(inputLocked) { set(inputLocked ? { inputLocked } : { inputLocked, running: false }); },
     changeChatId(chatId) {
-        set((state) => ({ chatId }))
+        set({ chatId, running: false })
     },
     startNewRound(str) {
         get().insetSeparator(str)

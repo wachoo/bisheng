@@ -3,6 +3,7 @@ export * from './components/ChoiceMessage';
 export * from './components/MessageFrame';
 export * from './components/MessageBubble';
 export * from './components/ConversationMessages';
+export * from './components/DeepThinkingDisclosure';
 export * from './components/WorkflowForm';
 export * from './components/WorkflowFileField';
 export * from './hooks/useConversationScroll';

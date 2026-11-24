@@ -41,8 +41,8 @@ export default function TestChat({ assisId, guideQuestion, onClear }) {
         return [msgData, inputKey]
     }
 
-    return <div className="relative h-full px-4 bg-background-login">
-        <div className="absolute flex w-full left-0 top-0 gap-2 px-4 py-2 items-center z-10 bg-background-login shadow-sm">
+    return <div className="relative flex h-full min-h-0 flex-col bg-background-login">
+        <div className="flex shrink-0 w-full gap-2 px-4 py-2 items-center z-10 bg-background-login shadow-sm">
             <AppAvator id={assistantState.name} url={assistantState.viewLogo || assistantState.logo} flowType={5} className=""></AppAvator>
             <span className="text-sm ">{t('build.debugPreview')}</span>
             <Button className="ml-auto" size="small" variant="text" color="default" disabled={inputLocked} onClick={onClear}>
@@ -50,6 +50,7 @@ export default function TestChat({ assisId, guideQuestion, onClear }) {
                 {t('build.clearDebugConversation')}
             </Button>
         </div>
+        <div className="min-h-0 flex-1">
         <ChatComponent
             chat={assistantState}
             debug
@@ -61,5 +62,6 @@ export default function TestChat({ assisId, guideQuestion, onClear }) {
             onBeforSend={getWsParamData}
             onClickClear={onClear}
         ></ChatComponent>
+        </div>
     </div>
 };

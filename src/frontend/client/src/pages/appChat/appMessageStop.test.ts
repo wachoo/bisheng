@@ -52,3 +52,12 @@ test('a terminal ID belongs to the current round', () => {
     const messages = [previous, question];
     expect(finishStoppedAppMessage(messages, { type: 'end', category: 'answer', message_id: 99 })[0]).toBe(previous);
 });
+test('the stopped answer keeps the final assistant timeline and its frozen partial text', () => {
+    const extra = JSON.stringify({ client_key: 'chat', assistant_timeline: [
+        { type: 'reasoning', text: 'thinking' },
+        { type: 'tool', run_id: 'lookup', category: 'tool', tool_key: 'search', status: 'stopped' },
+    ] });
+    const messages = stopAppMessages([answer]);
+    const result = finishStoppedAppMessage(messages, { type: 'end', category: 'answer', message_id: 12, message: '', extra });
+    expect(result[0]).toEqual({ ...messages[0], id: 12, message_id: 12, chat_source_message_id: 12, extra });
+});

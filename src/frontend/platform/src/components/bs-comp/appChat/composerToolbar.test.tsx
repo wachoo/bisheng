@@ -24,10 +24,13 @@ it('puts the actual platform voice control in the shared toolbar and opens the e
         voice={<SpeechToTextComponent inline onChange={vi.fn()} />}
         attachments={<ChatFiles ref={fileRef} accepts="*" disabled={false} v="v1" onChange={vi.fn()} />} />);
     const voice = screen.getByRole('button', { name: 'voiceInput.start' });
-    const send = screen.getByRole('button', { name: 'Send' });
+    const getSend = () => screen.getByRole('button', { name: 'Send' });
     const attach = screen.getByRole('button', { name: 'Attach' });
-    expect(voice.parentElement).toBe(send.parentElement);
-    expect(attach.parentElement).toBe(send.parentElement);
+    expect(getSend()).toBeDisabled();
+    fireEvent.input(screen.getByRole('textbox'), { target: { value: 'Question' } });
+    expect(getSend()).toBeEnabled();
+    expect(voice.parentElement).toBe(getSend().parentElement);
+    expect(attach.parentElement).toBe(getSend().parentElement);
     expect(voice).toHaveClass('rounded-full');
     const input = container.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();

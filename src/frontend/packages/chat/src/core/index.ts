@@ -10,3 +10,4 @@ export * from './assistantStream';
 export { messagesForPresentation } from './hostMessages';
 export * from './describeRun';
 export { messagesForTransport } from './hostMessages';
+export * from './knowledgeToolResults';

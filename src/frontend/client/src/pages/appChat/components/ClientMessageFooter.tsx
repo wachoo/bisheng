@@ -27,15 +27,16 @@ export function ClientMessageFooter({ message, contentRef, readOnly, onOpenCitat
     if (message.kind === 'user' || message.kind === 'run') return null;
     if (message.kind === 'form' || message.kind === 'choice') return readOnly ? null : <TextToSpeechButton messageId={id ?? message.key} text={message.text} />;
     if (message.category === 'guide_word') return readOnly ? null : <TextToSpeechButton messageId={message.key} text={message.text} />;
-    return <>
+    return <div className="bisheng-message-actions">
+        {!readOnly && id && message.kind === 'answer'
+            ? <MessageButtons id={raw.id ?? id} data={raw.liked} text={referenceText} onCopy={() => copyText(contentRef.current ?? referenceText)}>
+                {conversationId && <ExportSelectionButton chatId={conversationId} messageId={id} />}
+            </MessageButtons>
+            : <CopyMessageAction label={localize('com_ui_copy')} copiedLabel={localize('com_ui_copied')} onCopy={() => copyText(contentRef.current ?? referenceText)} />}
         <CitationReferencesDrawer content={referenceText} webContent={webContent} citations={raw.citations} messageId={id}
             desktopMode={onOpenCitationPanel ? 'inline-panel' : 'overlay'}
             open={onOpenCitationPanel ? activeCitationMessageId === id : undefined}
-            onDesktopOpen={onOpenCitationPanel} buttonClassName="ml-4" />
-        {(readOnly || message.kind !== 'answer' || !id) && <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"><CopyMessageAction label={localize('com_ui_copy')} copiedLabel={localize('com_ui_copied')} onCopy={() => copyText(contentRef.current ?? message.text)} /></div>}
-        {!readOnly && id && message.kind === 'answer' && <MessageButtons id={raw.id ?? id} data={raw.liked} text={message.text} onCopy={() => copyText(contentRef.current ?? message.text)}>
-            {raw.create_time && <span className="text-slate-400 text-sm pt-0.5">{formatStrTime(raw.create_time, localize('shared:app_chat.timestamp_format'))}</span>}
-            {conversationId && <ExportSelectionButton chatId={conversationId} messageId={id} />}
-        </MessageButtons>}
-    </>;
+            onDesktopOpen={onOpenCitationPanel} />
+        {raw.create_time && <span className="bisheng-message-time">{formatStrTime(raw.create_time, localize('shared:app_chat.timestamp_format'))}</span>}
+    </div>;
 }

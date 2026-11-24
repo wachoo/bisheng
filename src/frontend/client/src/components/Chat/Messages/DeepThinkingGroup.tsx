@@ -15,27 +15,16 @@
  * surfaces are deliberately isomorphic with — see Linsight/Execution/
  * GroupHeaderLabel.tsx for the full reasoning.
  */
-import { Outlined } from "bisheng-icons";
+import { DeepThinkingDisclosure } from "@bisheng/chat";
 import {
     memo,
-    useCallback,
-    useEffect,
     useMemo,
-    useRef,
-    useState,
     type FC,
-    type MouseEvent,
 } from "react";
 import type { AgentEvent } from "~/api/chatApi";
 import { useLocalize } from "~/hooks";
-import { cn } from "~/utils";
 import ThinkingContent from "./ThinkingContent";
 import ToolCallDisplay from "./ToolCallDisplay";
-
-const BUTTON_STYLES = {
-    base: "group flex w-fit items-center gap-1 text-sm font-medium leading-[22px] text-text-1",
-    icon: "shrink-0 transform-gpu text-text-3 transition-transform duration-200",
-} as const;
 
 export interface DeepThinkingGroupProps {
     /** Ordered events in this group — only thinking + tool_call entries. */
@@ -47,22 +36,6 @@ export interface DeepThinkingGroupProps {
 const DeepThinkingGroup: FC<DeepThinkingGroupProps> = memo(
     ({ events, isStreaming }) => {
         const localize = useLocalize();
-        // Open while the run is live so the user can watch it; closed for
-        // already-finished groups (history rows mount with isStreaming false).
-        const [isExpanded, setIsExpanded] = useState(isStreaming);
-
-        // Auto-collapse the moment the run finishes — i.e. the main answer
-        // starts streaming and isStreaming flips false — so focus moves to the
-        // answer body without a manual click. Manual toggling stays intact
-        // afterward since we only react to the streaming → done falling edge.
-        const wasStreamingRef = useRef(isStreaming);
-        useEffect(() => {
-            if (wasStreamingRef.current && !isStreaming) {
-                setIsExpanded(false);
-            }
-            wasStreamingRef.current = isStreaming;
-        }, [isStreaming]);
-
         // Shared with task mode on purpose: the two 深度思考 surfaces are
         // explicitly isomorphic, so one key pair keeps their wording from
         // drifting apart. (The `_compact` name is historical — it was the
@@ -70,11 +43,6 @@ const DeepThinkingGroup: FC<DeepThinkingGroupProps> = memo(
         const label = localize(
             isStreaming ? "com_linsight_deep_thinking_running_compact" : "com_linsight_deep_thinking_done_compact",
         );
-
-        const handleClick = useCallback((e: MouseEvent<HTMLButtonElement>) => {
-            e.preventDefault();
-            setIsExpanded((prev) => !prev);
-        }, []);
 
         // Walk the events in arrival order, folding only ADJACENT thinking
         // fragments into one passage. The wire and the DB already interleave
@@ -109,43 +77,25 @@ const DeepThinkingGroup: FC<DeepThinkingGroupProps> = memo(
         }, [events]);
 
         return (
-            <div className="flex w-full min-w-0 flex-col gap-3">
-                <button
-                    type="button"
-                    onClick={handleClick}
-                    className={cn(BUTTON_STYLES.base, isStreaming && "animate-pulse")}
-                >
-                    <span>{label}</span>
-                    <Outlined.Down
-                        size={16}
-                        className={cn(BUTTON_STYLES.icon, !isExpanded && "-rotate-90")}
-                    />
-                </button>
-                <div
-                    className="grid transition-all duration-300 ease-out"
-                    style={{ gridTemplateRows: isExpanded ? "1fr" : "0fr" }}
-                >
-                    <div className="overflow-hidden flex flex-col gap-2">
-                        {segments.map((seg, i) => {
-                            // Connector runs to the next row, whatever kind it is.
-                            const hasNext = i < segments.length - 1;
-                            return seg.kind === "thinking" ? (
-                                <ThinkingContent
-                                    key={seg.key}
-                                    reasoning={seg.content}
-                                    showConnector={hasNext}
-                                />
-                            ) : (
-                                <ToolCallDisplay
-                                    key={seg.key}
-                                    toolCall={seg.toolCall}
-                                    showConnector={hasNext}
-                                />
-                            );
-                        })}
-                    </div>
-                </div>
-            </div>
+            <DeepThinkingDisclosure running={isStreaming} label={label}>
+                {segments.map((seg, i) => {
+                    // Connector runs to the next row, whatever kind it is.
+                    const hasNext = i < segments.length - 1;
+                    return seg.kind === "thinking" ? (
+                        <ThinkingContent
+                            key={seg.key}
+                            reasoning={seg.content}
+                            showConnector={hasNext}
+                        />
+                    ) : (
+                        <ToolCallDisplay
+                            key={seg.key}
+                            toolCall={seg.toolCall}
+                            showConnector={hasNext}
+                        />
+                    );
+                })}
+            </DeepThinkingDisclosure>
         );
     },
 );

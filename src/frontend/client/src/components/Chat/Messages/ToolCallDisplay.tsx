@@ -10,6 +10,7 @@
  *   - "web"         → 「已联网搜索 (N 个结果)」, site-style chips (title + source)
  *   - "tool" (any)  → 「已调用 {display_name} 工具」, brief chips / result preview
  */
+import { knowledgeToolResults } from "@bisheng/chat";
 import { Outlined } from "bisheng-icons";
 import { AlertCircle } from "lucide-react";
 import { memo, useEffect, useState, type FC } from "react";
@@ -161,69 +162,6 @@ function normaliseWebResults(items: any[]): any[] {
     return out;
 }
 
-/**
- * Knowledge results arrive as opaque chunk strings tagged with
- * `<knowledge_base_id>` / `<knowledge_base_name>` (emitted by the backend
- * `_format_chunk`). The UI shows one chip per knowledge base in the order the
- * model first cited it — not one chip per chunk/file — per v2.5 spec §3.1.
- *
- * Backend also emits synthetic chunks for failed KBs carrying
- * `<retrieval_error>...</retrieval_error>` so the UI can surface the failure
- * inline with the successful chips instead of dropping them silently.
- */
-function normaliseKnowledgeResults(
-    items: any[],
-    localize: ReturnType<typeof useLocalize>,
-): { id: string; name: string; error?: string }[] {
-    const seen = new Map<string, { id: string; name: string; error?: string }>();
-    const order: string[] = [];
-    for (const raw of items) {
-        if (!raw) continue;
-        const text =
-            typeof raw === "string"
-                ? raw
-                : (raw.chunk || raw.text || raw.content || "").toString();
-        const idMatch = /<knowledge_base_id>([^<]*)<\/knowledge_base_id>/.exec(text);
-        const nameMatch = /<knowledge_base_name>([^<]*)<\/knowledge_base_name>/.exec(text);
-        const errMatch = /<retrieval_error>([\s\S]*?)<\/retrieval_error>/.exec(text);
-        const id = (idMatch?.[1] || "").trim();
-        const name = (nameMatch?.[1] || "").trim();
-        const error = errMatch ? errMatch[1].trim() : undefined;
-        // Fall back to file_title / object fields when the chunk lacks KB tags
-        // (e.g. legacy rows persisted before the backend started embedding them).
-        const fallbackName = !name
-            ? (() => {
-                const ft = /<file_title>([^<]+)<\/file_title>/.exec(text)?.[1];
-                if (ft) return ft.trim();
-                if (typeof raw === "object") {
-                    return (
-                        raw.knowledge_base_name ||
-                        raw.kb_name ||
-                        raw.file_title ||
-                        raw.title ||
-                        ""
-                    ).toString();
-                }
-                return "";
-            })()
-            : name;
-        const finalName = fallbackName || localize("com_tools_knowledge_base_fallback");
-        const key = id || finalName;
-        const existing = seen.get(key);
-        if (existing) {
-            // A successful chunk takes precedence over a prior error entry;
-            // otherwise keep the first seen entry.
-            if (existing.error && !error) {
-                existing.error = undefined;
-            }
-            continue;
-        }
-        seen.set(key, { id, name: finalName, error });
-        order.push(key);
-    }
-    return order.map((k) => seen.get(k)!).filter(Boolean);
-}
-
 // --- component -------------------------------------------------------------
 
 const variantStyles = {
@@ -247,7 +185,7 @@ const ToolCallDisplay: FC<ToolCallDisplayProps> = memo(({ toolCall, showConnecto
     //   web       → dedupe by hostname, default expanded
     //   tool      → no result list; pill only conveys "已使用 {name}"
     const knowledgeChips =
-        variant === "knowledge" ? normaliseKnowledgeResults(rawResults, localize) : [];
+        variant === "knowledge" ? knowledgeToolResults(rawResults, localize("com_tools_knowledge_base_fallback")) : [];
     const webResults = variant === "web" ? normaliseWebResults(rawResults) : [];
     const resultCount =
         variant === "knowledge"

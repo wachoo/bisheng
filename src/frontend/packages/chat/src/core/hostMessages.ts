@@ -35,7 +35,7 @@ export function messagesForPresentation(rows: readonly unknown[], options: Histo
 export function messagesForTransport(rows: readonly unknown[]): RawMessage[] {
   return rows.map(value => {
     const raw = withoutHostSnapshot(value);
-    delete raw.chat_ui_key; delete raw.chat_source_message_id;
+    delete raw.chat_ui_key; delete raw.chat_source_message_id; delete raw.chat_reasoning_passages;
     return raw;
   });
 }

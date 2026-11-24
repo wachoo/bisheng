@@ -27,6 +27,7 @@ interface TerminalFrame {
     type?: string;
     message_id?: string | number;
     message?: unknown;
+    extra?: ChatMessageType['extra'];
 }
 
 export function finishStoppedAppMessage<T extends AppMessage>(messages: T[], frame: TerminalFrame): T[] {
@@ -44,5 +45,11 @@ export function finishStoppedAppMessage<T extends AppMessage>(messages: T[], fra
         if (isAppMessageStopped(message)
             && (streamId ? message.id === streamId || Boolean(streamSuffix && message.chat_ui_key?.endsWith(streamSuffix)) : ['answer', 'stream_msg'].includes(message.category ?? ''))) index = i;
     });
-    return messages.map((message, i) => i === index ? { ...message, id: frame.message_id, message_id: frame.message_id, chat_source_message_id: frame.message_id } : message);
+    return messages.map((message, i) => i === index ? {
+        ...message,
+        id: frame.message_id,
+        message_id: frame.message_id,
+        chat_source_message_id: frame.message_id,
+        ...(frame.category === 'answer' && frame.extra != null ? { extra: frame.extra } : {}),
+    } : message);
 }

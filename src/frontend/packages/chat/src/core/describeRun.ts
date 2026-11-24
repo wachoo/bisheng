@@ -22,5 +22,6 @@ export function describeRun(message: ChatMessage, catalogValue: unknown, labels:
     return { title: unavailable ? `${name} ${labels.offline}` : `${phase} ${name}`, unavailable };
   }
   if (entries.length) return { title: message.category === 'flow' ? labels.flowDeleted : message.category === 'knowledge' ? labels.knowledgeDeleted : labels.toolDeleted, unavailable: true };
+  if (key) return { title: `${message.final ? labels.used : labels.using} ${key}`, unavailable: false };
   return { title: message.final ? labels.done : labels.thinking, unavailable: false };
 }

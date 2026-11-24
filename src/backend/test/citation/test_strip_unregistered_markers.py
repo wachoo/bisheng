@@ -17,6 +17,8 @@ from bisheng.citation.domain.services.citation_prompt_helper import (
     CITATION_END_MARKER,
     CITATION_SEPARATOR_MARKER,
     CITATION_START_MARKER,
+    restore_bare_assistant_citations,
+    select_registry_items_for_persistence,
     strip_unregistered_citation_markers,
 )
 
@@ -181,3 +183,34 @@ def test_numbered_list_gets_one_marker_per_matching_chunk():
     assert "2. 查询文件列表" + _marker("tempsearch_8ff0d680:39") in result
     assert "3. 查询文件详情" + _marker("tempsearch_8ff0d680:57") in result
     assert "4. 检索知识库 Chunk" + _marker("tempsearch_8ff0d680:80") in result
+
+
+def test_restores_bare_retrieved_chunk_before_selecting_referenced_sources():
+    first = _item("knowledgesearch_470c52b7")
+    second = _item("knowledgesearch_ba94c321")
+    other = _item("knowledgesearch_99999999")
+    key = f"{first.citationId}:0"
+    original = f'执行。" {key}\n\n---\n另一个来源。{_marker(second.citationId + ":0")}'
+    restored = restore_bare_assistant_citations(original, [first, second, other])
+    assert restored == original.replace(key, _marker(key))
+    assert select_registry_items_for_persistence([first, second, other], restored) == [first, second]
+    assert restore_bare_assistant_citations(restored, [first, second]) == restored
+
+
+def test_leaves_unknown_items_and_literal_references_in_assistant_answers_untouched():
+    item = _item("knowledgesearch_470c52b7")
+    key = f"{item.citationId}:0"
+    literals = [
+        f"unknown chunk {item.citationId}:77",
+        "unknown source knowledgesearch_ba94c321:0",
+        f"    indented example {key}",
+        f"```text\nunwrapped {key}\n```",
+        f"~~~text\nunwrapped {key}\n~~~",
+        f"inline `text {key}\nexample`",
+        f"[multi-line label {key}\n](https://example.org/{key})",
+        f"https://example.org/{key}",
+        f"<code>example {key}\n</code>",
+        f"```text\nunclosed fence {key}",
+    ]
+    text = "\n".join(literals)
+    assert restore_bare_assistant_citations(text, [item]) == text

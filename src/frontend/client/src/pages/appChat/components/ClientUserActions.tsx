@@ -12,13 +12,13 @@ interface ClientUserActionsProps {
 export function ClientUserActions({ text, canResend, searchUrl, createTime }: ClientUserActionsProps) {
     const localize = useLocalize();
     const handleResend = (send: boolean) => emitAreaTextEvent({ action: EVENT_TYPE.RE_ENTER, autoSend: send, text });
-    return <div className="flex items-center justify-end mt-1.5 gap-2 text-text-3">
-        {createTime && <span className="text-slate-400 text-sm pt-0.5">{formatStrTime(createTime, localize('shared:app_chat.timestamp_format'))}</span>}
+    return <div className="bisheng-message-actions justify-end">
+        {createTime && <span className="bisheng-message-time">{formatStrTime(createTime, localize('shared:app_chat.timestamp_format'))}</span>}
         <CopyButton text={text} />
-        <div className="flex gap-0.5 text-gray-400 cursor-pointer self-end">
-            {canResend && <Outlined.Edit className="size-6 p-1 hover:text-gray-500" onClick={() => handleResend(false)} />}
-            {canResend && <Outlined.Refresh className="size-6 p-1 hover:text-gray-500" onClick={() => handleResend(true)} />}
-            {searchUrl && <Outlined.Search className="size-6 p-1 hover:text-gray-500" onClick={() => window.open(searchUrl + encodeURIComponent(text))} />}
-        </div>
+        <>
+            {canResend && <button type="button" aria-label={localize('com_ui_edit')} title={localize('com_ui_edit')} onClick={() => handleResend(false)}><Outlined.Edit size={15} /></button>}
+            {canResend && <button type="button" aria-label={localize('com_ui_regenerate')} title={localize('com_ui_regenerate')} onClick={() => handleResend(true)}><Outlined.Refresh size={15} /></button>}
+            {searchUrl && <button type="button" aria-label={localize('com_ui_search')} title={localize('com_ui_search')} onClick={() => window.open(searchUrl + encodeURIComponent(text))}><Outlined.Search size={15} /></button>}
+        </>
     </div>;
 }

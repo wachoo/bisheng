@@ -56,6 +56,26 @@ export function KnowledgePickerDialog({ kind, value, onConfirm, onClose, keyword
     noMatch: 'dshChat.noKnowledgeMatch', empty: 'dshChat.noKnowledge', limit: 'dshChat.knowledgeLimit',
   } as const;
 
+  const visibleSpaces = new Map<string, KnowledgeItem>();
+  if (kind === 'space') {
+    for (const group of groups) {
+      for (const item of group.items) {
+        if (item.id == null || String(item.id) === '') continue;
+        const id = String(item.id);
+        visibleSpaces.set(id, { id, name: item.name, type: kind });
+      }
+    }
+  }
+  const missingSpaces = [...visibleSpaces.values()].filter(item => !selectedIds.has(String(item.id)));
+  const allChecked = visibleSpaces.size > 0 && missingSpaces.length === 0;
+  const someChecked = missingSpaces.length < visibleSpaces.size;
+  const handleToggleAll = () => {
+    if (allChecked || (someChecked && available.length >= MAX_SELECTED)) {
+      setDraft(available.filter(item => !visibleSpaces.has(String(item.id))));
+    } else {
+      setDraft([...available, ...missingSpaces.slice(0, Math.max(0, MAX_SELECTED - available.length))]);
+    }
+  };
   const handleToggle = (id: string, name: string) => {
     setDraft(current => {
       const allowed = current.filter(item => selectedIds.has(String(item.id)));
@@ -83,7 +103,14 @@ export function KnowledgePickerDialog({ kind, value, onConfirm, onClose, keyword
     <SearchInput value={keyword} onChange={event => onKeywordChange(event.target.value)}
       placeholder={localize(copy.search)} aria-label={localize(copy.search)} />
     <div className="dsh-knowledge-columns">
-      <span>{localize(copy.column)}</span><span>{localize('dshChat.modifiedColumn')}</span>
+      {kind === 'space' ? <label className="flex cursor-pointer items-center gap-3">
+        <Checkbox aria-label={localize('workstation.messageExport.selectAll')}
+          checked={allChecked || (someChecked ? 'indeterminate' : false)}
+          disabled={isFetching || isError || !visibleSpaces.size || (!someChecked && available.length >= MAX_SELECTED)}
+          onCheckedChange={handleToggleAll} />
+        {localize('workstation.messageExport.selectAll')}
+      </label> : <span>{localize(copy.column)}</span>}
+      <span>{localize('dshChat.modifiedColumn')}</span>
     </div>
     <div className="dsh-knowledge-list mt-4 min-h-[200px] overflow-y-auto" aria-busy={isFetching}
       onScroll={event => {

@@ -40,6 +40,27 @@ test('selection is a draft across search and commits once, preserving organizati
   expect(onClose).toHaveBeenCalledTimes(1);
 });
 
+test('select all toggles only filtered spaces and retains other selections', () => {
+  const onConfirm = jest.fn();
+  render(<KnowledgeSpaceDialog value={original} onConfirm={onConfirm} onClose={jest.fn()} />);
+  const all = screen.getByRole('checkbox', { name: 'workstation.messageExport.selectAll' });
+  fireEvent.click(all);
+  expect(screen.getByText('dshChat.selectedKnowledge:2')).toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Product' } });
+  fireEvent.click(all);
+  expect(screen.getByText('dshChat.selectedKnowledge:1')).toBeInTheDocument();
+  fireEvent.click(screen.getByText('dshChat.confirmKnowledge'));
+  expect(onConfirm).toHaveBeenCalledWith(original);
+});
+
+test('bulk selection respects the remaining capacity', () => {
+  const value = Array.from({ length: 49 }, (_, i) => ({ id: String(i + 3), name: String(i), type: 'space' as const }));
+  render(<KnowledgeSpaceDialog value={value} onConfirm={jest.fn()} onClose={jest.fn()} />);
+  fireEvent.click(screen.getByRole('checkbox', { name: 'workstation.messageExport.selectAll' }));
+  expect(screen.getByText('dshChat.selectedKnowledge:50')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: 'Product' })).toBeDisabled();
+});
+
 test.each(['cancel', 'escape'])('%s discards pending changes', (exit) => {
   const onConfirm = jest.fn(); const onClose = jest.fn();
   render(<KnowledgeSpaceDialog value={original} onConfirm={onConfirm} onClose={onClose} />);

@@ -129,9 +129,9 @@ chmod 600 .env
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | MinIO 根凭据，仅用于管理台 |
 | `MINIO_APP_ACCESS_KEY/SECRET_KEY` | 后端对象存储身份 |
 | `MINIO_MILVUS_ACCESS_KEY/SECRET_KEY` | Milvus 对象存储身份 |
-| `BS_DSH_PLATFORM_PUBLIC_URL` | 对外访问地址，如 `https://ai.gzbwa.site` |
+| `BS_DSH_PLATFORM_PUBLIC_URL` | 桌面应用的公开地址，须与客户端输入一致；启用桌面时同时设 `BS_DSH_ENABLED=true`（见 §7） |
 | `BISHENG_NGINX_CONF_DIR` | tls-proxy 的 nginx 配置目录 |
-| `ONLYOFFICE_IMAGE` | 见 §8 |
+| `ONLYOFFICE_IMAGE` | 见 §9 |
 
 > `.env` 含明文口令，务必 `chmod 600` 且不要提交到仓库（模板已 gitignore）。
 
@@ -152,7 +152,7 @@ chmod 600 .env
 
 全部来自私有仓库，直接 `docker pull` 即可（compose 会自动拉取）。**拉取前先完成 §1.3 的 `docker login cr.dataelem.com`**；如果是用离线 tar.gz 导入镜像，则跳过登录。
 
-> **MySQL 有两个变体**：`cr.dataelem.com/mysql:8.0` 基于 Oracle Linux 9，glibc 要求 `x86-64-v2`；`mysql:8.0.43-debian` 基于 Debian 12，只要求 `x86-64-baseline`。私有云 CPU 较老、报 `Fatal glibc error: CPU does not support x86-64-v2` 时改用后者（离线归档已包含），见 §11。
+> **MySQL 有两个变体**：`cr.dataelem.com/mysql:8.0` 基于 Oracle Linux 9，glibc 要求 `x86-64-v2`；`mysql:8.0.43-debian` 基于 Debian 12，只要求 `x86-64-baseline`。私有云 CPU 较老、报 `Fatal glibc error: CPU does not support x86-64-v2` 时改用后者（离线归档已包含），见 §12。
 
 ### 3.2 离线镜像导入（`docker/data/img`）
 
@@ -180,7 +180,7 @@ cat docker/data/img/MANIFEST.txt        # 每张镜像的归档文件名与大�
 
 - 导入后按 §2.2 设置 `.env` 的 `BISHENG_BACKEND_IMAGE` / `BISHENG_FRONTEND_IMAGE` 等，再执行 §4.2 启动
 - 归档包含 12 个**运行镜像**、`python:3.11-slim` 和 `dataelement/bisheng-backend:base.v10`（应用镜像的构建基础）；离线环境可直接用 `base.v10` 构建应用镜像，跳过 §3.3 的 base 构建；只有需要重建 base 时才用得上 `python:3.11-slim`（`base.Dockerfile` 第一行就是 `FROM python:3.11-slim`）
-- 额外带一个 `mysql:8.0.43-debian`（Debian 12，glibc 只要求 `x86-64-baseline`）：宿主 CPU 不支持 x86-64-v2 时用它替换 `cr.dataelem.com/mysql:8.0`，见 §11 故障排查
+- 额外带一个 `mysql:8.0.43-debian`（Debian 12，glibc 只要求 `x86-64-baseline`）：宿主 CPU 不支持 x86-64-v2 时用它替换 `cr.dataelem.com/mysql:8.0`，见 §12 故障排查
 - 额外带 `node:20-alpine`（前端镜像的构建基础）：离线构建前端时与归档里的 `nginx:1.30-alpine` 配合使用——`docker tag docker.m.daocloud.io/library/nginx:1.30-alpine nginx:latest`，再按 §3.4 执行 `docker build -f Dockerfile`
 
 ### 3.3 后端镜像
@@ -507,9 +507,69 @@ https://<域名>/api/v1/user/wecom/authorize?mode=silent&return_to=https%3A%2F%2
 
 ---
 
-## 7. MinIO
+## 7. 桌面应用（DSH Desktop）
 
-### 7.1 身份分离（必须）
+DSH Desktop 是独立桌面客户端：登录在浏览器完成（PKCE + `bisheng://` 深链回跳），Chat 与 Work 工具调用统一走平台。当前版本不需要 Java 网关，也不校验商业 License（席位与验席已移除）。
+
+### 7.1 开关与公开地址
+
+开关和地址只配在 `docker/.env`：compose 通过 `x-runtime-platform-env` 注入 backend / worker / beat，`config.yaml` 的 `dsh:` 段用 `!env` 引用它们。
+
+| 变量 | 说明 |
+|---|---|
+| `BS_DSH_ENABLED` | `true` 开启桌面接入；模板默认 `false` |
+| `BS_DSH_PLATFORM_PUBLIC_URL` | 用户实际访问的地址：带协议与对外端口、不带路径，如 `https://ai.gzbwa.site` |
+
+> `platform_public_url` 不是展示值：桌面登录的 Origin 校验、嵌入 Chat 与 Work/MCP 工具的地址都由它派生，必须与用户在客户端里输入的地址完全一致（含端口）。`!env` 在变量缺失时会拒绝启动，两行必须同时存在。
+
+改动后重启三个后端进程（共用同一份 `config.yaml`）：
+
+```bash
+cd /root/app/bisheng/docker
+docker compose up -d backend backend_worker backend_beat
+```
+
+### 7.2 反向代理
+
+最外层 TLS 代理原样透传 Host：
+
+```nginx
+proxy_set_header Host $http_host;
+proxy_set_header X-Forwarded-Proto $scheme;
+```
+
+`/api/v1/dsh/*`、兼容别名 `/api/dsh/*` 和 `/desktop-login` 都要指向平台（现有 frontend / tls-proxy 模板已包含）。Host/Origin 与 `platform_public_url` 不一致时，Work 工具初始化返回 **421**。
+
+### 7.3 管理面
+
+开启后左侧导航出现「DSH」（仅管理员可见），配三块：
+
+| 标签 | 配置 |
+|---|---|
+| 接入 | 下载地址（默认 `https://www.dshdesktop.com/zh/enterprise/`；内网改成自有安装包地址，留空则不显示下载按钮）+ 深链地址（默认 `bisheng://login`） |
+| 模型 | 把模型授权给用户 / 部门 / 用户组 |
+| 额度 | 在模型管理里给部门或个人配月额度 |
+
+授权决定「能不能用」，额度决定「能用多少」，两者都要配，桌面端才可用。
+
+### 7.4 用户侧
+
+1. 浏览器打开 `https://<域名>/desktop-login`，确认登录（企微 SSO 用户同样适用）。
+2. 点「打开桌面应用」由 `bisheng://` 拉起已安装的客户端；未安装先点「下载」。
+3. 客户端里填的服务器地址与 `platform_public_url` 一致。
+
+### 7.5 已知问题
+
+- **421 工具初始化失败**：某一层代理没透传 Host，或 `platform_public_url` 与浏览器实际地址（含端口）不一致。
+- 改公开地址后需重启后端，并让客户端重新连接；旧客户端会话可能失效。
+- 纯内网部署时默认下载地址指向公网站点，需自建安装包分发。
+- 后端镜像须包含 `bisheng/dsh` 模块（本发布线源码已包含）。
+
+---
+
+## 8. MinIO
+
+### 8.1 身份分离（必须）
 
 | 主体 | 用途 | 权限 |
 |---|---|---|
@@ -528,7 +588,7 @@ https://<域名>/api/v1/user/wecom/authorize?mode=silent&return_to=https%3A%2F%2
 > 漏掉 lifecycle 会导致 backend 启动失败：`_ensure_tmp_bucket_lifecycle` 抛 AccessDenied，容器反复重启。
 > 注意 MinIO 只认 AWS 风格 action 名，且没有 `DeleteLifecycleConfiguration`。
 
-### 7.2 管理台访问
+### 8.2 管理台访问
 
 容器启动参数 `--console-address ":9001"`，但默认 compose 只映射 `9100:9000`。需要时：
 
@@ -545,7 +605,7 @@ ssh -N -L 9001:127.0.0.1:9001 root@<host>
 
 公网开放请在安全组限制来源 IP，并先更换默认口令。
 
-### 7.3 客户端工具
+### 8.3 客户端工具
 
 ```bash
 curl -sSL -o /usr/local/bin/mc \
@@ -557,9 +617,9 @@ mc admin user list local
 
 ---
 
-## 8. OnlyOffice（可选）
+## 9. OnlyOffice（可选）
 
-### 8.1 版本选择
+### 9.1 版本选择
 
 **不要用 7.1.1**：其内置 Erlang OTP 22 在 cgroup v2 内核上 `erl_child_setup` 自旋 100% CPU，RabbitMQ 永远起不来。使用 8.1.3+：
 
@@ -567,7 +627,7 @@ mc admin user list local
 ONLYOFFICE_IMAGE=docker.m.daocloud.io/onlyoffice/documentserver:8.1.3
 ```
 
-### 8.2 /dev/shm
+### 9.2 /dev/shm
 
 默认 64 MB 会导致编辑器卡死，必须在 compose 中设置：
 
@@ -585,7 +645,7 @@ curl -s http://127.0.0.1:8701/healthcheck          # true
 curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js   # 200
 ```
 
-### 8.3 接入平台
+### 9.3 接入平台
 
 平台通过 DB 配置 `office_url` 下发给前端。**必须是 HTTPS**，否则浏览器以混合内容拦截。推荐子域名：
 
@@ -597,9 +657,9 @@ office.<域名> → 443 → nginx 反代 → office:80
 
 ---
 
-## 9. 安全加固
+## 10. 安全加固
 
-### 9.1 SSH 来源白名单
+### 10.1 SSH 来源白名单
 
 `/usr/local/sbin/ssh-source-guard.sh` + systemd 单元，iptables 只放行：
 
@@ -611,18 +671,18 @@ ALLOW="<运维出口网段> 100.104.0.0/16"
 - 脚本 `clear_rules()` 先删本单元所有规则再重建，换白名单不会留孤儿规则
 - 3389 一律 DROP
 
-### 9.2 端口最小化
+### 10.2 端口最小化
 
 - frontend 的 3001 只绑 `127.0.0.1:3001:3001`，对外只走 nginx 443
 - 安全组只保留 22 / 80 / 443；调试端口用完即关
 
-### 9.3 凭据管理
+### 10.3 凭据管理
 
 - `.env` 权限 600，不入库
 - 定期清理 `.env.bak-*`（含历史明文口令）
 - MinIO 服务 key 与 root 分离；离职/轮换时只换服务 key
 
-### 9.4 数据库账号矩阵
+### 10.4 数据库账号矩阵
 
 | 账号 | 来源 | 权限 | 使用方 | 密码存放 |
 |---|---|---|---|---|
@@ -670,9 +730,9 @@ print(Fernet('<settings.py:24 的 key>').decrypt(sys.argv[1].encode()).decode())
 
 ---
 
-## 10. 日常运维
+## 11. 日常运维
 
-### 10.1 更新镜像
+### 11.1 更新镜像
 
 ```bash
 # 1. 改代码 + 提交
@@ -693,13 +753,13 @@ cd nginx/tls && docker compose exec -T tls-proxy nginx -s reload
 
 > TLS 反代里是静态的 `proxy_pass http://frontend:3001;`，frontend 重建后 IP 变化，不 reload 就是全站 502。
 
-### 10.2 重启
+### 11.2 重启
 
 ```bash
 docker compose restart backend backend_worker backend_beat
 ```
 
-### 10.3 备份
+### 11.3 备份
 
 | 对象 | 方式 |
 |---|---|
@@ -709,7 +769,7 @@ docker compose restart backend backend_worker backend_beat
 | 配置 | `docker/.env`、`docker/bisheng/config/config.yaml`、`docker/nginx/` |
 | 证书 | `/etc/nginx/ssl`、`/root/.acme.sh` |
 
-### 10.4 日志
+### 11.4 日志
 
 ```bash
 docker logs --since 30m bisheng-backend
@@ -719,7 +779,7 @@ docker logs --since 30m bisheng-backend-worker
 
 ---
 
-## 11. 故障排查速查
+## 12. 故障排查速查
 
 | 现象 | 首查 | 常见原因 |
 |---|---|---|
@@ -731,12 +791,12 @@ docker logs --since 30m bisheng-backend-worker
 | 控制台 Workbench 连不上 | `iptables -S INPUT` | SSH 白名单漏 `100.104.0.0/16` |
 | 磁盘告警 | `docker system df` | 旧镜像层；用 `docker rmi` 清历史 tag |
 | MySQL 启动即退出 | `docker logs bisheng-mysql` 是否含 `Fatal glibc error: CPU does not support x86-64-v2` | OL9 基础镜像要求 x86-64-v2；改用 `mysql:8.0.43-debian`（离线归档已带），或让虚拟化层暴露 host CPU |
-| MySQL 1045 Access denied | `SELECT user, host FROM mysql.user`、密码来源 | 账号按「用户@来源」匹配：`@'172.%'` 的账号从公网直连必拒；`BS_DATABASE_URL` 内是 Fernet 加密串，不能直接当密码用（见 §9.4） |
+| MySQL 1045 Access denied | `SELECT user, host FROM mysql.user`、密码来源 | 账号按「用户@来源」匹配：`@'172.%'` 的账号从公网直连必拒；`BS_DATABASE_URL` 内是 Fernet 加密串，不能直接当密码用（见 §10.4） |
 | OnlyOffice 卡启动 | `docker logs bisheng-office` | Erlang 版本 / shm 过小 |
 
 ---
 
-## 12. 回滚
+## 13. 回滚
 
 ```bash
 cd /root/app/bisheng/docker

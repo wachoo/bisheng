@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { Outlined } from 'bisheng-icons';
+import { Button, Tooltip, TooltipProvider } from '@bisheng/ui';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '~/components/ui';
 import { ComposerMenuText } from '~/components/ui/ComposerMenuText';
 import { useLocalize } from '~/hooks';
@@ -43,6 +44,7 @@ function ComposerMenuScroll({ children }: { children: ReactNode }) {
 const EMPTY_TOOLS: AvailableToolGroup[] = [];
 
 interface Props {
+  shortcuts?: boolean;
   config?: BsConfig;
   disabled?: boolean;
   availableTools?: AvailableToolGroup[];
@@ -64,31 +66,46 @@ interface Props {
 }
 
 /** Chat context sources: local files and authorized knowledge spaces. */
-export function ChatResourceMenu({ config, disabled, showKnowledgeSelection, showFileUpload,
+export function ChatResourceMenu({ shortcuts, config, disabled, showKnowledgeSelection, showFileUpload,
   fileUploadDisabled, value, onChange, onFileUploadClick, onFolderUploadClick,
   availableTools = EMPTY_TOOLS, showTools, showWebSearch, webSearchActive, onWebSearchChange,
   showResearch, researchActive, onResearchChange, children }: Props) {
   const localize = useLocalize();
   const { isChecked, toggle } = useAgentToolSelection(showTools ? availableTools : undefined);
   const trigger = useRef<HTMLButtonElement>(null);
+  const shortcutTrigger = useRef<HTMLButtonElement | null>(null);
   const pointerOpened = useRef(false);
   const returnFocus = () => {
     const target = pointerOpened.current
       ? trigger.current?.closest('.dsh-chat-composer')?.querySelector<HTMLElement>('[contenteditable="true"]')
-      : trigger.current;
+      : shortcutTrigger.current ?? trigger.current;
     target?.focus({ preventScroll: true });
   };
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<string | null>(null);
   const [selecting, setSelecting] = useState<KnowledgeType | null>(null);
   const anchor = useComposerMenuAnchor(trigger, open);
+  const openPage = (next: string) => { setPage(next); setOpen(true); };
+  const shortcut = (label: string, icon: ReactNode, action: () => void, options: {
+    pressed?: boolean; inactive?: boolean; menu?: boolean; text?: boolean;
+  } = {}) => <Tooltip content={label}>
+    <Button type="button" color="default" variant="text" size="sm" iconOnly={!options.text}
+      aria-label={label} aria-pressed={options.pressed} aria-haspopup={options.menu ? 'menu' : undefined}
+      disabled={disabled || options.inactive} onClick={event => {
+        shortcutTrigger.current = event.currentTarget;
+        pointerOpened.current = event.detail > 0;
+        action();
+      }}>
+      {icon}{options.text && <span className="action-label">{label}</span>}
+    </Button>
+  </Tooltip>;
   return <>
     <DropdownMenu open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPage(null); }}>
       <DropdownMenuTrigger asChild disabled={disabled}>
         <button ref={trigger} type="button" className="dsh-composer-add" disabled={disabled}
           title={localize('dshChat.addContext')} aria-label={localize('dshChat.addContext')}
-          onPointerDown={() => { pointerOpened.current = true; }}
-          onKeyDown={() => { pointerOpened.current = false; }}>
+          onPointerDown={() => { shortcutTrigger.current = null; pointerOpened.current = true; }}
+          onKeyDown={() => { shortcutTrigger.current = null; pointerOpened.current = false; }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true" strokeWidth="1.3">
             <path d="M8 2V14M2 8H14" stroke="currentColor" />
           </svg>
@@ -110,7 +127,7 @@ export function ChatResourceMenu({ config, disabled, showKnowledgeSelection, sho
         </DropdownMenuCheckboxItem>}
         </>}
         {children}
-        {(showTools || showWebSearch) && <ComposerSubmenu label={localize('com_ui_tools')}
+        {(showTools || showWebSearch) && <ComposerSubmenu pageId="tools" label={localize('com_ui_tools')}
           icon={<Outlined.Hammer size={16} />} disabled={disabled}>
         {showTools && availableTools.map((group) => <DropdownMenuCheckboxItem key={group.id}
           aria-label={labelForGroup(group, localize)} indicatorSide="right" checked={isToolGroupEnabled(group) && isChecked(group.id)} disabled={disabled || !isToolGroupEnabled(group)}
@@ -143,13 +160,24 @@ export function ChatResourceMenu({ config, disabled, showKnowledgeSelection, sho
         </ComposerMenuScroll>
       </DropdownMenuContent>
     </DropdownMenu>
-    <div className="dsh-active-capabilities">
+    {shortcuts && <TooltipProvider><div className="dsh-composer-shortcuts">
+      {showResearch && shortcut(localize('com_linsight_task_mode'), <Outlined.ListSuccess size={16} />,
+        () => onResearchChange?.(), { pressed: researchActive, text: true })}
+      {children && shortcut(localize('com_linsight_add_skill'), <Outlined.Skill size={16} />, () => openPage('skills'), { menu: true })}
+      {(showTools || showWebSearch) && shortcut(localize('com_ui_tools'), <Outlined.Hammer size={16} />, () => openPage('tools'), { menu: true })}
+      {(showFileUpload || showKnowledgeSelection) && <div className="action-divider flex items-center gap-0.5">
+        {showFileUpload && shortcut(localize('com_ui_upload_files'), <Outlined.Attachment size={16} />, () => onFileUploadClick?.(), { inactive: fileUploadDisabled })}
+        {showKnowledgeSelection && shortcut(localize('dshChat.selectKnowledge'), <Outlined.FolderClose size={16} />, () => setSelecting('space'))}
+        {showKnowledgeSelection && config?.knowledgeBase?.enabled !== false && shortcut(localize('dshChat.selectKnowledgeBases'), <Outlined.Books size={16} />, () => setSelecting('org'))}
+      </div>}
+    </div></TooltipProvider>}
+    {!shortcuts && <div className="dsh-active-capabilities">
       {showResearch && researchActive && <button type="button"
         className="dsh-composer-control dsh-active-capability" aria-pressed="true" disabled={disabled}
         onClick={onResearchChange}>
         <Outlined.ListSuccess size={14} /><span>{localize('com_linsight_task_mode')}</span><Outlined.Close size={12} />
       </button>}
-    </div>
+    </div>}
     {selecting === 'space' && <KnowledgeSpaceDialog value={value} onConfirm={onChange} onClose={() => {
       setSelecting(null);
       requestAnimationFrame(returnFocus);

@@ -149,6 +149,23 @@ class DshSettings(BaseModel):
         default=None, max_length=64, description="Active external audit encryption key reference; no key material."
     )
 
+    @field_validator("enabled", mode="before")
+    @classmethod
+    def coerce_env_bool(cls, value):
+        """Accept the string forms ``config.yaml``'s ``!env`` tag produces.
+
+        ``BS_DSH_ENABLED: !env ${BS_DSH_ENABLED}`` hands pydantic the string
+        "true"/"false"; the model is strict, so without this the backend would
+        reject its own config at import time and refuse to start.
+        """
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off", ""}:
+                return False
+        return value
+
     @field_validator("platform_public_url", "gateway_internal_url")
     @classmethod
     def validate_origin(cls, value: str | None) -> str | None:

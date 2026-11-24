@@ -15,7 +15,7 @@ interface Props {
 /** Skill selection shares the existing enterprise list and multi-select state. */
 export function ChatSkillSelector({ selected, disabled, onChange, menu }: Props) {
     const localize = useLocalize();
-    if (menu) return <ComposerSubmenu label={localize('com_linsight_add_skill')}
+    if (menu) return <ComposerSubmenu pageId="skills" label={localize('com_linsight_add_skill')}
         icon={<Outlined.Skill size={16} />} disabled={disabled}>
         <SkillSelector selected={selected} onChange={onChange} layout="command" />
     </ComposerSubmenu>;

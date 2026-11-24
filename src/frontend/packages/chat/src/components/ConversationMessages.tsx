@@ -28,13 +28,14 @@ export interface ConversationMessageSlots {
 export interface ConversationMessagesProps {
   messages: readonly ChatMessage[];
   canExecute: boolean;
+  initiallyShowReasoning?: boolean;
   labels: ConversationLabels;
   slots: ConversationMessageSlots;
   onChoice?: (message: ChatMessage, value: string) => void | Promise<void>;
   onError?: (error: unknown) => void;
 }
 interface ConversationRowProps extends Omit<ConversationMessagesProps, 'messages'> { message: ChatMessage }
-function ConversationRow({ message, canExecute, labels, slots, onChoice, onError }: ConversationRowProps) {
+function ConversationRow({ message, canExecute, initiallyShowReasoning, labels, slots, onChoice, onError }: ConversationRowProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const payload = asRecord(message.payload);
   const { text, reasoning } = splitMessageContent(message.text);
@@ -49,7 +50,7 @@ function ConversationRow({ message, canExecute, labels, slots, onChoice, onError
   if (message.category === 'guide_word') return <GreetingMessage title={title} logo={logo} footer={slots.footer?.(message, contentRef)}>
     <div ref={contentRef}>{slots.content(text, message)}</div>{slots.attachments?.(message)}
   </GreetingMessage>;
-  if (message.kind === 'reasoning') return <><ReasoningDetails text={text || message.reasoning} stopped={stopped} pending={!message.final && !stopped} labels={labels} />{stopStatus}{slots.attachments?.(message)}</>;
+  if (message.kind === 'reasoning') return <><ReasoningDetails initiallyOpen={initiallyShowReasoning} text={text || message.reasoning} stopped={stopped} pending={!message.final && !stopped} labels={labels} />{stopStatus}{slots.attachments?.(message)}</>;
   if (message.kind === 'form' || message.kind === 'choice') {
     const options = Array.isArray(payload.options) ? payload.options.flatMap(item => {
       const option = asRecord(item); const id = sourceId(option.id);
@@ -81,16 +82,16 @@ function ConversationRow({ message, canExecute, labels, slots, onChoice, onError
     </details>{slots.attachments?.(message)}</div>;
   }
   const reasoningText = message.reasoning || reasoning;
-  return <MessageBubble title={title} logo={logo} sender={displayText(message.raw.sender)} contentRef={contentRef}
+  return <MessageBubble speaker={message.kind === 'user' ? 'user' : 'assistant'} title={title} logo={logo} sender={displayText(message.raw.sender)} contentRef={contentRef}
     selection={slots.selection?.(message)}
-    reasoning={<ReasoningDetails text={reasoningText} stopped={stopped} pending={!message.final && !stopped} labels={labels} />}
+    reasoning={<ReasoningDetails initiallyOpen={initiallyShowReasoning} text={reasoningText} stopped={stopped} pending={!message.final && !stopped} labels={labels} />}
     hideBody={!!reasoningText && !text && !message.files.length}
     status={stopStatus}
     pending={!stopped && message.kind !== 'user' && !message.final && !text && !message.files.length}
     attachments={slots.attachments?.(message)}
     footer={message.final ? slots.footer?.(message, contentRef) : undefined}>
-    {message.kind === 'user' ? <div className="text-[#0D1638] dark:text-[#CFD5E8] text-base break-all whitespace-break-spaces">{text}</div>
-      : text && <div className="bs-mkdown text-base break-words [word-break:break-all]">{slots.content(text, message)}</div>}
+    {message.kind === 'user' ? text && <div className="dsh-user-bubble w-fit max-w-full">{text}</div>
+      : text && <div className="bs-mkdown">{slots.content(text, message)}</div>}
     {!!message.raw.receiver && <p className="text-blue-500 text-sm">@ {displayText(asRecord(message.raw.receiver).user_name)}</p>}
   </MessageBubble>;
 }

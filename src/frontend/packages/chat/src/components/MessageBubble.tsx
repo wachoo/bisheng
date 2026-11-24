@@ -1,37 +1,33 @@
 import { Outlined } from 'bisheng-icons';
 import { useState, type ReactNode, type Ref } from 'react';
+import '../styles/message-layout.css';
 
 export interface ReasoningDetailsProps {
   text: string;
   pending: boolean;
   stopped?: boolean;
+  initiallyOpen?: boolean;
   labels: { thinking: string; completed: string; stopped?: string };
 }
 /** Reasoning presentation extracted from the client answer message. */
-export function ReasoningDetails({ text, pending, stopped = false, labels }: ReasoningDetailsProps) {
-  const [open, setOpen] = useState(true);
+export function ReasoningDetails({ text, pending, stopped = false, initiallyOpen = true, labels }: ReasoningDetailsProps) {
+  const [open, setOpen] = useState(initiallyOpen);
   if (!text) return null;
-  return <div className="py-1 mb-4">
-    <div className="rounded-sm border">
-      <div role="button" tabIndex={0} aria-expanded={open}
-        className="flex justify-between items-center px-4 py-2 cursor-pointer"
-        onClick={() => setOpen(value => !value)}
-        onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOpen(value => !value); } }}>
-        <div className="flex items-center font-bold gap-2 text-sm">
-          {pending ? <Outlined.Loading size={16} className="text-primary duration-300 animate-spin" />
-            : stopped ? <Outlined.Square size={16} className="text-text-3" /> : <Outlined.CheckCircle size={16} className="text-success" />}
-          <span>{stopped ? labels.stopped : pending ? labels.thinking : labels.completed}</span>
-        </div>
-        <Outlined.Down size={16} className={open ? 'rotate-180' : undefined} />
-      </div>
-      {open && <div className="bg-[#F5F6F8] dark:bg-[#313336] px-4 py-2 overflow-hidden text-sm">
-        {text.split('\n').map((line, index) => <p className="text-md mb-1 text-muted-foreground" key={index}>{line}</p>)}
-      </div>}
-    </div>
+  return <div className="min-w-0 pb-3 text-text-3">
+    <button type="button" aria-expanded={open}
+      className="flex items-center gap-1 text-sm leading-[22px] hover:text-text-1"
+      onClick={() => setOpen(value => !value)}>
+      {pending ? <Outlined.Loading size={16} className="text-primary duration-300 animate-spin" />
+        : stopped ? <Outlined.Square size={16} /> : <Outlined.CheckCircle size={16} />}
+      <span>{stopped ? labels.stopped : pending ? labels.thinking : labels.completed}</span>
+      <Outlined.Down size={16} className={open ? undefined : '-rotate-90'} />
+    </button>
+    {open && <p className="ml-2 mt-2 border-l pl-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-xs leading-5 text-text-2">{text}</p>}
   </div>;
 }
 
 export interface MessageBubbleProps {
+  speaker?: 'user' | 'assistant';
   title?: string;
   logo?: ReactNode;
   sender?: string;
@@ -46,29 +42,21 @@ export interface MessageBubbleProps {
   hideBody?: boolean;
 }
 /** Host actions/resources are slots; one shared message layout owns both apps. */
-export function MessageBubble({ title, logo, sender, selection, reasoning, children, attachments, footer, status, pending, contentRef, hideBody }: MessageBubbleProps) {
-  return <div className="bisheng-message flex w-full py-2 items-start gap-2">
+export function MessageBubble({ speaker = 'assistant', title, sender, selection, reasoning, children, attachments, footer, status, pending, contentRef, hideBody }: MessageBubbleProps) {
+  return <div className="bisheng-message" data-speaker={speaker}>
     {selection}
-    <div className="w-fit group max-w-[90%]">
+    <div className="bisheng-message__column group">
+      {title && <span className="sr-only">{title}</span>}
+      {sender && <p className="text-xs text-text-3">{sender}</p>}
       {reasoning}
-      {!hideBody && <>
-        <div className="flex gap-2 items-center">{sender ? <p className="text-gray-600 text-xs mb-1 ml-2">{sender}</p> : <p />}</div>
-        <div className="min-h-8 px-4 rounded-2xl">
-          <div className="flex gap-3">
-            {logo}
-            <div className="min-w-0">
-              {title && <p className="select-none font-semibold text-base mb-1">{title}</p>}
-              <div ref={contentRef}>
-                {children}
-                {attachments}
-                {pending && <Outlined.Loading size={24} className="animate-spin text-primary" />}
-              </div>
-            </div>
-          </div>
-        </div>
-      </>}
+      {!hideBody && <div className="bisheng-message__body" ref={contentRef}>
+        {speaker === 'user' && attachments}
+        {children}
+        {speaker === 'assistant' && attachments}
+        {pending && <Outlined.Loading size={24} className="animate-spin text-primary" />}
+      </div>}
       {status}
-      {footer && <div className="flex justify-between">{footer}</div>}
+      {footer && <div className={speaker === 'user' ? 'flex justify-end' : 'flex justify-between'}>{footer}</div>}
     </div>
   </div>;
 }

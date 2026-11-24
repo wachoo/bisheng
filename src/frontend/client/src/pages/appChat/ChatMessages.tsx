@@ -60,6 +60,7 @@ export default function ChatMessages({
   const chatState = useRecoilValue(currentChatState);
   const config = useRecoilValue(bishengConfState);
   const latexParsing = useRecoilValue(appStore.LaTeXParsing);
+  const showThinking = useRecoilValue(appStore.showThinking);
   const localize = useLocalize();
   const { user } = useAuthContext();
 
@@ -96,6 +97,7 @@ export default function ChatMessages({
             { mode: chatState?.flow.flow_type === 10 ? "workflow" : "assistant", sessionKey: chatId ?? "" },
           )}
           canExecute={!readOnly}
+          initiallyShowReasoning={showThinking}
           labels={{
             confirm: localize("com_bschoose_confirm"),
             confirmed: localize("com_bschoose_confirmed"),
@@ -157,14 +159,12 @@ export default function ChatMessages({
               ) : undefined,
             footer: (message, contentRef) =>
               message.kind === "user" ? (
-                !readOnly && (
-                  <ClientUserActions
-                    createTime={displayText(message.raw.create_time)}
-                    text={message.text}
-                    canResend={!error?.code && !inputDisabled && chatState?.flow.flow_type !== 10}
-                    searchUrl={!disabledSearch ? config?.dialog_quick_search : undefined}
-                  />
-                )
+                <ClientUserActions
+                  createTime={displayText(message.raw.create_time)}
+                  text={message.text}
+                  canResend={!readOnly && !error?.code && !inputDisabled && chatState?.flow.flow_type !== 10}
+                  searchUrl={!readOnly && !disabledSearch ? config?.dialog_quick_search : undefined}
+                />
               ) : (
                 <ClientMessageFooter
                   message={message}

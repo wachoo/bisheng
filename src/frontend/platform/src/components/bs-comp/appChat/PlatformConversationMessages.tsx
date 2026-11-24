@@ -58,7 +58,10 @@ export function PlatformConversationMessages({ mode, sessionKey, messages: rows,
                     const id = message.sourceMessageId;
                     if (message.category === 'guide_word') return canExecute ? <PlatformVoiceAction id={id ?? message.key} text={message.text} /> : null;
                     if (message.kind === 'form' || message.kind === 'choice') return <PlatformVoiceAction id={id ?? message.key} text={message.text} />;
-                    if (message.kind === 'user') return canAnnotate && id ? <><span /><div className="mt-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><Button size="small" variant="solid" color="primary" onClick={() => handleMark(message)}><FlagIcon className="size-3.5" />{t('addSimilarQuestion')}</Button></div></> : null;
+                    if (message.kind === 'user') return <div className="mt-1.5 flex items-center gap-2">
+                        <CopyMessageAction label={t('shared:app_chat.copy')} copiedLabel={t('shared:app_chat.copied')} onCopy={() => copyText(message.text)} />
+                        {canAnnotate && id && <Button size="small" variant="solid" color="primary" onClick={() => handleMark(message)}><FlagIcon className="size-3.5" />{t('addSimilarQuestion')}</Button>}
+                    </div>;
                     const { referenceText, webContent } = splitMessageContent(message.text);
                     return <>
                         <div>

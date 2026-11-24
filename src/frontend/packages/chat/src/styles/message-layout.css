@@ -1,0 +1,52 @@
+.dsh-chat-surface .dsh-user-bubble,
+.bisheng-message .dsh-user-bubble {
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: rgb(var(--dsh-bubble-bg, 237 243 254));
+  color: rgb(var(--text-1));
+  font-size: 14px;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+:is(.dark, [data-dsh-chat-theme="dark"]) .bisheng-message {
+  --dsh-bubble-bg: 44 44 46;
+}
+
+.bisheng-message {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-block: 6px;
+  min-width: 0;
+}
+
+.bisheng-message[data-speaker="user"] {
+  justify-content: flex-end;
+}
+
+.bisheng-message[data-speaker="user"] .dsh-user-bubble {
+  margin-inline-start: auto;
+}
+
+.bisheng-message__column {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.bisheng-message[data-speaker="user"] .bisheng-message__column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: min(646px, 82%);
+}
+
+.bisheng-message__body {
+  min-width: 0;
+  max-width: 100%;
+  color: rgb(var(--text-1));
+  font-size: 14px;
+  line-height: 24px;
+  overflow-wrap: anywhere;
+}

@@ -9,11 +9,12 @@ export const ComposerMenuContext = createContext<{
 }>({ page: null, setPage: () => {} });
 
 /** A clicked category opens its own page within the composer-anchored menu. */
-export function ComposerSubmenu({ label, icon, disabled, children }: {
-  label: string; icon: ReactNode; disabled?: boolean; children: ReactNode;
+export function ComposerSubmenu({ label, icon, disabled, children, pageId }: {
+  label: string; icon: ReactNode; disabled?: boolean; children: ReactNode; pageId?: string;
 }) {
   const { page, setPage } = useContext(ComposerMenuContext);
-  const id = useId();
+  const generatedId = useId();
+  const id = pageId ?? generatedId;
   const localize = useLocalize();
   const active = page === id;
   const panel = useRef<HTMLDivElement>(null);

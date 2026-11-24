@@ -367,12 +367,13 @@
       <li><a href="#s4"><span class="num">04</span>启动整套服务</a></li>
       <li><a href="#s5"><span class="num">05</span>域名与 TLS</a></li>
       <li><a href="#s6"><span class="num">06</span>企业微信 SSO</a></li>
-      <li><a href="#s7"><span class="num">07</span>MinIO</a></li>
-      <li><a href="#s8"><span class="num">08</span>OnlyOffice</a></li>
-      <li><a href="#s9"><span class="num">09</span>安全加固</a></li>
-      <li><a href="#s10"><span class="num">10</span>日常运维</a></li>
-      <li><a href="#s11"><span class="num">11</span>故障排查</a></li>
-      <li><a href="#s12"><span class="num">12</span>回滚</a></li>
+      <li><a href="#s7"><span class="num">07</span>桌面应用</a></li>
+      <li><a href="#s8"><span class="num">08</span>MinIO</a></li>
+      <li><a href="#s9"><span class="num">09</span>OnlyOffice</a></li>
+      <li><a href="#s10"><span class="num">10</span>安全加固</a></li>
+      <li><a href="#s11"><span class="num">11</span>日常运维</a></li>
+      <li><a href="#s12"><span class="num">12</span>故障排查</a></li>
+      <li><a href="#s13"><span class="num">13</span>回滚</a></li>
       <li><a href="#sa"><span class="num">A</span>目录与端口</a></li>
     </ol>
   </nav>
@@ -724,7 +725,53 @@ server { listen 443 ssl default_server;     server_name _; ssl_reject_handshake 
     </section>
 
     <section id="s7">
-      <h2><span class="secnum">07</span>MinIO</h2>
+      <h2><span class="secnum">07</span>桌面应用（DSH Desktop）</h2>
+      <p>登录在浏览器完成（PKCE + <code>bisheng://</code> 深链回跳），Chat 与 Work 工具调用统一走平台。不需要 Java 网关，也不校验商业 License。</p>
+
+      <h3>开关与公开地址</h3>
+      <p>两项都配在 <code>docker/.env</code>，compose 注入 backend / worker / beat，<code>config.yaml</code> 的 <code>dsh:</code> 段用 <code>!env</code> 引用：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>变量</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr><td><code>BS_DSH_ENABLED</code></td><td><code>true</code> 开启桌面接入；模板默认 <code>false</code></td></tr>
+            <tr><td><code>BS_DSH_PLATFORM_PUBLIC_URL</code></td><td>用户实际访问的地址：带协议与对外端口、不带路径</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="warn"><p><strong>公开地址必须与用户输入一致（含端口）。</strong>桌面登录的 Origin 校验、嵌入 Chat 与 Work/MCP 工具的地址都由它派生；<code>!env</code> 变量缺失时后端拒绝启动。改完执行 <code>docker compose up -d backend backend_worker backend_beat</code>。</p></div>
+
+      <h3>反向代理</h3>
+      <p>最外层 TLS 代理原样透传 Host：</p>
+      <pre><code>proxy_set_header Host $http_host;
+proxy_set_header X-Forwarded-Proto $scheme;</code></pre>
+      <p><code>/api/v1/dsh/*</code>、兼容别名 <code>/api/dsh/*</code> 与 <code>/desktop-login</code> 指向平台。Host/Origin 与公开地址不一致时，Work 工具初始化返回 <strong>421</strong>。</p>
+
+      <h3>管理面</h3>
+      <p>开启后左侧导航出现「DSH」（仅管理员可见），三块都要配：</p>
+      <div class="tablewrap">
+        <table>
+          <thead><tr><th>标签</th><th>配置</th></tr></thead>
+          <tbody>
+            <tr><td>接入</td><td>下载地址（默认 <code>https://www.dshdesktop.com/zh/enterprise/</code>，内网改自有安装包地址，留空不显示下载按钮）+ 深链地址（默认 <code>bisheng://login</code>）</td></tr>
+            <tr><td>模型</td><td>把模型授权给用户 / 部门 / 用户组</td></tr>
+            <tr><td>额度</td><td>在模型管理里给部门或个人配月额度</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p>授权决定「能不能用」，额度决定「能用多少」。</p>
+
+      <h3>用户侧</h3>
+      <ol>
+        <li>浏览器打开 <code>https://&lt;域名&gt;/desktop-login</code> 确认登录（企微 SSO 用户同样适用）</li>
+        <li>点「打开桌面应用」由 <code>bisheng://</code> 拉起客户端；未安装先点「下载」</li>
+        <li>客户端里的服务器地址与 <code>BS_DSH_PLATFORM_PUBLIC_URL</code> 一致</li>
+      </ol>
+      <div class="note"><p>纯内网部署时默认下载地址指向公网站点，需自建安装包分发；改公开地址后需重启后端并让客户端重新连接。</p></div>
+    </section>
+
+    <section id="s8">
+      <h2><span class="secnum">08</span>MinIO</h2>
       <p>三个身份分开用，root 只留给管理台：</p>
       <div class="tablewrap">
         <table>
@@ -747,8 +794,8 @@ ssh -N -L 9001:127.0.0.1:9001 root@&lt;host&gt;   # 然后开 http://127.0.0.1:9
       <p>要公网开放，先在安全组限制来源 IP，并换掉默认口令——管理台是覆盖全部存储文件的完整界面。</p>
     </section>
 
-    <section id="s8">
-      <h2><span class="secnum">08</span>OnlyOffice</h2>
+    <section id="s9">
+      <h2><span class="secnum">09</span>OnlyOffice</h2>
       <div class="warn"><p><strong>不要用 7.1.1。</strong>它内置 Erlang OTP 22，在 cgroup v2 内核上 <code>erl_child_setup</code> 自旋 100% CPU，RabbitMQ 永远起不来。用 8.1.3 及以上。</p></div>
       <pre><code>ONLYOFFICE_IMAGE=docker.m.daocloud.io/onlyoffice/documentserver:8.1.3</code></pre>
       <p>必须给容器更大的 <code>/dev/shm</code>，默认 64 MB 会让编辑器卡死：</p>
@@ -761,8 +808,8 @@ curl -sI http://127.0.0.1:8701/web-apps/apps/api/documents/api.js  # 200</code><
       <p>首次启动约 9 分钟（生成字体缓存）。平台通过 DB 配置 <code>office_url</code> 下发给前端，<strong>必须是 HTTPS</strong>，否则浏览器按混合内容拦截。推荐给一个子域名，把 SAN 追加进现有证书后反代到 <code>office:80</code>。</p>
     </section>
 
-    <section id="s9">
-      <h2><span class="secnum">09</span>安全加固</h2>
+    <section id="s10">
+      <h2><span class="secnum">10</span>安全加固</h2>
       <h3>SSH 来源白名单</h3>
       <p>iptables 只放行运维网段和 Workbench 网段，其余到 22 的包直接 DROP，3389 一律丢弃：</p>
       <pre><code>ALLOW="&lt;运维出口网段&gt; 100.104.0.0/16"</code></pre>
@@ -801,8 +848,8 @@ GRANT ALL PRIVILEGES ON `openfga`.* TO 'openfga_app'@'%';</code></pre>
       <p>连接：日常走 SSH 隧道 <code>ssh -fN -L 13306:127.0.0.1:3306 root@&lt;host&gt;</code>；直连 3306 报 <code>1045</code> 时先核对 <code>SELECT user, host FROM mysql.user</code>——账号按「用户@来源」匹配，来源不符与密码错误是同一条报错。</p>
     </section>
 
-    <section id="s10">
-      <h2><span class="secnum">10</span>日常运维</h2>
+    <section id="s11">
+      <h2><span class="secnum">11</span>日常运维</h2>
       <h3>更新镜像</h3>
       <pre><code># 改代码并提交 → 构建新镜像 → 改 .env 的 tag
 docker compose up -d backend backend_worker backend_beat
@@ -832,8 +879,8 @@ docker logs --since 30m bisheng-tls-proxy
 docker logs --since 30m bisheng-backend-worker</code></pre>
     </section>
 
-    <section id="s11">
-      <h2><span class="secnum">11</span>故障排查</h2>
+    <section id="s12">
+      <h2><span class="secnum">12</span>故障排查</h2>
       <div class="tablewrap">
         <table>
           <thead><tr><th>现象</th><th>先查什么</th><th>常见原因</th></tr></thead>
@@ -853,8 +900,8 @@ docker logs --since 30m bisheng-backend-worker</code></pre>
       </div>
     </section>
 
-    <section id="s12">
-      <h2><span class="secnum">12</span>回滚</h2>
+    <section id="s13">
+      <h2><span class="secnum">13</span>回滚</h2>
       <pre><code>sed -i 's/^BISHENG_BACKEND_IMAGE=.*/BISHENG_BACKEND_IMAGE=bisheng-backend:src-v3.0.1-&lt;旧&gt;/' .env
 sed -i 's/^BISHENG_FRONTEND_IMAGE=.*/BISHENG_FRONTEND_IMAGE=bisheng-frontend:src-v3.0.1-&lt;旧&gt;/' .env
 docker compose up -d backend backend_worker backend_beat

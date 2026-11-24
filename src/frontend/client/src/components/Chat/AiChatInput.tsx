@@ -32,7 +32,7 @@ import { ArrowDown } from "lucide-react";
 import { Button } from "~/components/ui";
 import { useVoiceDraft } from "~/hooks/Input/useVoiceDraft";
 import SpeechToTextComponent from "~/components/Voice/SpeechToText";
-import { useContainerCompact, TOOLBAR_COMPACT_THRESHOLD } from "~/hooks";
+import { useContainerCompact } from "~/hooks";
 import { useGetWorkbenchModelsQuery } from "~/hooks/queries/data-provider";
 import useLocalize from "~/hooks/useLocalize";
 import { useToastContext } from "~/Providers";
@@ -202,7 +202,7 @@ const AiChatInput = memo(
 
         // Collapse toolbar labels to icons when the toolbar's own width (not the
         // viewport's) runs short — e.g. once the sidebar opens on a mid-size screen.
-        const { ref: toolbarRef } = useContainerCompact(TOOLBAR_COMPACT_THRESHOLD);
+        const { ref: toolbarRef, compact: compactActions } = useContainerCompact(246);
 
         // Keep selected task skills across sends, shared by the landing and conversation inputs.
         const [dailySkills, setDailySkills] = useRecoilState(taskModeSkillsState('new'));
@@ -655,6 +655,7 @@ const AiChatInput = memo(
                             {/* Add files and knowledge spaces to the conversation context. */}
                             {!isLingsi && onSelectedOrgKbsChange && (
                                 <ChatResourceMenu
+                                    shortcuts={!compactActions}
                                     config={bsConfig}
                                     availableTools={agentMode ? bsConfig.tools : undefined}
                                     showTools={!!showToolPicker && agentMode}

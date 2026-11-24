@@ -37,6 +37,9 @@ jest.mock('~/store', () => {
   } };
 });
 jest.mock('./KnowledgeSpaceDialog', () => ({ KnowledgeSpaceDialog: () => <div role="dialog" /> }));
+jest.mock('~/hooks/useKnowledgeSpaceAccess', () => ({
+  useKnowledgeSpaceAccess: (available) => ({ available, checking: false, failed: false }),
+}));
 const tools = [{ id: 1, name: 'Web search', default_checked: true, children: [{ id: 2, tool_key: 'web_search' }] }];
 
 async function openMenu() {
@@ -52,6 +55,16 @@ async function openTools() {
 function backToMenu() {
   fireEvent.click(screen.getByRole('menuitem', { name: 'dshChat.backToCapabilities' }));
 }
+
+test('toolbar shortcuts upload directly and open the tool list in one click', async () => {
+  const upload = jest.fn();
+  render(<RecoilRoot><ChatResourceMenu shortcuts value={[]} onChange={jest.fn()}
+    availableTools={tools} showTools showFileUpload onFileUploadClick={upload} /></RecoilRoot>);
+  fireEvent.click(screen.getByRole('button', { name: 'com_ui_upload_files' }));
+  expect(upload).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole('button', { name: 'com_ui_tools' }));
+  expect(await screen.findByRole('menuitemcheckbox', { name: 'Web search' })).toBeInTheDocument();
+});
 
 test('add menu owns tool toggles and retains selection after reopening', async () => {
   const upload = jest.fn(); const research = jest.fn();

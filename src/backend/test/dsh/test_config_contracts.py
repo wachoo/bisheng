@@ -127,3 +127,18 @@ def test_settings_serialization_preserves_typed_configuration():
     payload = settings.model_dump(mode="json", include={"dsh"})
     assert payload["dsh"]["billing_timezone"] == "Asia/Shanghai"
     assert Settings.model_validate(payload).dsh == settings.dsh
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [("true", True), ("TRUE ", True), ("1", True), ("on", True), ("false", False), ("0", False), ("off", False), ("", False)],
+)
+def test_enabled_accepts_the_string_forms_env_substitution_produces(raw, expected):
+    """`!env` hands YAML a string; a strict bool would reject the config at import."""
+    settings = DshSettings(enabled=raw, platform_public_url="https://work.example.com")
+    assert settings.enabled is expected
+
+
+def test_enabled_still_rejects_unknown_strings():
+    with pytest.raises(ValidationError):
+        DshSettings(enabled="maybe")

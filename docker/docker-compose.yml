@@ -91,7 +91,7 @@ services:
     command: migrate
     environment:
       OPENFGA_DATASTORE_ENGINE: mysql
-      OPENFGA_DATASTORE_URI: "root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
+      OPENFGA_DATASTORE_URI: "${OPENFGA_DB_USER:?set OPENFGA_DB_USER in docker/.env}:${OPENFGA_DB_PASSWORD:?set OPENFGA_DB_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
     depends_on:
       mysql:
         condition: service_healthy
@@ -103,7 +103,7 @@ services:
     environment:
       OPENFGA_DATASTORE_METRICS_ENABLED: "true"
       OPENFGA_DATASTORE_ENGINE: mysql
-      OPENFGA_DATASTORE_URI: "root:${MYSQL_ROOT_PASSWORD:?set MYSQL_ROOT_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
+      OPENFGA_DATASTORE_URI: "${OPENFGA_DB_USER:?set OPENFGA_DB_USER in docker/.env}:${OPENFGA_DB_PASSWORD:?set OPENFGA_DB_PASSWORD in docker/.env}@tcp(mysql:3306)/openfga?parseTime=true"
       OPENFGA_LOG_FORMAT: json
       OPENFGA_PLAYGROUND_ENABLED: "true"
       OPENFGA_CHECK_QUERY_CACHE_ENABLED: "true"

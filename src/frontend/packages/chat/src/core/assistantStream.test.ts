@@ -23,6 +23,11 @@ it('accepts a final answer without a preceding start and does not assign a fake 
   const done = assistantStreamForHost([], { type: 'end', category: 'answer', message: 'A' }, 's');
   expect(done[0]).toMatchObject({ end: true, message: 'A', chat_source_message_id: undefined });
 });
+it('keeps the stopped terminal row and message identity when no tokens arrived', () => {
+  const done = assistantStreamForHost([], { type: 'end', category: 'answer', message: '', message_id: 9, stopped: true }, 's');
+  expect(done).toHaveLength(1);
+  expect(done[0]).toMatchObject({ end: true, stopped: true, chat_source_message_id: '9', message: '' });
+});
 it('closes only the current turn on the host runtime-error control frame without adding an empty tool', () => {
   const previousTurn = [{ id: 1, category: 'answer', message: 'Earlier', end: true }, { id: 2, category: 'question', isSend: true, message: 'Q' }];
   const tool = startAssistantForHost(previousTurn, { type: 'start', category: 'tool', extra: 'search', message: '{"tool_key":"search"}' }, 's');

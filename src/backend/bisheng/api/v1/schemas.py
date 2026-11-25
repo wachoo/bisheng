@@ -283,6 +283,7 @@ class AssistantUpdateReq(BaseModel):
     temperature: float | None = Field(None, description="Model Temperature, Do not pass or do not update")
     max_token: int | None = Field(32000, description="MaxtokenQuantity Do not pass or do not update")
 
+    skill_ids: list[int] | None = Field(default=None, description="Managed skills bound to the assistant")
     tool_list: list[int] | None = Field(
         default=None,
         description="Tools for assistantsIDVertical,An empty list empties the bound tool forNonethen do not update",

@@ -1,0 +1,11 @@
+services:
+  information:
+    networks:
+      default:
+        aliases:
+          - bisheng-information-test
+
+networks:
+  default:
+    external: true
+    name: ${BISHENG_TEST_NETWORK:?set the network shared by the BiSheng API and worker}

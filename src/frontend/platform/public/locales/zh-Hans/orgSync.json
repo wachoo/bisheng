@@ -52,15 +52,44 @@
     "add": "添加",
     "remove": "删除"
   },
+  "configs": {
+    "title": "企业微信同步配置",
+    "empty": "还没有同步配置。新建并启用一条后，登录页才会出现企业微信登录入口。",
+    "columnName": "配置名称",
+    "columnStatus": "状态",
+    "columnUpdated": "更新时间",
+    "columnActions": "操作",
+    "statusActive": "启用中",
+    "statusDisabled": "已停用",
+    "enable": "启用",
+    "disable": "停用",
+    "statusUpdated": "配置状态已更新",
+    "multipleActiveWarning": "存在多条启用中的企业微信配置，登录入口会被关闭。请只保留一条启用。",
+    "exclusiveHint": "保存为启用状态后，其它已启用的企业微信配置会自动停用。"
+  },
   "form": {
-    "provider": "同步源类型"
+    "provider": "同步源类型",
+    "configName": "配置名称",
+    "configNamePlaceholder": "例如：总部企业微信",
+    "enabled": "启用此配置"
   },
   "dialog": {
-    "createTitle": "新建同步配置"
+    "createTitle": "新建同步配置",
+    "editTitle": "编辑同步配置"
   },
   "wecom": {
     "corpid": "企业 ID (corpid)",
-    "corpsecret": "应用 Secret (corpsecret)"
+    "corpsecret": "应用 Secret (corpsecret)",
+    "agentId": "应用 AgentId (agent_id)",
+    "corpidPlaceholder": "企业 ID，如 ww1234567890abcdef",
+    "corpsecretPlaceholder": "自建应用的 Secret",
+    "agentIdPlaceholder": "自建应用的 AgentId",
+    "corpsecretMaskedHint": "已保存的 Secret 以掩码显示",
+    "corpsecretEditHint": "保持掩码表示不修改已保存的 Secret",
+    "corpidRequired": "请填写企业 ID",
+    "corpsecretRequired": "请填写应用 Secret",
+    "agentIdRequired": "请填写 AgentId",
+    "corpsecretCannotBeMasked": "新建配置时请填写真实的 Secret"
   },
   "feishu": {
     "appId": "App ID"

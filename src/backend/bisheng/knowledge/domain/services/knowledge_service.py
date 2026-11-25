@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from time import perf_counter
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 from fastapi import BackgroundTasks, Request
 from loguru import logger
@@ -1824,10 +1824,11 @@ class KnowledgeService(KnowledgeUtils):
         """Remove unused files in minio"""
         minio_client = get_minio_storage_sync()
         minio_share_host = minio_client.get_minio_share_host()
-        if file_path.startswith(minio_share_host):
-            url_obj = urlparse(file_path)
-            bucket_name, object_name = url_obj.path.replace(minio_share_host, "", 1).lstrip("/").split("/", 1)
-            minio_client.remove_object_sync(bucket_name=bucket_name, object_name=object_name)
+        if file_path.startswith(minio_share_host.rstrip("/") + "/"):
+            bucket_name, _, object_name = urlparse(file_path).path.lstrip("/").partition("/")
+            if bucket_name == minio_client.tmp_bucket and object_name:
+                # The download path decodes the signed URL to the original S3 key.
+                minio_client.remove_object_sync(bucket_name=bucket_name, object_name=unquote(object_name))
 
     @classmethod
     def get_knowledge_files_title(cls, db_knowledge: Knowledge, files: list[KnowledgeFile]) -> dict[str, str]:

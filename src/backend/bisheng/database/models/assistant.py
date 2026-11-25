@@ -49,6 +49,7 @@ class AssistantBase(SQLModelSerializable):
             comment="F017: Root resource shared to all children (mirrors FGA shared_with tuples)",
         ),
     )
+    skill_ids: list[int] | None = Field(default=None, sa_column=Column(JsonType, nullable=True))
     knowledge_auth: bool = Field(
         default=False,
         sa_column=Column(

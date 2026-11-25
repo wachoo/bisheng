@@ -19,6 +19,8 @@ import { locationContext } from "@/contexts/locationContext";
 import { useAssistantStore } from "@/store/assistantStore";
 import { Switch } from "@bisheng/ui";
 import { CircleMinus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { skillApi } from "@/controllers/API/linsight";
 import { useContext } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
@@ -31,6 +33,9 @@ export default function Setting() {
 
   const { appConfig } = useContext(locationContext)
   const { assistantState, dispatchAssistant } = useAssistantStore();
+
+  const { data: skills = [], isLoading, isError } = useQuery(["assistant", assistantState.id, "skill-catalog"], skillApi.getRuntimeCatalog, { refetchOnWindowFocus: "always" });
+  const skillIds = assistantState.skill_ids ?? [];
 
   return (
     <div
@@ -215,6 +220,11 @@ export default function Setting() {
             <div className="flex flex-1 items-center justify-between">
               <span>{t("build.tools")}</span>
               <ToolsSheet
+                skills={skills}
+                skillsLoading={isLoading}
+                skillsError={isError}
+                skillIds={skillIds}
+                onAddSkill={(id) => dispatchAssistant("setting", { skill_ids: [...new Set([...skillIds, id])] })}
                 select={assistantState.tool_list}
                 onSelect={(tool) =>
                   dispatchAssistant("setting", {
@@ -231,6 +241,10 @@ export default function Setting() {
           </AccordionTrigger>
           <AccordionContent>
             <div className="px-4">
+              {skillIds.map(id => <div key={id} className="mt-2 flex items-center justify-between gap-2">
+                <span className="text-sm">{skills.find(s => s.id === id)?.display_name ?? `${t("build.skill")} #${id}`}</span>
+                <button type="button" aria-label={t("delete")} onClick={() => dispatchAssistant("setting", { skill_ids: skillIds.filter(i => i !== id) })}><CircleMinus className="h-4 w-4 text-primary" /></button>
+              </div>)}
               {assistantState.tool_list.map((tool) => (
                 <div
                   key={tool.id}
@@ -257,65 +271,6 @@ export default function Setting() {
             </div>
           </AccordionContent>
         </AccordionItem>
-        {/* Skills */}
-        {/* <AccordionItem value="skill">
-          <AccordionTrigger>
-            <div className="flex flex-1 items-center justify-between">
-              <span className="flex items-center gap-1">
-                <span>{t("build.skill")}</span>
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Outlined.Question className="w-4 h-4" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="text-slate-50">{t("build.skillDescription")}</p>
-                    </TooltipContent>
-                 </Tooltip>
-                </TooltipProvider>
-              </span>
-              <SkillSheet
-                select={assistantState.flow_list}
-                onSelect={(flow) =>
-                  dispatchAssistant("setting", {
-                    flow_list: [...assistantState.flow_list, flow],
-                  })
-                }
-              >
-                <Outlined.Plus
-                  className="mr-2 text-primary hover:text-primary/80 dark:text-slate-50"
-                  onClick={(e) => e.stopPropagation()}
-                ></Outlined.Plus>
-              </SkillSheet>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent>
-            <div className="px-4">
-              {assistantState.flow_list.map((flow) => (
-                <div
-                  key={flow.id}
-                  className="group mt-2 flex cursor-pointer items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <AppAvator id={flow.name} url={flow.logo} flowType={1} className="h-7 w-7"></AppAvator>
-                    <p className="text-sm">{flow.name}</p>
-                  </div>
-                  <CircleMinus
-                    className="w-4 h-4 hidden text-primary group-hover:block"
-                    onClick={() =>
-                      dispatchAssistant("setting", {
-                        flow_list: assistantState.flow_list.filter(
-                          (t) => t.id !== flow.id
-                        ),
-                      })
-                    }
-                  />
-                </div>
-              ))}
-            </div>
-          </AccordionContent>
-        </AccordionItem> */}
-
       </Accordion>
     </div>
   );

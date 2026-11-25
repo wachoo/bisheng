@@ -1,4 +1,5 @@
 @import './chat-controls.css';
+@import '@bisheng/chat/message-layout.css';
 
 .dsh-chat-surface {
   display: flex;
@@ -133,7 +134,6 @@ body[data-dsh-chat-theme=dark] .dsh-web-chat .dsh-history-new-chat { background:
 .dsh-chat-scroll-fade { display:none; }
 .dsh-chat-surface .dsh-user-message { padding-block:0; flex-shrink:0; }
 .dsh-chat-surface .dsh-user-message > div:last-child { max-width:min(calc(clamp(680px,64cqw,920px) * .702),82%); }
-.dsh-chat-surface .dsh-user-bubble { padding:10px 16px; border-radius:20px; background:rgb(var(--dsh-bubble-bg)); color:rgb(var(--text-1)); font-size:14px; line-height:22px; }
 .dsh-chat-surface .dsh-assistant-message { padding-block:0; flex-shrink:0; }
 .dsh-chat-surface .dsh-chat-content > :is(.dsh-user-message,.dsh-assistant-message) + :is(.dsh-user-message,.dsh-assistant-message) { margin-top:12px; }
 .dsh-chat-surface .dsh-assistant-message .message-content { padding:0; --markdown-font-size:14px; font-size:14px; line-height:24px; color:rgb(var(--text-1)); word-break:normal; overflow-wrap:anywhere; }

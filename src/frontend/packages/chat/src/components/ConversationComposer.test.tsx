@@ -9,9 +9,12 @@ it('owns one aligned attachment, voice and send toolbar and guards attachment se
   const { rerender } = render(<ConversationComposer inputRef={inputRef} canExecute labels={{ ...labels, attach: 'Attach' }} onSend={vi.fn()} onAttach={onAttach} voice={<button>Voice</button>} />);
   const attach = screen.getByRole('button', { name: 'Attach' });
   const voice = screen.getByRole('button', { name: 'Voice' });
-  const send = screen.getByRole('button', { name: 'Send' });
+  const getSend = () => screen.getByRole('button', { name: 'Send' });
+  expect(getSend()).toHaveProperty('disabled', true);
+  fireEvent.input(screen.getByRole('textbox'), { target: { value: 'Question' } });
+  expect(getSend()).toHaveProperty('disabled', false);
   expect(attach.parentElement).toBe(voice.parentElement);
-  expect(send.parentElement).toBe(voice.parentElement);
+  expect(getSend().parentElement).toBe(voice.parentElement);
   expect(voice.parentElement?.classList.contains('items-center')).toBe(true);
   fireEvent.click(attach); expect(onAttach).toHaveBeenCalledTimes(1);
   rerender(<ConversationComposer inputRef={inputRef} canExecute={false} labels={{ ...labels, attach: 'Attach' }} onSend={vi.fn()} onAttach={onAttach} />);

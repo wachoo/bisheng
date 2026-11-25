@@ -30,6 +30,7 @@ export interface AssistantDetail {
     /** 内容安全审查对象 */
     // content_security: object;
     /** 助手的工具ID列表, 空列表则清空绑定的工具，为None则不更新 */
+    skill_ids?: number[] | null;
     tool_list?: AssistantTool[];
     /** 助手的技能ID列表，为None则不更新 */
     flow_list?: FlowType[];

@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { useRecoilState, useRecoilValue } from "recoil";
 import { NotificationSeverity } from "~/common";
 import { useLocalize, useToast } from "~/hooks";
-import { SkillMethod } from "./appUtils/skillMethod";
+import { runLogsTypes, SkillMethod } from "./appUtils/skillMethod";
 import { chatApiVersionState, submitDataState } from "./store/atoms";
 import { appConversationsState } from "./store/appSidebarAtoms";
 import { genTitle } from "~/api/chat/data-service";
@@ -23,6 +23,18 @@ import type { WorkflowCloseAction } from "./workflowAutoRerun";
 export const AppLostMessage = "11111";
 const unavailableCodes = new Set(["10421", "13002", "13010", AppLostMessage]);
 const wsMap = new Map<string, WebSocket>();
+// The socket that receives its initialization acknowledgement owns its queued inputs.
+const pendingSends = new WeakMap<WebSocket, Array<(socket: WebSocket) => void>>();
+function queueSend(socket: WebSocket, send: (socket: WebSocket) => void) {
+  const pending = pendingSends.get(socket);
+  if (pending) pending.push(send);
+  else pendingSends.set(socket, [send]);
+}
+function flushSends(socket: WebSocket) {
+  const pending = pendingSends.get(socket);
+  pendingSends.delete(socket);
+  pending?.forEach(send => send(socket));
+}
 // 会话运行时信息
 const sessionInfoMap = new Map<string, any>();
 const restartCallbacks = new Map<string, () => void>();
@@ -126,6 +138,7 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
   // 连接WebSocket
   const connect = (callBack) => {
     if (!canExecute || isUnavailable()) return;
+    const websocket = wsMap.get(helpers.chatId);
     const replacingExistingSocket = !!websocket;
     if (websocket) {
       if (!callBack) {
@@ -137,7 +150,11 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
         }
         if (websocket.readyState === WebSocket.CONNECTING) return;
         wsMap.delete(helpers.chatId);
+      } else if (websocket.readyState === WebSocket.CONNECTING) {
+        queueSend(websocket, callBack);
+        return;
       } else if (websocket.readyState === WebSocket.OPEN) {
+        callBack(websocket);
         return;
       }
     }
@@ -147,6 +164,8 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
     const webSocketProtocol = isSecureProtocol ? "wss" : "ws";
     const ws = new WebSocket(`${webSocketProtocol}://${helpers.wsUrl}`);
     wsMap.set(helpers.chatId, ws);
+    if (helpers.flow.flow_type === 5) pendingSends.set(ws, []);
+    if (callBack) queueSend(ws, callBack);
 
     ws.onopen = () => {
       console.log("WebSocket connection established!");
@@ -189,10 +208,7 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
         };
         ws?.send(JSON.stringify(msg));
         // skill hack
-        if (helpers.flow.flow_type === 1 && callBack) {
-          callBack?.(ws);
-          callBack = null;
-        }
+        if (helpers.flow.flow_type === 1) flushSends(ws);
       }
     };
 
@@ -200,12 +216,17 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
       try {
         const data = JSON.parse(event.data);
         console.log("data :>> ", data);
+        if (data.type === "error" || data.category === "error") pendingSends.delete(ws);
+        if (helpers.flow.flow_type === 5 && data.type === "close" && data.category === "processing"
+          && pendingSends.get(ws)?.length && !isUnavailable()) {
+          // This acknowledges initialization. The queued answer is just
+          // starting, so its input lock must survive until its own close.
+          flushSends(ws);
+          return;
+        }
         handleMessages(data, ws);
 
-        if (data.type === "close" && callBack) {
-          callBack?.(ws);
-          callBack = null;
-        }
+        if (data.type === "close" && !isUnavailable()) flushSends(ws);
       } catch (error) {
         console.error("WebSocket message parse error:", error);
       }
@@ -234,11 +255,15 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
       return;
     }
 
-    // Freeze partial output after a manual stop; only terminal IDs and errors may follow.
+    // Freeze the partial answer while terminal tool results and message IDs settle.
     const stopped = stoppedRef.current[helpers.chatId] === true;
     if (stopped && !(data.category === "processing" && data.type === "close")
       && data.category !== "error" && data.type !== "error") {
-      helpers.message.finishStoppedMsg(helpers.chatId, data);
+      if (helpers.flow.flow_type === 5 && data.type === "end" && runLogsTypes.includes(data.category)) {
+        helpers.message.skillStreamMsg(helpers.chatId, data);
+      } else {
+        helpers.message.finishStoppedMsg(helpers.chatId, data);
+      }
       return;
     }
 
@@ -393,8 +418,11 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
   const sendWsMsg = async (msg) => {
     if (!canExecute) return;
     try {
+      const websocket = wsMap.get(helpers.chatId);
       if (websocket && websocket.readyState === WebSocket.OPEN) {
-        websocket.send(JSON.stringify(msg));
+        if (msg.action === "stop") pendingSends.delete(websocket);
+        if (msg.inputs?.input && pendingSends.has(websocket)) queueSend(websocket, ws => ws.send(JSON.stringify(msg)));
+        else websocket.send(JSON.stringify(msg));
       } else {
         connect((_websocket) => {
           _websocket.send(JSON.stringify(msg));
@@ -410,6 +438,13 @@ export const useWebSocket = (helpers, { canExecute = true }: { canExecute?: bool
 
   // 监听submitData变化，发送消息（必须在当前会话调用）
   useEffect(() => {
+    if (canExecute && submitData?.action === ActionType.STOP && websocket && pendingSends.get(websocket)?.length) {
+      pendingSends.set(websocket, []);
+      stoppedRef.current[helpers.chatId] = true;
+      helpers.message.stopMsg(helpers.chatId);
+      setSubmitData(null);
+      return;
+    }
     if (submitData && isUnavailable()) {
       helpers.handleMsgError({
         code: unavailableRef.current[helpers.chatId] || String(helpers.appLost),

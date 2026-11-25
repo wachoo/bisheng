@@ -5,6 +5,8 @@ Every expectation here encodes behaviour measured against the live
 ``paddle_ocr_client.py`` for the contract.
 """
 
+import json
+
 import httpx
 import pytest
 
@@ -80,11 +82,20 @@ def _source(tmp_path) -> str:
 class Recorder:
     """Handler that serves the three API steps and records every request."""
 
-    def __init__(self, *, states=("pending", "done"), result_url=RESULT_URL, submit_body=None, submit_status=200):
+    def __init__(
+        self,
+        *,
+        states=("pending", "done"),
+        result_url=RESULT_URL,
+        submit_body=None,
+        submit_status=200,
+        result_body: bytes | None = None,
+    ):
         self.states = list(states)
         self.result_url = result_url
         self.submit_body = submit_body or {"code": 0, "msg": "Success", "data": {"jobId": "job-1"}}
         self.submit_status = submit_status
+        self.result_body = result_body
         self.requests: list[httpx.Request] = []
         self.submits = 0
 
@@ -101,6 +112,8 @@ class Recorder:
                 body["data"]["resultUrl"] = {"jsonUrl": self.result_url}
             return httpx.Response(200, json=body)
         if "bcebos.com" in request.url.host:
+            if self.result_body is not None:
+                return httpx.Response(200, content=self.result_body, headers={"content-type": "application/json"})
             return httpx.Response(200, json=INLINE_RESULT)
         raise AssertionError(f"unexpected request {request.method} {request.url}")
 
@@ -146,6 +159,73 @@ def test_polls_until_done_then_fetches_presigned_result(tmp_path):
     assert len(status_calls) == 3, "one poll per intermediate state plus the final one"
     assert any("bcebos.com" in r.url.host for r in rec.requests), "result must come from the presigned jsonUrl"
     assert result["layoutParsingResults"][0]["prunedResult"]["width"] == 1191
+
+
+def _chunk(text: str, *, pages: int = 1, error_code: int = 0, error_msg: str = "Success") -> dict:
+    return {
+        "logId": "x",
+        "errorCode": error_code,
+        "errorMsg": error_msg,
+        "result": {
+            "layoutParsingResults": [
+                {
+                    "prunedResult": {
+                        "width": 1191,
+                        "height": 1684,
+                        "parsing_res_list": [
+                            {
+                                "block_content": text,
+                                "block_label": "text",
+                                "block_bbox": [0, 0, 1, 1],
+                                "block_order": 1,
+                            }
+                        ],
+                    },
+                    "markdown": {"text": text, "images": {}},
+                }
+            ],
+            "dataInfo": {
+                "numPages": pages,
+                "pages": [{"width": 1191, "height": 1684}] * pages,
+                "type": "pdf",
+            },
+        },
+    }
+
+
+def _ndjson(*chunks: dict) -> bytes:
+    return ("\n".join(json.dumps(chunk) for chunk in chunks) + "\n").encode()
+
+
+def test_multi_chunk_result_body_is_merged_in_file_order(tmp_path):
+    """Live 2026-11-25: a 36-page PDF came back as 9 NDJSON envelopes of 4 pages each."""
+    rec = Recorder(result_body=_ndjson(_chunk("first chunk"), _chunk("second chunk")))
+    client = PaddleOcrJobsClient(_conf(), transport=rec.transport())
+
+    result = client.parse(_source(tmp_path))
+
+    assert [
+        page["prunedResult"]["parsing_res_list"][0]["block_content"] for page in result["layoutParsingResults"]
+    ] == ["first chunk", "second chunk"]
+    assert result["dataInfo"]["numPages"] == 2
+    assert len(result["dataInfo"]["pages"]) == 2
+
+
+def test_error_in_a_later_chunk_fails_loudly(tmp_path):
+    body = _ndjson(_chunk("first chunk"), _chunk("", error_code=1, error_msg="chunk two failed"))
+    rec = Recorder(result_body=body)
+    client = PaddleOcrJobsClient(_conf(), transport=rec.transport())
+
+    with pytest.raises(PaddleOcrJobsError, match="chunk two failed"):
+        client.parse(_source(tmp_path))
+
+
+def test_malformed_result_body_still_fails(tmp_path):
+    rec = Recorder(result_body=b"<html>gateway error</html>")
+    client = PaddleOcrJobsClient(_conf(), transport=rec.transport())
+
+    with pytest.raises(PaddleOcrJobsError, match="invalid JSON"):
+        client.parse(_source(tmp_path))
 
 
 def test_token_is_never_sent_to_the_object_store(tmp_path, monkeypatch):

@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>信息源管理 · 毕昇</title>
+  <link rel="stylesheet" href="/admin/static/admin.css">
+  <script defer src="/admin/static/admin.js"></script>
+</head>
+<body>
+  <header><nav aria-label="当前位置"><a href="/admin/sources">信息源管理</a><span id="crumb" hidden></span></nav></header>
+  <main>
+    <p id="loading" role="status">正在读取信息源…</p>
+    <p id="page-error" class="error" role="alert" hidden></p>
+    <section id="overview" hidden>
+      <h1>订阅信息源</h1>
+      <div class="table-wrap"><table>
+        <thead><tr><th scope="col">信息源</th><th scope="col">采集状态</th><th scope="col">采集周期</th><th scope="col">最近尝试</th><th scope="col">最近成功</th><th scope="col">最近一次结果</th></tr></thead>
+        <tbody id="sources"></tbody>
+      </table></div>
+    </section>
+    <section id="detail" hidden>
+      <div class="title-row"><h1 id="source-name"></h1><span id="enabled-state"></span></div>
+      <p id="description"></p>
+      <dl class="times">
+        <div><dt>来源主页</dt><dd id="homepage"></dd></div>
+        <div><dt>最近尝试</dt><dd id="last-attempt"></dd></div>
+        <div><dt>最近成功</dt><dd id="last-sync"></dd></div>
+        <div><dt>最近内容更新</dt><dd id="last-change"></dd></div>
+      </dl>
+      <section class="panel">
+        <h2>采集设置</h2>
+        <form id="settings"><fieldset>
+          <label for="enabled">定时采集<select id="enabled"><option value="yes">启用</option><option value="no">暂停</option></select></label>
+          <label for="interval">采集周期（秒）<input type="number" id="interval" min="60" max="604800" step="1" required aria-describedby="interval-hint"></label>
+          <button type="submit">保存设置</button>
+        </fieldset></form>
+        <p class="hint" id="interval-hint">周期范围为 60 秒至 7 天。暂停后保留已有文章和订阅关系。</p>
+        <p id="save-state" role="status"></p>
+      </section>
+      <section class="panel">
+        <h2>采集记录</h2>
+        <p id="no-runs" class="hint">暂无正式采集记录。</p>
+        <div id="run-table" class="table-wrap" hidden><table>
+          <thead><tr><th scope="col">开始时间</th><th scope="col">完成时间</th><th scope="col">结果</th><th scope="col">条目与失败原因</th></tr></thead>
+          <tbody id="runs"></tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <div class="title-row"><h2>试采预览</h2><button id="preview-button" type="button">开始试采</button></div>
+        <p class="hint">试采只生成预览，文章库和正式采集时间保持原值。</p>
+        <p id="preview-state" role="status"></p>
+        <div id="preview-errors"></div>
+        <div id="sample" hidden>
+          <label for="sample-select">查看条目<select id="sample-select"></select></label>
+          <h3 id="article-title"></h3>
+          <dl class="article-info">
+            <dt>文章 ID</dt><dd id="article-id"></dd>
+            <dt>原文链接</dt><dd id="article-url"></dd>
+          </dl>
+          <h4>Markdown 正文</h4><pre id="markdown"></pre>
+          <h4>HTML 预览</h4><iframe id="html-preview" title="试采文章 HTML 预览" sandbox referrerpolicy="no-referrer"></iframe>
+        </div>
+      </section>
+    </section>
+    <noscript>请启用 JavaScript 以查看和管理信息源。</noscript>
+  </main>
+</body>
+</html>

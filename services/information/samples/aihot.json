@@ -1,0 +1,43 @@
+{
+  "row": {
+    "id": "be8zm94btguaewsfvsbyels7i",
+    "title": "Ladybird浏览器发布首个Alpha版本",
+    "storyPublicId": "c244121f-9602-45f2-a625-e34e5d86a0ff",
+    "rank": 10,
+    "links": {
+      "aihot": "https://aihot.news/items/be8zm94btguaewsfvsbyels7i",
+      "original": "https://simonwillison.net/2026/Nov/23/ladybird/",
+      "story": "https://aihot.news/story/c244121f-9602-45f2-a625-e34e5d86a0ff"
+    }
+  },
+  "detail": {
+    "story": {
+      "publicId": "c244121f-9602-45f2-a625-e34e5d86a0ff",
+      "title": "Ladybird浏览器发布首个Alpha版本",
+      "firstReportAt": "2026-11-23T21:46:35.000Z",
+      "latestAt": "2026-11-23T21:46:35.000Z",
+      "latest": "Ladybird 浏览器发布首个 alpha 版本，作者实测并梳理 AI 编码智能体带来的进展",
+      "digest": "Ladybird 项目发布首个 Alpha 版本，macOS 和 Linux 用户现在可以直接安装，无需自行编译。项目方称，这是 Alpha 版本，部分网站无法使用，浏览器有时会崩溃，且目前不对安全性作任何承诺。\n\nSimon Willison 实测后称其快速流畅，多数网站可正常加载，并给出了多标签页的进程隔离结构。",
+      "links": {
+        "aihot": "https://aihot.news/story/c244121f-9602-45f2-a625-e34e5d86a0ff"
+      },
+      "reports": [
+        {
+          "id": "be8zm94btguaewsfvsbyels7i",
+          "title": "Ladybird 浏览器发布首个 alpha 版本，作者实测并梳理 AI 编码智能体带来的进展",
+          "summary": "Ladybird 项目发布首个 alpha 版本，macOS 和 Linux 用户可直接安装无需自行编译。作者 Simon Willison 实测称其快速流畅，多数网站可正常加载，并给出了多标签页的进程隔离结构。",
+          "source": {
+            "id": "rss-simon-willison",
+            "name": "Simon Willison 博客",
+            "firstParty": false
+          },
+          "publishedAt": "2026-11-23T21:46:35.000Z",
+          "links": {
+            "aihot": "https://aihot.news/items/be8zm94btguaewsfvsbyels7i",
+            "original": "https://simonwillison.net/2026/Nov/23/ladybird/"
+          }
+        }
+      ]
+    }
+  }
+}

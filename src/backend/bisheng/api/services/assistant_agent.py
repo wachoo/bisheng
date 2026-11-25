@@ -297,15 +297,6 @@ class AssistantAgent(AssistantUtils):
                 tool_ids.append(link.tool_id)
             else:
                 flow_links.append(link)
-        from bisheng.api.services.assistant_skills import bind_skill_tools, selected_skills
-
-        skills = await selected_skills(getattr(self.assistant, "skill_ids", None), self.invoke_user_id)
-        if any(row.name in {"bisheng-docx", "bisheng-xlsx", "bisheng-pptx", "html-report"} for row in skills):
-            from bisheng.tool.domain.models.gpts_tools import GptsToolsDao
-
-            interpreter = await GptsToolsDao.aget_tool_by_tool_key("bisheng_code_interpreter")
-            if interpreter and interpreter.id not in tool_ids:
-                tool_ids.append(interpreter.id)
         if tool_ids:
             tools = await ToolExecutor.init_by_tool_ids(
                 tool_ids,
@@ -317,9 +308,6 @@ class AssistantAgent(AssistantUtils):
                 llm=self.llm,
                 callbacks=callbacks,
             )
-
-        if skills:
-            self._skill_workspace = await bind_skill_tools(skills, tools)
 
         # F041: split knowledge spaces (type=3) from document / QA KBs by row.type.
         link_knowledge_ids = [link.knowledge_id for link in flow_links if link.knowledge_id]

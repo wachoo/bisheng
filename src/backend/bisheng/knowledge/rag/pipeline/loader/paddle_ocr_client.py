@@ -22,6 +22,7 @@ payload.
 from __future__ import annotations
 
 import asyncio
+import json
 import mimetypes
 import os
 import time
@@ -52,8 +53,6 @@ class PaddleOcrJobsError(EtlException):
     the failure remark. Any other exception class escapes that handler and the
     file is left in a half-updated state.
     """
-
-
 
 
 # --------------------------------------------------------------------------------------
@@ -113,6 +112,82 @@ def parse_inline_result(data: dict) -> dict:
     return result if isinstance(result, dict) else {}
 
 
+def parse_download_body(content: bytes, phase: str = "result download") -> dict:
+    """Parse the presigned result body and merge its chunks.
+
+    A one-chunk document arrives as a single JSON document, but a longer one is
+    written as newline-delimited JSON: one complete ``{logId, errorCode, result}``
+    envelope per page chunk (measured 2026-11-25: a 36-page PDF produced 9 chunks
+    of 4 pages each). ``json.loads`` therefore fails with "Extra data" on every
+    multi-chunk result, so both shapes have to be accepted here.
+
+    Each chunk carries its own errors and its own page lists; the merged result
+    concatenates them in file order.
+    """
+    payloads = _decode_result_documents(content, phase)
+    results: list[dict] = []
+    for payload in payloads:
+        if not isinstance(payload, dict):
+            raise PaddleOcrJobsError(f"PaddleOCR {phase} returned an unexpected structure")
+        if payload.get("errorCode", 0) != 0:
+            raise PaddleOcrJobsError(f"PaddleOCR API error: {payload.get('errorMsg', 'Unknown error')}")
+        result = payload.get("result")
+        if isinstance(result, dict):
+            results.append(result)
+    if not results:
+        return {}
+    return _merge_chunk_results(results)
+
+
+def _decode_result_documents(content: bytes, phase: str) -> list:
+    """Single JSON document first, then NDJSON; anything else is an error."""
+    try:
+        return [json.loads(content)]
+    except ValueError:
+        pass
+    try:
+        text = content.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise PaddleOcrJobsError(f"PaddleOCR {phase} returned invalid JSON") from exc
+    decoder = json.JSONDecoder()
+    payloads: list = []
+    index = 0
+    while index < len(text):
+        while index < len(text) and text[index] in " \r\n\t":
+            index += 1
+        if index >= len(text):
+            break
+        try:
+            payload, index = decoder.raw_decode(text, index)
+        except ValueError as exc:
+            raise PaddleOcrJobsError(f"PaddleOCR {phase} returned invalid JSON") from exc
+        payloads.append(payload)
+    if not payloads:
+        raise PaddleOcrJobsError(f"PaddleOCR {phase} returned invalid JSON")
+    return payloads
+
+
+def _merge_chunk_results(results: list[dict]) -> dict:
+    if len(results) == 1:
+        return results[0]
+    merged = {
+        key: value
+        for key, value in results[0].items()
+        if key not in {"layoutParsingResults", "preprocessedImages", "dataInfo"}
+    }
+    merged["layoutParsingResults"] = [page for result in results for page in (result.get("layoutParsingResults") or [])]
+    images = [image for result in results for image in (result.get("preprocessedImages") or [])]
+    if images:
+        merged["preprocessedImages"] = images
+    infos = [result["dataInfo"] for result in results if isinstance(result.get("dataInfo"), dict)]
+    if infos:
+        info = dict(infos[0])
+        info["numPages"] = sum(int(entry.get("numPages") or 0) for entry in infos)
+        info["pages"] = [page for entry in infos for page in (entry.get("pages") or [])]
+        merged["dataInfo"] = info
+    return merged
+
+
 def response_json(response: httpx.Response, phase: str) -> dict:
     try:
         data = response.json()
@@ -146,10 +221,6 @@ def resolve_token(config: PaddleOcrConf) -> str:
                 "settings (the encryption key may have changed)"
             ) from exc
     return os.getenv(config.api_key_env, "") if config.api_key_env else ""
-
-
-
-
 
 
 def probe_connection(
@@ -332,7 +403,7 @@ class PaddleOcrJobsClient:
         response = client.get(result_url, headers=self._headers(result_url), timeout=self._timeout())
         if response.is_error:
             raise PaddleOcrJobsError(f"PaddleOCR result download failed: status={response.status_code}")
-        return parse_inline_result(response_json(response, "result download"))
+        return parse_download_body(response.content)
 
     def _submit(self, client: httpx.Client, name: str, content: bytes, mime: str) -> str:
         for attempt in range(self.config.max_retries + 1):
@@ -387,7 +458,7 @@ class PaddleOcrJobsClient:
         response = await client.get(result_url, headers=self._headers(result_url))
         if response.is_error:
             raise PaddleOcrJobsError(f"PaddleOCR result download failed: status={response.status_code}")
-        return parse_inline_result(response_json(response, "result download"))
+        return parse_download_body(response.content)
 
     async def _submit_async(self, client, name: str, content: bytes, mime: str) -> str:
         for attempt in range(self.config.max_retries + 1):

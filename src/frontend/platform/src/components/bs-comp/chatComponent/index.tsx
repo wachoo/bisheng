@@ -20,7 +20,7 @@ export default function ChatComponent({
     version
 }) {
 
-    return <div className="relative h-full">
+    return <div className="bisheng-chat-column relative flex min-h-0 h-full flex-col">
         <MessagePanne questions={questions} canExecute logo={logo} debug={debug} version={version} useName={useName} guideWord={guideWord} loadMore={loadMore} chat={chat}></MessagePanne>
         <ChatInput clear={clear} version={version} form={form} wsUrl={wsUrl} inputForm={inputForm} onBeforSend={onBeforSend} onClickClear={onClickClear}></ChatInput>
     </div>

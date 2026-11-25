@@ -200,6 +200,8 @@ export const useAreaText = () => {
                         handleSendClick(event.detail.text)
                     } else if (textareaRef.current) {
                         textareaRef.current.value = event.detail.text
+                        textareaRef.current.dispatchEvent(new Event('input', { bubbles: true }))
+                        textareaRef.current.focus()
                     }
                     break;
                 // case EVENT_TYPE.RETRY:

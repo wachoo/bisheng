@@ -122,6 +122,18 @@
       "done": "Done",
       "interrupted": "The tool call returned no result (the session ended)"
     },
+    "timeline": {
+      "deepThinking": "Thinking deeply…",
+      "deepThought": "Thought deeply",
+      "reasoningContent": "Reasoning",
+      "knowledge": "Knowledge base",
+      "knowledgeResults": "Searched knowledge ({{count}})",
+      "toolInput": "Input",
+      "toolResult": "Result",
+      "toolError": "Error",
+      "tool": "Tool",
+      "stopped": "Stopped"
+    },
     "attach": "Attach file"
   },
   "citations": {

@@ -541,6 +541,16 @@ class AssistantService(BaseService, AssistantUtils):
         assistant.update_time = datetime.now()
         assistant.max_token = req.max_token
         # F041: persist the 用户知识库权限校验 toggle (None = untouched, keep current value)
+        if req.skill_ids is not None:
+            new_ids = set(req.skill_ids) - set(assistant.skill_ids or [])
+            if new_ids:
+                from bisheng.common.errcode.linsight import SkillNotFoundError
+                from bisheng.linsight.domain.services.user_skills import UserSkillsService
+
+                records = await UserSkillsService(login_user.user_id).records()
+                if new_ids - {row.id for row, _ in records}:
+                    raise SkillNotFoundError()
+            assistant.skill_ids = list(dict.fromkeys(req.skill_ids))
         if req.knowledge_auth is not None:
             assistant.knowledge_auth = req.knowledge_auth
         AssistantDao.update_assistant(assistant)

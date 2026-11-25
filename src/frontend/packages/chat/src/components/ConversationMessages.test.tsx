@@ -4,6 +4,22 @@ import { normalizeHistory } from '../core/normalizeHistory';
 import { ConversationMessages } from './ConversationMessages';
 import { SuggestedQuestions } from './SuggestedQuestions';
 afterEach(cleanup);
+it('separates both speakers and keeps reasoning outside the copyable answer', () => {
+  const messages = normalizeHistory([
+    { category: 'question', message: 'My question', is_bot: false, end: true },
+    { category: 'answer', message: 'Reply', is_bot: true, end: true },
+  ], { mode: 'assistant', sessionKey: 'layout' });
+  render(<ConversationMessages messages={messages.map(m => m.kind === 'answer' ? { ...m, reasoning: 'Thinking text' } : m)}
+    canExecute labels={{ confirm: 'Confirm', confirmed: 'Confirmed', thinking: 'Thinking', completed: 'Done' }}
+    slots={{ content: text => text }} />);
+  expect(screen.getByText('My question').closest('[data-speaker="user"]')).toBeTruthy();
+  const answer = screen.getByText('Reply').closest('[data-speaker="assistant"]');
+  expect(answer?.contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
+  expect(answer?.querySelector('.bisheng-message__body')?.textContent).toBe('Reply');
+  fireEvent.click(screen.getByRole('button', { name: 'Done' }));
+  expect(screen.queryByText('Thinking text')).toBeNull();
+  expect(screen.getByText('Reply')).toBeTruthy();
+});
 it('keeps greeting actions at the right of their hover group like the client baseline', () => {
   render(<ConversationMessages messages={normalizeHistory([{ category: 'guide_word', message: 'Welcome' }], { mode: 'workflow', sessionKey: 'a' })}
     canExecute labels={{ confirm: 'Confirm', confirmed: 'Confirmed', thinking: 'Thinking', completed: 'Done' }}

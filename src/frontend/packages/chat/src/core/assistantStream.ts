@@ -10,7 +10,7 @@ function runId(row: RawMessage): unknown {
 /** Assistant start is a UI placeholder, never a persisted message identity. */
 export function startAssistantForHost(rows: readonly unknown[], frame: RawMessage, sessionKey: string): RawMessage[] {
   const raw = rows.map(asRecord);
-  const key = `${sessionKey}:assistant:${raw.length}:${String(runId(frame) ?? '')}`;
+  const key = `${sessionKey}:assistant:${raw.length}:${isRun(frame) ? String(runId(frame) ?? '') : ''}`;
   return [...raw, normalizeHostRow({ ...frame, chat_id: sessionKey, chat_ui_key: key, chat_source_message_id: undefined,
     id: key, category: isRun(frame) ? frame.category : 'stream_msg',
     is_bot: true, isSend: false, end: false,
@@ -61,9 +61,24 @@ export function assistantStreamForHost(rows: readonly unknown[], frame: RawMessa
     reasoning_log: replace && reasoning ? reasoning : displayText(previous.reasoning_log) + reasoning,
     thought: displayText(previous.thought) + (thought ? `${thought}\n` : ''),
     files, end: final, issues };
+  if (!run && !replace && reasoning) {
+    // A model may resume the same answer row after a tool. Record the actual
+    // boundary now; the accumulated reasoning_log cannot reconstruct it later.
+    let after: string | undefined;
+    for (let i = raw.length - 1; i >= 0 && !isUser(raw[i]); i--) {
+      if (isRun(raw[i])) { after = sourceId(raw[i].chat_ui_key); break; }
+    }
+    const passages = Array.isArray(previous.chat_reasoning_passages) ? [...previous.chat_reasoning_passages] : [];
+    const last = asRecord(passages[passages.length - 1]);
+    if (passages.length && last.after === after) passages[passages.length - 1] = { after, text: displayText(last.text) + reasoning };
+    else passages.push({ after, text: reasoning });
+    next.chat_reasoning_passages = passages;
+  }
+  if (run && Object.keys(record).length) next.message = { ...asRecord(parsePayload(previous.message)), ...record };
   if (run && frame.message === undefined) next.message = previous.message;
   raw[index] = normalizeHostRow(next, { mode: 'assistant', sessionKey });
-  if (!run && final && !next.message && !next.reasoning_log && !next.thought && Array.isArray(files) && !files.length) {
+  if (!run && final && !next.stopped && next.remark !== 'break_answer' && !next.message && !next.reasoning_log && !next.thought && Array.isArray(files) && !files.length
+    && !Array.isArray(asRecord(parsePayload(next.extra)).assistant_timeline)) {
     raw = raw.filter((_item, i) => i !== index);
   }
   return raw;

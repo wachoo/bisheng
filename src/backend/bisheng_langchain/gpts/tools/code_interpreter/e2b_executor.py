@@ -4,6 +4,8 @@ import os
 import tempfile
 import uuid
 
+from pathlib import Path
+
 from e2b.sandbox.filesystem.filesystem import EntryInfo, FileType, WriteEntry
 from e2b_code_interpreter import Result, Sandbox
 from loguru import logger
@@ -187,6 +189,13 @@ class E2bCodeExecutor(BaseExecutor):
         if self.sandbox is None:
             self.init_sandbox()
         try:
+            if self.assistant_skill_outputs:
+                # Fresh sandboxes must see the bundle and earlier steps' scratch files.
+                root = Path(self.local_sync_path)
+                for path in root.rglob("*"):
+                    if path.is_file() and not path.is_symlink() and path.resolve().is_relative_to(root):
+                        self.sandbox.files.write(path.relative_to(root).as_posix(), path.read_bytes())
+                before = self._snapshot_files(self.local_sync_path)
             # copy-in: stage the working set into the sandbox
             copy_in_hint = self._copy_in(required_files)
             # snapshot AFTER copy-in so staged inputs are not mistaken for products
@@ -194,6 +203,11 @@ class E2bCodeExecutor(BaseExecutor):
 
             execution = self.sandbox.run_code(code)
             results, file_list = self.parse_results(execution.results)
+
+            if self.assistant_skill_outputs and not execution.error:
+                after = self._snapshot_files(self.local_sync_path)
+                touched = [rel for rel, value in after.items() if before.get(rel) != value]
+                file_list.extend(self._publish_generated_files(self.local_sync_path, touched))
 
             # copy-out: enumerate new files vs the pre-run snapshot
             new_files = self._copy_out(pre_paths)
@@ -348,6 +362,11 @@ class E2bCodeExecutor(BaseExecutor):
         if self.local_sync_path and os.path.exists(self.local_sync_path) and self.sandbox:
             # 将沙盒中的文件同步到本地目录
             files_info = self.sandbox.files.list("./")
+            if self.assistant_skill_outputs:
+                files_info = [
+                    entry for entry in files_info
+                    if self._to_workspace_rel(entry.path).split("/", 1)[0] in {"output", "scratch"}
+                ]
             self.sync_files_to_local(files_info)
 
         return parsed_results, file_list
@@ -359,13 +378,14 @@ class E2bCodeExecutor(BaseExecutor):
             # ignore hidden files
             if file.name.startswith("."):
                 continue
-            if file.type == FileType.FILE:
+            if file.type in (FileType.FILE, "file"):
                 if file.path not in self.sandbox_file_cache:
                     self.sandbox_file_cache[file.path] = file
                     self.download_file(file)
                 # only download modified files
                 if self.sandbox_file_cache[file.path].modified_time < file.modified_time:
                     self.download_file(file)
+                    self.sandbox_file_cache[file.path] = file
             else:
                 new_files_info = self.sandbox.files.list(file.path)
                 self.sync_files_to_local(new_files_info)
@@ -373,6 +393,8 @@ class E2bCodeExecutor(BaseExecutor):
     def download_file(self, file_info: EntryInfo):
         relative_path = file_info.path.replace("/home/user/", "")
         local_path = os.path.join(self.local_sync_path, relative_path)
+        if self.assistant_skill_outputs and not Path(local_path).resolve().is_relative_to(Path(self.local_sync_path)):
+            raise ValueError("Invalid sandbox output path")
         local_dir = os.path.dirname(local_path)
         os.makedirs(local_dir, exist_ok=True)
         with open(local_path, "wb") as f:

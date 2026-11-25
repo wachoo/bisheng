@@ -122,6 +122,18 @@
       "done": "完成",
       "interrupted": "工具调用未返回结果（会话已结束）"
     },
+    "timeline": {
+      "deepThinking": "正在深度思考…",
+      "deepThought": "已深度思考",
+      "reasoningContent": "思考内容",
+      "knowledge": "知识库",
+      "knowledgeResults": "已检索知识（{{count}} 个结果）",
+      "toolInput": "输入",
+      "toolResult": "结果",
+      "toolError": "错误",
+      "tool": "工具",
+      "stopped": "已停止"
+    },
     "attach": "添加附件"
   },
   "citations": {

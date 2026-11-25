@@ -12,6 +12,7 @@ import asyncio
 import concurrent.futures
 import contextvars
 import json
+import runpy
 import sqlite3
 import sys
 import threading
@@ -21,12 +22,13 @@ from pathlib import Path
 from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
+from uuid import uuid4
 
 BACKEND = Path(__file__).resolve().parents[2]
 
 
 def load_classes(path, names, namespace):
-    tree = ast.parse((BACKEND / path).read_text())
+    tree = ast.parse((BACKEND / path).read_text(encoding="utf-8"))
     nodes = [node for node in tree.body if isinstance(node, ast.ClassDef) and node.name in names]
     module = ast.Module(
         body=[ast.ImportFrom(module="__future__", names=[ast.alias(name="annotations")], level=0), *nodes],
@@ -54,9 +56,17 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
         self.started = asyncio.Event()
         self.release = asyncio.Event()
         self.db = sqlite3.connect(":memory:")
-        self.db.execute("CREATE TABLE history (id INTEGER PRIMARY KEY, category TEXT, message TEXT, remark TEXT)")
+        self.db.execute(
+            "CREATE TABLE history (id INTEGER PRIMARY KEY, category TEXT, message TEXT, remark TEXT, extra TEXT)"
+        )
         trace = contextvars.ContextVar("trace", default="same-websocket-trace")
+        turn_module = runpy.run_path(str(BACKEND / "bisheng/assistant/domain/services/assistant_turn.py"))
+        self.turn_context = turn_module["current_assistant_turn"]
+        self.turn_class = turn_module["AssistantTurn"]
         namespace = {
+            "current_assistant_turn": self.turn_context,
+            "AssistantTurn": self.turn_class,
+            "_dump_run_log": json.dumps,
             "asyncio": asyncio,
             "concurrent": concurrent,
             "contextvars": contextvars,
@@ -77,6 +87,7 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
             "ApplicationProcessEventData": Response,
             "telemetry_service": SimpleNamespace(log_event=AsyncMock()),
             "select_registry_items_for_persistence": lambda *args: [],
+            "restore_bare_assistant_citations": lambda answer, items: answer,
             "strip_unregistered_citation_markers": lambda answer, items: answer,
             "save_message_citations": AsyncMock(),
             "AsyncCallbackHandler": object,
@@ -99,8 +110,8 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
 
         def insert(row):
             cursor = self.db.execute(
-                "INSERT INTO history(category,message,remark) VALUES(?,?,?)",
-                (row.category, row.message, row.remark),
+                "INSERT INTO history(category,message,remark,extra) VALUES(?,?,?,?)",
+                (row.category, row.message, getattr(row, "remark", ""), row.extra),
             )
             self.db.commit()
             row.id = cursor.lastrowid
@@ -124,7 +135,6 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
             self.client.websocket,
             "app",
             "chat",
-            stream_queue=self.client.stream_queue,
         )
         self.agent = SimpleNamespace(
             llm=SimpleNamespace(streaming=True),
@@ -235,6 +245,65 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertIn(("answer", "APP_STREAM_1030R\n" * 2000, ""), self.history())
         self.assertEqual(self.frames[-1]["type"], "close")
 
+    async def exercise_timeline(self, *, debug=False, stop=False):
+        first, second = uuid4(), uuid4()
+        if debug:
+            self.client.chat_id = self.callback.chat_id = ""
+
+        async def generate(*args):
+            await self.callback.on_llm_new_token("", chunk="思")
+            await self.callback.on_llm_new_token("", chunk="考")
+            await self.callback.on_tool_start({"name": "knowledge_7"}, "private query", run_id=first)
+            await self.callback.on_tool_start({"name": "web_search"}, "another private query", run_id=second)
+            await self.callback.on_tool_error(ValueError("private error"), run_id=second)
+            if not stop:
+                await self.callback.on_tool_end("private results", run_id=first, name="knowledge_7")
+            await self.callback.on_llm_new_token("", chunk="总结")
+            if stop:
+                self.started.set()
+                try:
+                    await self.release.wait()
+                except asyncio.CancelledError as error:
+                    await self.callback.on_tool_error(error, run_id=first)
+                    raise
+            return [SimpleNamespace(content="answer")]
+
+        self.agent.run = generate
+        if stop:
+            await self.start_and_stop()
+        else:
+            await self.client.handle_message({"inputs": {"input": "TOOLS"}})
+            await self.drain()
+        expected = [
+            {"type": "reasoning", "text": "思考"},
+            {
+                "type": "tool",
+                "category": "knowledge",
+                "tool_key": "7",
+                "run_id": first.hex,
+                "status": "stopped" if stop else "done",
+            },
+            {"type": "tool", "category": "tool", "tool_key": "web_search", "run_id": second.hex, "status": "error"},
+            {"type": "reasoning", "text": "总结"},
+        ]
+        answer = next(f for f in self.frames if f["category"] == "answer" and f["type"] in ("end", "end_cover"))
+        extra = json.loads(answer["extra"])
+        self.assertEqual(extra, {"client_key": "client", "assistant_timeline": expected})
+        if debug:
+            self.assertEqual(self.history(), [])
+        else:
+            row = self.db.execute("SELECT extra FROM history WHERE category='answer'").fetchone()
+            self.assertEqual(json.loads(row[0]), extra)
+
+    async def test_parallel_tool_start_order_survives_reverse_completion_and_reload(self):
+        await self.exercise_timeline()
+
+    async def test_debug_timeline_is_sent_without_writing_history(self):
+        await self.exercise_timeline(debug=True)
+
+    async def test_stopped_timeline_keeps_unfinished_tool(self):
+        await self.exercise_timeline(stop=True)
+
     async def test_stop_during_terminal_send_allows_completion_to_settle(self):
         self.release.set()
         terminal_started = asyncio.Event()
@@ -258,9 +327,14 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.frames[-1]["type"], "close")
         self.assertEqual([row[2] for row in self.history() if row[0] == "answer"], [""])
 
-    async def test_immediate_stop_clears_previous_round_buffer(self):
-        self.client.stream_queue.put({"type": "answer", "content": "previous round"})
-        await self.client.handle_message({"inputs": {"input": "LONG"}})
+    async def test_immediate_stop_uses_its_own_turn(self):
+        previous = self.turn_class()
+        previous.record_token("previous round", "previous reasoning")
+        context = self.turn_context.set(previous)
+        try:
+            await self.client.handle_message({"inputs": {"input": "LONG"}})
+        finally:
+            self.turn_context.reset(context)
         await self.client.handle_message({"action": "stop"})
         await self.drain()
         self.assertEqual([row for row in self.history() if row[0] == "answer"], [("answer", "", "break_answer")])
@@ -284,10 +358,10 @@ class AssistantStopLifecycle(unittest.IsolatedAsyncioTestCase):
     async def test_stop_storage_error_is_visible_before_input_reopens(self):
         original_add = self.client.add_message
 
-        async def fail_stopped_answer(msg_type, message, category, remark=""):
+        async def fail_stopped_answer(msg_type, message, category, remark="", **kwargs):
             if remark == "break_answer":
                 raise RuntimeError("history write failed")
-            return await original_add(msg_type, message, category, remark)
+            return await original_add(msg_type, message, category, remark, **kwargs)
 
         self.client.add_message = fail_stopped_answer
         await self.start_and_stop()

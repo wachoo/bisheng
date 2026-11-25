@@ -14,6 +14,7 @@ from langchain_core.messages import ToolMessage
 from loguru import logger
 
 from bisheng.api.v1.schemas import ChatResponse
+from bisheng.assistant.domain.services.assistant_turn import current_assistant_turn
 from bisheng.database.models.message import ChatMessage as ChatMessageModel
 from bisheng.database.models.message import ChatMessageDao
 from bisheng.llm.domain.utils import extract_reasoning_content
@@ -23,7 +24,7 @@ from bisheng.llm.domain.utils import extract_reasoning_content
 class AsyncStreamingLLMCallbackHandler(AsyncCallbackHandler):
     """Callback handler for streaming LLM responses."""
 
-    def __init__(self, websocket: WebSocket, flow_id: str, chat_id: str, user_id: int = None, **kwargs: Any):
+    def __init__(self, websocket: WebSocket, flow_id: str, chat_id: str, user_id: int | None = None, **kwargs: Any):
         self.websocket = websocket
         self.flow_id = flow_id
         self.chat_id = chat_id
@@ -55,7 +56,8 @@ class AsyncStreamingLLMCallbackHandler(AsyncCallbackHandler):
             flow_id=self.flow_id,
             chat_id=self.chat_id,
         )
-        # Streaming output is placed in a queue to facilitate recording of content to a database after interrupting the streaming output
+        if turn := current_assistant_turn.get():
+            turn.record_token(token, reasoning_content)
         await self.websocket.send_json(resp.dict())
         if self.stream_queue:
             if reasoning_content:
@@ -237,7 +239,7 @@ class AsyncStreamingLLMCallbackHandler(AsyncCallbackHandler):
 class StreamingLLMCallbackHandler(BaseCallbackHandler):
     """Callback handler for streaming LLM responses."""
 
-    def __init__(self, websocket: WebSocket, flow_id: str, chat_id: str, user_id: int = None, **kwargs: Any):
+    def __init__(self, websocket: WebSocket, flow_id: str, chat_id: str, user_id: int | None = None, **kwargs: Any):
         self.websocket = websocket
         self.flow_id = flow_id
         self.chat_id = chat_id
@@ -482,6 +484,8 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
             "category": tool_category,
             "steps": f"Tool input: \n\n{input_str}\n\n",
         }
+        if turn := current_assistant_turn.get():
+            turn.start_tool(kwargs["run_id"].hex, tool_category, tool_name)
         resp = ChatResponse(
             type="start",
             category=tool_category,
@@ -507,6 +511,10 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
         intermediate_steps = f"{observation_prefix}\n\n{result}"
         tool_name, tool_category = self.parse_tool_category(kwargs.get("name"))
 
+        input_info = self.tool_cache.get(kwargs["run_id"].hex)
+        if input_info:
+            tool_name, tool_category = input_info["input"]["tool_key"], input_info["category"]
+
         # Create a ChatResponse instance.
         output_info = {"tool_key": tool_name, "output": result}
         resp = ChatResponse(
@@ -519,9 +527,9 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
             extra=json.dumps({"run_id": kwargs.get("run_id").hex}),
         )
 
+        if turn := current_assistant_turn.get():
+            turn.finish_tool(kwargs["run_id"].hex, "done")
         await self.websocket.send_json(resp.dict())
-        # FROMtool cacheGet ininputMessage
-        input_info = self.tool_cache.get(kwargs.get("run_id").hex)
         if input_info:
             if not self.chat_id:
                 # Explain that it is a debugging interface and does not need to persist data
@@ -553,6 +561,9 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
         if input_info:
             output_info = {"output": "Error: " + str(error)}
             output_info.update(input_info["input"])
+            status = "stopped" if isinstance(error, asyncio.CancelledError) else "error"
+            if turn := current_assistant_turn.get():
+                turn.finish_tool(kwargs["run_id"].hex, status)
             resp = ChatResponse(
                 type="end",
                 category=input_info["category"],
@@ -560,7 +571,7 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
                 message=_dump_run_log(output_info),
                 flow_id=self.flow_id,
                 chat_id=self.chat_id,
-                extra=json.dumps({"run_id": kwargs.get("run_id").hex}),
+                extra=json.dumps({"run_id": kwargs.get("run_id").hex, "status": status}),
             )
             await self.websocket.send_json(resp.dict())
 
@@ -569,18 +580,17 @@ class AsyncGptsDebugCallbackHandler(AsyncGptsLLMCallbackHandler):
                 # Explain that it is a debugging interface and does not need to persist data
                 self.tool_cache.pop(kwargs.get("run_id").hex)
                 return
-            tool_name, tool_category = self.parse_tool_category(kwargs.get("name"))
             self.tool_cache.pop(kwargs.get("run_id").hex)
             ChatMessageDao.insert_one(
                 ChatMessageModel(
                     is_bot=1,
                     message=_dump_run_log(output_info),
                     intermediate_steps=f"{input_info['steps']}\n\nTool output:\n\n  Error: " + str(error),
-                    category=tool_category,
+                    category=input_info["category"],
                     type="end",
                     flow_id=self.flow_id,
                     chat_id=self.chat_id,
                     user_id=self.user_id,
-                    extra=json.dumps({"run_id": kwargs.get("run_id").hex}),
+                    extra=json.dumps({"run_id": kwargs.get("run_id").hex, "status": status}),
                 )
             )

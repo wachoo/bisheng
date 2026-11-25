@@ -17,11 +17,13 @@ export default function MessagePanne({ canExecute = false, mark = false, logo, u
         canLoadOlder: typeof loadMore === 'function' && !running && !historyEnd, onLoadOlder: () => loadMore?.() });
 
     const messagesList = [...hisMessages, ...messages]
-    return <div id="message-panne" ref={messagesRef} className="h-full overflow-y-auto scrollbar-hide pt-12 pb-60">
-        <PlatformConversationMessages mode="assistant" sessionKey={chatId}
+    return <div id="message-panne" ref={messagesRef} className="min-h-0 h-full flex-1 overflow-y-auto scrollbar-hide py-4">
+        <div className="bisheng-chat-reading">
+        <PlatformConversationMessages mode="assistant" running={running} sessionKey={chatId}
             messages={guideWord ? [{ category: 'guide_word', message: guideWord }, ...messagesList] : messagesList}
             canExecute={canExecute} canAnnotate={mark} logo={logo} title={chat?.name ?? ''} runCatalog={chat} userName={useName} version={version} onMarkClick={onMarkClick} />
         <SuggestedQuestions questions={questions} canExecute={canExecute && !inputLocked && showGuideQuestion}
             onSelect={word => { setShowGuideQuestion(false); eventTarget.dispatchEvent(new CustomEvent('userResendMsgEvent', { detail: { send: true, message: word } })); }} />
+        </div>
     </div>;
 }

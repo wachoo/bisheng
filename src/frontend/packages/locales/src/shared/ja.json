@@ -122,6 +122,18 @@
       "done": "完了",
       "interrupted": "ツール呼び出しは結果を返しませんでした（セッション終了）"
     },
+    "timeline": {
+      "deepThinking": "深く思考中…",
+      "deepThought": "深く思考しました",
+      "reasoningContent": "思考内容",
+      "knowledge": "ナレッジベース",
+      "knowledgeResults": "ナレッジ検索済み（{{count}} 件）",
+      "toolInput": "入力",
+      "toolResult": "結果",
+      "toolError": "エラー",
+      "tool": "ツール",
+      "stopped": "停止しました"
+    },
     "attach": "ファイルを添付"
   },
   "citations": {

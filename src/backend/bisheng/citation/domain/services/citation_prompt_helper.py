@@ -762,6 +762,37 @@ def _text_cites_registered_id(text: str, known_ids: set[str]) -> bool:
     return False
 
 
+# Assistant models sometimes copy a chunk key as a whitespace-delimited word
+# at the end of a claim, omitting both private-use delimiters. Match only that
+# shape. Consume Markdown literals first to leave examples and links verbatim.
+_BARE_ASSISTANT_CITATION = re.compile(
+    r"^[ \t]*(?P<fence>`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^[ \t]*(?P=fence)[`~]*[ \t]*$|\Z)"
+    r"|^(?: {4}|\t)[^\n]*"
+    r"|(?P<ticks>`+)[\s\S]*?(?P=ticks)"
+    r"|<(?P<tag>code|pre|a)\b[^>]*>[\s\S]*?</(?P=tag)>"
+    r"|\[[^\]]*\](?:\([^)]*\)|\[[^\]]*\])?"
+    rf"|{CITATION_START_MARKER}[^{CITATION_END_MARKER}]*{CITATION_END_MARKER}"
+    r"|(?<!\S)(?P<key>(?:knowledgesearch|websearch)_[0-9a-f]+:[0-9]+)(?=[ \t]*\r?$)",
+    re.MULTILINE | re.IGNORECASE,
+)
+
+
+def restore_bare_assistant_citations(text: str, items: list[CitationRegistryItemSchema]) -> str:
+    """Wrap only a bare source and item pair actually retrieved in this run."""
+    if not items or not text or "search_" not in text:
+        return text
+    keys = {f"{item.citationId}:{chunk.itemId}" for item in items for chunk in item.sourcePayload.items}
+    keys.update(f"{item.citationId}:{item.itemId}" for item in items if item.itemId is not None)
+
+    def restore(match: re.Match[str]) -> str:
+        key = match.group("key")
+        if key in keys:
+            return f"{CITATION_START_MARKER}{key}{CITATION_END_MARKER}"
+        return match.group(0)
+
+    return _BARE_ASSISTANT_CITATION.sub(restore, text)
+
+
 def strip_unregistered_citation_markers(text: str, items: list[CitationRegistryItemSchema]) -> str:
     """Drop citation markers whose ids were never registered.
 

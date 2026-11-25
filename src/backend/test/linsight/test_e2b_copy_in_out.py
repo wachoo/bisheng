@@ -235,3 +235,18 @@ def test_run_without_required_files(monkeypatch):
 def test_thresholds_exposed():
     assert SIZE_AUTOPUSH > 0
     assert SIZE_INLINE > 0
+
+
+def test_assistant_skill_bundle_and_proxied_download(tmp_path, monkeypatch):
+    skill = tmp_path / "skills/word/SKILL.md"
+    skill.parent.mkdir(parents=True)
+    skill.write_bytes(b"document instructions")
+    executor = E2bCodeExecutor(minio={}, api_key="unused", local_sync_path=str(tmp_path))
+    executor.sandbox = FakeSandbox()
+    files = executor.sandbox.files
+    executor.assistant_skill_outputs = True
+    monkeypatch.setattr(executor, "upload_minio", lambda key, path: "http://internal/tmp-dir/result.csv?sig=data")
+    result = executor.run("generate a file")
+    assert files.store["skills/word/SKILL.md"] == b"document instructions"
+    assert (tmp_path / "scratch/temp.txt").read_bytes() == b"intermediate"
+    assert result["file_list"] == ["/tmp-dir/result.csv?sig=data"]

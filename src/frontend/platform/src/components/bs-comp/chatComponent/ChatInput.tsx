@@ -42,6 +42,7 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
         inputRef.current.value = value
         inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     })
+    const stopRequested = useRef(false)
     const continueRef = useRef(false)
     // 停止状态
     const [stop, setStop] = useState({
@@ -51,8 +52,10 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
     const [autogenStop, setAutogenStop] = useState(false)
 
     useEffect(() => {
+        currentChatIdRef.current = chatId
         if (!chatId) return
         continueRef.current = false
+        stopRequested.current = false
         // console.log('message chatid', messages, form, chatId);
 
         if (form && messages.length === 0 && hisMessages.length === 0) {
@@ -64,21 +67,20 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
             setShowWhenLocked(false)
             setInputLock({ locked: false, reason: '' })
         }
-        currentChatIdRef.current = chatId
         createWebSocket(chatId).then(() => {
             // 切换会话默认发送一条空消息
             const [wsMsg] = onBeforSend('', '')
             sendWsMsg(wsMsg)
-        })
+        }).catch(() => { /* A user send retries the connection. */ })
     }, [chatId])
 
     // 销毁
     useEffect(() => {
         return () => {
             destory()
-            if (wsRef.current) {
-                wsRef.current.close()
-            }
+            const ws = wsRef.current
+            wsRef.current = null
+            ws?.close()
         }
     }, [])
 
@@ -105,7 +107,9 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
         createSendMsg(wsMsg.inputs, inputKey)
         // 锁定 input
         setInputLock({ locked: true, reason: '' })
+        stopRequested.current = false
         await createWebSocket(chatId)
+        setStop({ show: true, disable: false })
         sendWsMsg(wsMsg)
 
         // 滚动聊天到底
@@ -157,6 +161,7 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
                             category: 'tool',
                             message: "{}"
                         }, true)
+                        closeDanglingRunLogs()
                         setStop({ show: false, disable: false })
                         // A runtime failure (model auth, tool error) is retryable: keep the input
                         // usable instead of parking the raw error in its placeholder. Only a dead
@@ -179,40 +184,16 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
                         setAutogenStop(false)
                     }
                 }
-                ws.onclose = (event) => {
-                    // wsRef.current = null
-                    console.error('链接手动断开 event :>> ', event);
-                    // setStop({ show: false, disable: false })
-
-                    // if ([1005, 1008, 1009].includes(event.code)) {
-                    //     console.warn('即将废弃 :>> ');
-                    //     setInputLock({ locked: true, reason: event.reason })
-                    // } else {
-                    //     if (event.reason) {
-                    //         toast({
-                    //             title: t('prompt'),
-                    //             variant: 'error',
-                    //             description: event.reason
-                    //         });
-                    //     }
-                    //     setInputLock({ locked: false, reason: '' })
-                    // }
-                };
-                ws.onerror = (ev) => {
+                const finishDisconnectedTurn = () => {
+                    if (wsRef.current !== ws || currentChatIdRef.current !== chatId) return
                     wsRef.current = null
+                    closeDanglingRunLogs()
                     setStop({ show: false, disable: false })
-                    console.error('链接异常error', ev);
-                    // toast({
-                    //     title: `${t('chat.networkError')}:`,
-                    //     variant: 'error',
-                    //     description: [
-                    //         t('chat.networkErrorList1'),
-                    //         t('chat.networkErrorList2'),
-                    //         t('chat.networkErrorList3')
-                    //     ]
-                    // });
-                    // reConnect(params)
-                };
+                    setInputLock(prev => prev.reason ? prev : { locked: false, reason: '' })
+                    rej(new Error('WebSocket disconnected'))
+                }
+                ws.onclose = finishDisconnectedTurn
+                ws.onerror = finishDisconnectedTurn
             } catch (err) {
                 console.error('创建链接异常', err);
                 rej(err)
@@ -227,30 +208,27 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
         if (data.type === 'start') {
             msgClosedRef.current = false
             // 非continue时，展示stop按钮
-            !continueRef.current && setStop({ show: true, disable: false })
+            !continueRef.current && setStop({ show: true, disable: stopRequested.current })
             createWsMsg(data)
         } else if (data.type === 'stream') {
-            //@ts-ignore
-            updateCurrentMessage({
-                chat_id: data.chat_id,
-                message: data.message,
-                thought: data.intermediate_steps
-            })
+            updateCurrentMessage(data, false)
         } else if (['end', 'end_cover'].includes(data.type)) {
-            if (msgClosedRef.current && !['tool', 'flow', 'knowledge'].includes(data.category)) {
+            const stoppedAnswer = stopRequested.current && data.category === 'answer'
+            if (!stoppedAnswer && msgClosedRef.current && !['tool', 'flow', 'knowledge'].includes(data.category)) {
                 // 无未闭合的消息，先创建（补一条start）  工具类除外
                 console.log('重复end,新建消息 :>> ');
                 createWsMsg(data)
             }
             updateCurrentMessage({
                 ...data,
+                ...(stoppedAnswer ? { stopped: true } : {}),
                 end: true,
                 thought: data.intermediate_steps || '',
                 messageId: data.message_id,
                 noAccess: false,
                 liked: 0,
                 create_time: formatDate(new Date(), 'yyyy-MM-ddTHH:mm:ss')
-            }, data.type === 'end_cover' && data.category === 'anwser')
+            }, data.type === 'end_cover')
 
             if (!msgClosedRef.current) msgClosedRef.current = true
         } else if (data.type === "close") {
@@ -267,6 +245,7 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
             if (!showWhenLocked && inputLock.locked) return console.error('弹窗已锁定，消息无法发送')
             const { send, message } = e.detail
             inputRef.current.value = message
+            inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
             if (send) handleSendClick()
         }
         eventTarget.addEventListener('userResendMsgEvent', handleCustomEvent)
@@ -275,20 +254,28 @@ export default function ChatInput({ clear, form, inputForm, wsUrl, onBeforSend, 
         }
     }, [inputLock.locked, showWhenLocked, voice.busy])
 
-    return <div className="absolute bottom-0 w-full z-10">
+    const handleStop = () => {
+        if (stop.disable || stopRequested.current) return
+        stopRequested.current = true
+        setStop({ show: true, disable: true })
+        setAutogenStop(false)
+        sendWsMsg({ action: 'stop' })
+    }
+
+    return <div className="relative w-full shrink-0 z-10">
         {formShow && <div className="relative"><div className="absolute left-0 border bottom-2 bg-background-login px-4 py-2 rounded-md w-[50%] min-w-80 z-40">{inputForm}</div></div>}
         <ConversationComposer inputRef={inputRef} canExecute inputDisabled={inputLock.locked} busy={audioOpening || voice.busy}
             showStop={stop.show} stopDisabled={stop.disable}
             labels={{ send: t('shared:app_chat.send'), stop: t('shared:app_chat.stop'), restart: t('chat.runNewWorkflow') }}
             placeholder={inputLock.locked ? inputLock.reason : t('chat.inputPlaceholder')} hint={appConfig.dialogTips}
-            onSend={handleSendClick} onStop={() => { if (!stop.disable) { setStop({ show: true, disable: true }); sendWsMsg({ action: 'stop' }); } }}
+            onSend={handleSendClick} onStop={handleStop}
             onInput={event => voice.handleEdit(event.currentTarget.value)} onCompositionStart={voice.compositionStart} onCompositionEnd={voice.compositionEnd}
             voice={linsightConfig?.asr_model?.id ? <SpeechToTextComponent inline key={chatId} {...voice.props} disabled={inputLock.locked}
                 realtime={!!linsightConfig.asr_model.realtime} modelId={linsightConfig.asr_model.id} /> : undefined}
-            leadingActions={<div className="flex absolute left-0 top-4 z-10">
+            leadingActions={<div className="bisheng-composer-leading flex items-center">
                 {clear && <Button size="small" variant="text" color="default" disabled={inputLock.locked} onClick={() => onClickClear?.()}><Outlined.Delete size={16} /></Button>}
                 {form && <Button size="small" variant="text" color="default" disabled={!showWhenLocked && inputLock.locked} onClick={() => setFormShow(!formShow)}><Outlined.Upload size={16} /></Button>}
             </div>} />
-        {autogenStop && <Button variant="outlined" color="default" onClick={() => { if (!stop.disable) { setStop({ show: true, disable: true }); setAutogenStop(false); sendWsMsg({ action: 'stop' }); } }}><Outlined.PlayerPause size={16} />{t('shared:app_chat.stop')}</Button>}
+        {autogenStop && <Button variant="outlined" color="default" onClick={handleStop}><Outlined.PlayerPause size={16} />{t('shared:app_chat.stop')}</Button>}
     </div>;
 }

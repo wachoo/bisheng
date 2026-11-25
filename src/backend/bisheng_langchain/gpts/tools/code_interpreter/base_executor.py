@@ -5,7 +5,9 @@ import uuid
 from abc import ABC, abstractmethod
 from datetime import timedelta
 from os import DirEntry
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from loguru import logger
 from minio import Minio
@@ -213,6 +215,7 @@ def clip_middle(logs: str, limit: int = MAX_SUCCESS_LOG_CHARS) -> str:
 
 class BaseExecutor(ABC):
     def __init__(self, minio: dict, **kwargs):
+        self.assistant_skill_outputs = False
         self.minio = minio
         # 将代码生成的文件同步到本地的路径
         self.local_sync_path = kwargs.get("local_sync_path", None)
@@ -339,7 +342,7 @@ class BaseExecutor(ABC):
         logs += self.relocation_advisory(moved)
 
         file_list = self._publish_generated_files(dir_path, touched)
-        if self.local_sync_path and os.path.exists(self.local_sync_path):
+        if self.local_sync_path and os.path.exists(self.local_sync_path) and not os.path.samefile(dir_path, self.local_sync_path):
             files_info = list(os.scandir(dir_path))
             self.sync_files_to_local(files_info, dir_path)
         return exitcode, logs, file_list
@@ -349,10 +352,18 @@ class BaseExecutor(ABC):
         file_list = []
         for rel in touched:
             file_name = os.path.join(dir_path, rel)
+            if self.assistant_skill_outputs:
+                output_root = Path(dir_path).resolve() / "output"
+                if not Path(file_name).resolve().is_relative_to(output_root):
+                    continue
             if not os.path.isfile(file_name):
                 continue
             file_ext = os.path.splitext(rel)[-1]
-            file_list.append(self.upload_minio(f"{uuid.uuid4().hex}.{file_ext}", file_name))
+            url = self.upload_minio(f"{uuid.uuid4().hex}{file_ext}", file_name)
+            if self.assistant_skill_outputs and url:
+                # Same-origin file proxy preserves the signed path and query.
+                url = urlsplit(url)._replace(scheme="", netloc="").geturl()
+            file_list.append(url)
         self.sync_to_workspace(dir_path, touched)
         return file_list
 

@@ -53,9 +53,6 @@ const SKILL_BASE = '/api/v1/linsight/skill';
 // Business-error responses are handled by callers (silent mode) so validation
 // copy can be localized; see mapSkillError in the skill components.
 export const skillApi = {
-  getRuntimeCatalog: (): Promise<Pick<SkillBrief, "id" | "name" | "display_name" | "description">[]> =>
-    axios.get(`${SKILL_BASE}/runtime/catalog`),
-
   /** Effective caps from 系统配置 (linsight.skill_upload_max_size_mb /
    *  skill_unpacked_max_size_mb); the dialog pre-checks the upload cap and quotes both,
    *  so its copy and the server agree on the numbers. */

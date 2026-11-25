@@ -14,21 +14,25 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useSelectLabels } from "@/components/bs-comp/formFields/useSelectLabels";
 import { SkillBrief, SkillDetail, skillApi } from "@/controllers/API/linsight";
 import { showApiError } from "@/controllers/request";
-import { SkillAuthoringActions, SkillTableRow, type SkillEntryAction } from "./SkillListControls";
+import { Sparkles } from "lucide-react";
+import { Outlined } from "bisheng-icons";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SkillDetailSheet } from "./SkillDetailSheet";
 import { SkillFormDrawer } from "./SkillFormDrawer";
 import { SkillUploadDialog } from "./SkillUploadDialog";
 
+const ChevronRight = Outlined.Right,
+  Plus = Outlined.Plus,
+  Upload = Outlined.Upload;
+
 const PAGE_SIZE = 10;
 
 interface SkillManagementProps {
   scopeVersion?: number;
-  entryAction?: SkillEntryAction;
 }
 
-export function SkillManagement({ scopeVersion = 0, entryAction }: SkillManagementProps) {
+export function SkillManagement({ scopeVersion = 0 }: SkillManagementProps) {
   const { t } = useTranslation();
   const paginationLocale = usePaginationLocale();
   const [skills, setSkills] = useState<SkillBrief[]>([]);
@@ -45,8 +49,8 @@ export function SkillManagement({ scopeVersion = 0, entryAction }: SkillManageme
   const selectLabels = useSelectLabels();
   const [loading, setLoading] = useState(false);
 
-  const [uploadOpen, setUploadOpen] = useState(entryAction === "upload");
-  const [formOpen, setFormOpen] = useState(entryAction === "create");
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<SkillDetail | null>(null);
   const [detail, setDetail] = useState<SkillDetail | null>(null);
 
@@ -171,7 +175,16 @@ export function SkillManagement({ scopeVersion = 0, entryAction }: SkillManageme
             setPage(1);
           }}
         />
-        <SkillAuthoringActions onUpload={() => setUploadOpen(true)} onCreate={handleCreate} />
+        <div className="ml-auto flex gap-2">
+          <Button variant="outlined" onClick={() => setUploadOpen(true)} color="default">
+            <Upload className="size-4 mr-1.5" />
+            {t("skillManage.upload")}
+          </Button>
+          <Button onClick={handleCreate}>
+            <Plus className="size-4 mr-1.5" />
+            {t("skillManage.create")}
+          </Button>
+        </div>
       </div>
       <div className="border rounded-md">
         {/* table-fixed: honor column widths so the description truncates instead of
@@ -196,7 +209,22 @@ export function SkillManagement({ scopeVersion = 0, entryAction }: SkillManageme
               </TableRow>
             )}
             {skills.map((skill) => (
-              <SkillTableRow key={skill.id} skill={skill} onDetail={() => openDetail(skill)}>
+              <TableRow
+                key={skill.id}
+                className="group cursor-pointer hover:bg-primary/5"
+                onClick={() => openDetail(skill)}
+              >
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="size-[34px] shrink-0 rounded-[9px] grid place-items-center text-primary bg-gradient-to-br from-[#EEF2FF] to-[#E2EAFF]">
+                      <Sparkles className="size-[17px]" />
+                    </div>
+                    <span className="truncate min-w-0">{skill.display_name}</span>
+                  </div>
+                </TableCell>
+                <TableCell className="truncate" title={skill.description}>
+                  {skill.description}
+                </TableCell>
                 {/* Quick toggle stays inline; stop the click from opening the detail sheet */}
                 <TableCell onClick={(e) => e.stopPropagation()}>
                   <Switch
@@ -214,7 +242,11 @@ export function SkillManagement({ scopeVersion = 0, entryAction }: SkillManageme
                     </Button>
                   )}
                 </TableCell>
-              </SkillTableRow>
+                {/* chevron nudges right + turns brand-blue on row hover — a quiet "clickable" cue */}
+                <TableCell className="text-[#C4C9D4] transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-primary">
+                  <ChevronRight className="size-4" />
+                </TableCell>
+              </TableRow>
             ))}
           </TableBody>
         </Table>

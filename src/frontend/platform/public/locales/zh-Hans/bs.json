@@ -1091,7 +1091,6 @@
     "create": "创建",
     "assistant": "助手",
     "workflow": "工作流",
-    "skillLoadFailed": "技能加载失败",
     "skill": "技能",
     "tools": "工具与技能",
     "tagLibrary": "标签库",

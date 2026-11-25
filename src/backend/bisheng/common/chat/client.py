@@ -245,9 +245,6 @@ class ChatClient:
         await self.init_chat_history()
         await self.init_gpts_callback()
         try:
-            # Re-resolve skill versions and use permissions for each new turn.
-            if self.gpts_agent is not None and getattr(self.db_assistant, "skill_ids", None):
-                self.gpts_agent = None
             # Processing Intelligent Assistant Business
             if self.chat_id and self.gpts_agent is None:
                 # Conversation businessagentFixed generation from database data,Don't change every time

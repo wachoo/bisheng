@@ -1101,7 +1101,6 @@
     "create": "Create",
     "assistant": "Assistant",
     "workflow": "Workflow",
-    "skillLoadFailed": "Could not load skills",
     "skill": "Skill",
     "workbench": "WorkBench",
     "tools": "Tools & Skills",

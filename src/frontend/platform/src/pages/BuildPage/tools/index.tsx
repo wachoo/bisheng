@@ -22,7 +22,6 @@ import McpServerDialog from "./EditMcp";
 import EditTool from "./EditTool";
 import ToolItem from "./ToolItem";
 import ToolSet from "./ToolSet";
-import type { SkillEntryAction } from "@/components/LinSight/skill/SkillListControls";
 import { SkillManagement } from "@/components/LinSight/skill/SkillManagement";
 import { canManageWorkbenchConfig } from "@/pages/ModelPage/manage/permissions";
 
@@ -53,7 +52,7 @@ const TabTools = ({ select = null, onSelect }: TabToolsProps) => {
     const editRef = useRef(null);
     const mcpDialogRef = useRef(null);
 
-    const skillEntryAction = useToolType(setType)
+    useToolType(setType)
     const [loading, setLoading] = useState(false)
 
     // Permission management state
@@ -166,7 +165,7 @@ const TabTools = ({ select = null, onSelect }: TabToolsProps) => {
                     </div>}
                 </div>
                 <div className="h-full w-full flex-1 overflow-auto bg-background-login p-5 pb-20 pt-2 scrollbar-hide">
-                    {type === 'skill' ? <SkillManagement entryAction={canManageWorkbenchConfig(user) ? skillEntryAction : undefined} /> : <>
+                    {type === 'skill' ? <SkillManagement /> : <>
                     {
                         loading && <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center bg-primary/5 z-10">
                             <LoadingIcon className="size-24" />
@@ -278,13 +277,10 @@ export const useMcpRefrensh = () => {
 
 const useToolType = (setType) => {
     const [searchParams, setSearchParams] = useSearchParams();
-    const [entryAction, setEntryAction] = useState<SkillEntryAction>();
     useEffect(() => {
         const type = searchParams.get('c');
-        const action = searchParams.get("action");
-        setEntryAction(type === "skill" && (action === "create" || action === "upload") ? action : undefined);
+        setSearchParams({})
         if (!type) return
-        setSearchParams({}, { replace: true })
 
         if (type === 'skill') { setType('skill'); return; }
         setType(type === 'mcp' ? type : 'edit')
@@ -292,7 +288,6 @@ const useToolType = (setType) => {
             document.getElementById(type === 'mcp' ? 'create-mcptool' : 'create-apitool')?.click()
         }, 100)
     }, [searchParams])
-    return entryAction
 }
 
 export default TabTools;

@@ -60,6 +60,10 @@ class WebMenuResource(Enum):
     DATASET = "dataset"  # Dataset management
     MARK_TASK = "mark_task"  # Annotation tasks
     BOARD = "board"  # Dashboard / kanban
+    COMPANY_LEADBOARD = "company_leadboard"
+    COMPANY_MONITORBOARD = "company_monitorboard"
+    COMPANY_BOARD_LEDGER = "company_board_ledger"
+    COMPANY_BOARD_FEEDBACK = "company_board_feedback"
     # System management
     SUBSCRIPTION = "subscription"  # Subscription management
     # Workbench sidebar (user portal) — granular toggles under ``workstation``
@@ -70,6 +74,13 @@ class WebMenuResource(Enum):
     FRONTEND = "frontend"  # deprecated
     BACKEND = "backend"  # deprecated
     CREATE_DASHBOARD = "create_dashboard"  # deprecated
+
+
+COMPANY_WIDE_BOARD_KEYS = frozenset({
+    WebMenuResource.COMPANY_LEADBOARD.value,
+    WebMenuResource.COMPANY_BOARD_LEDGER.value,
+    WebMenuResource.COMPANY_BOARD_FEEDBACK.value,
+})
 
 
 class AccessType(Enum):
@@ -96,6 +107,26 @@ class RoleRefresh(BaseModel):
 
 
 class RoleAccessDao(RoleAccessBase):
+    @classmethod
+    def company_board_roles_query(cls):
+        return select(RoleAccess.role_id).where(
+            RoleAccess.type == AccessType.WEB_MENU.value, RoleAccess.third_id.in_(COMPANY_WIDE_BOARD_KEYS)
+        ).distinct()
+
+    @classmethod
+    async def acompany_board_role_ids(cls, role_ids: set[int]) -> set[int]:
+        """Find protected grants among the caller's candidate roles, including global roles."""
+        if not role_ids:
+            return set()
+        from bisheng.core.context.tenant import bypass_tenant_filter
+
+        # A global role can be shared across tenants. Only return the preselected
+        # candidate IDs; this lookup never makes a role visible or assignable.
+        with bypass_tenant_filter():
+            async with get_async_db_session() as session:
+                rows = await session.exec(cls.company_board_roles_query().where(RoleAccess.role_id.in_(role_ids)))
+                return set(rows.all())
+
     @classmethod
     def get_role_access(cls, role_ids: list[int], access_type: AccessType) -> list[RoleAccess]:
         with get_sync_db_session() as session:

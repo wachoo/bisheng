@@ -45,6 +45,7 @@ const SystemPage = lazy(() => import("@/pages/SystemPage"));
 const ApprovalPage = lazy(() => import("@/pages/ApprovalPage"));
 const ResoucePage = lazy(() => import("@/pages/resoucePage"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const CompanyBoardPage = lazy(() => import("@/pages/CompanyBoards/CompanyBoardPage").then(module => ({ default: module.CompanyBoardPage })));
 const TenantPage = lazy(() => import("@/pages/TenantPage"));
 const TenantSelect = lazy(() => import("@/pages/LoginPage/TenantSelect"));
 const DshPage = lazy(() => import("@/pages/DshPage"));
@@ -137,6 +138,8 @@ const privateRouter = [
       { path: "label/:id", element: <TaskApps />, permission: 'mark_task' },
       { path: "label/chat/:id/:fid/:cid/:type", element: <TaskAppChats />, permission: 'mark_task' },
       { path: "dashboard", element: <Dashboard />, permission: 'board' },
+      { path: "leadboard", element: <CompanyBoardPage board="lead" />, permission: 'company_leadboard' },
+      { path: "monitorboard", element: <CompanyBoardPage board="monitor" />, permission: 'company_monitorboard' },
       { path: "tenant", element: <TenantPage />, permission: 'sys' },
       { path: "department", element: <Navigate to="/sys" replace /> },
       { path: "menu-pending", element: <MenuPermissionPlaceholder /> },
@@ -238,6 +241,8 @@ const ADMIN_LANDING_ROUTES = [
   { key: "evaluation", path: "/evaluation" },
   { key: "mark_task", path: "/label" },
   { key: "sys", path: "/sys" },
+  { key: "company_leadboard", path: "/leadboard" },
+  { key: "company_monitorboard", path: "/monitorboard" },
 ] as const
 
 export function resolveAdminLandingPath(permissions: string[], menuApprovalMode: boolean): string {

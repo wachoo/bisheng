@@ -29,6 +29,8 @@ import { LicenseBanner } from "./LicenseBanner";
 
 const PRIMARY_PAGE_PATHS = new Set([
     "/dashboard",
+    "/leadboard",
+    "/monitorboard",
     "/build/client",
     "/filelib",
     "/dataset",
@@ -237,7 +239,17 @@ export default function MainLayout() {
                             {/* <NavLink to='/' className={`navlink inline-flex rounded-lg w-full px-6 hover:bg-nav-hover h-12 mb-[3.5px]`}>
                             <Outlined.Application className="h-4 w-4 my-4 mr-2 shrink-0" /><span className="mx-[14px] max-w-[48px] text-[14px] leading-[48px]">{t('menu.app')}</span>
                         </NavLink> */}
-                            {showAdminNav("board") && (
+                            {(["leadboard", "monitorboard"] as const).map((board) => (
+                                (isSuperAdmin || user.web_menu?.includes("company_" + board)) &&
+                                window.APP_CONFIG?.companyBoardMenus?.[board] !== false &&
+                                <NavLink key={board} to={"/" + board} className={pendingNavClass("company_" + board)}>
+                                    <Outlined.Dashboard className="h-4 w-4 my-4 mr-2 shrink-0" />
+                                    <span className="ml-[14px] text-[14px] leading-[48px] whitespace-nowrap">
+                                        {t(board === "leadboard" ? "menu.companyLeadboard" : "menu.companyMonitorboard")}
+                                    </span>
+                                </NavLink>
+                            ))}
+                            {showAdminNav("board") && window.APP_CONFIG?.companyBoardMenus?.dashboard !== false && (
                                 <>
                                     <NavLink
                                         to={isMenu("board") ? "/dashboard" : "/menu-pending?menu=board"}

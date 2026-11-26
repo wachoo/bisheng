@@ -1,4 +1,7 @@
 {
+  "com_company_boards": "公司看板",
+  "com_company_leadboard": "领导看板",
+  "com_company_monitorboard": "监控看板",
   "admin": "管理员",
   "bisheng": "{{bishengZh}}",
   "cancel": "取消",

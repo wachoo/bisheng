@@ -165,38 +165,13 @@ class ChatMessageService:
         ChatMessageDao.delete_by_message_id(user_id, message_id)
 
     @staticmethod
-    def like_response(data: ChatInput) -> None:
-        """Process like/dislike with session counter updates."""
-        message_id = data.message_id
-        message = ChatMessageDao.get_message_by_id(data.message_id)
-        if not message:
-            raise NotFoundError.http_exception()
+    def like_response(data: ChatInput, user: UserPayload) -> None:
+        from fastapi import HTTPException
+        from bisheng.chat_session.domain.repositories.web_rating import save_web_rating
 
-        if message.liked == data.liked:
-            return
-
-        like_count = 0
-        dislike_count = 0
-        if message.liked == LikedType.UNRATED.value:
-            if data.liked == LikedType.LIKED.value:
-                like_count = 1
-            elif data.liked == LikedType.DISLIKED.value:
-                dislike_count = 1
-        elif message.liked == LikedType.LIKED.value:
-            like_count = -1
-            if data.liked == LikedType.DISLIKED.value:
-                dislike_count = 1
-        elif message.liked == LikedType.DISLIKED.value:
-            dislike_count = -1
-            if data.liked == LikedType.LIKED.value:
-                like_count = 1
-
-        message.liked = data.liked
-        ChatMessageDao.update_message_model(message)
-        logger.info('k=s act=liked message_id={} liked={}', message_id, data.liked)
-
-        MessageSessionDao.add_like_count(message.chat_id, like_count)
-        MessageSessionDao.add_dislike_count(message.chat_id, dislike_count)
+        if data.liked not in {choice.value for choice in LikedType}:
+            raise HTTPException(status_code=422, detail="Invalid feedback rating")
+        save_web_rating(_resolve_leaf_tenant_id(user), user.user_id, data.message_id, data.liked)
 
     @staticmethod
     def mark_copied(message_id: int) -> None:

@@ -21,6 +21,7 @@ from bisheng.citation.domain.services.citation_prompt_helper import (
     select_registry_items_for_persistence,
     strip_unregistered_citation_markers,
 )
+from bisheng.common.board_observation import current_observation
 from bisheng.common.chat.types import WorkType
 from bisheng.common.constants.enums.telemetry import ApplicationTypeEnum, BaseTelemetryTypeEnum
 from bisheng.common.dependencies.user_deps import UserPayload
@@ -252,7 +253,12 @@ class ChatClient:
             if self.chat_id and self.gpts_agent is None:
                 self.db_assistant = assistant
                 # Conversation businessagentFixed generation from database data,Don't change every time
-                self.gpts_agent = AssistantAgent(assistant, self.chat_id, invoke_user_id=self.user_id)
+                self.gpts_agent = AssistantAgent(
+                    assistant,
+                    self.chat_id,
+                    invoke_user_id=self.user_id,
+                    board_deliveries=bool(self.kwargs.get("board_sink")),
+                )
                 await self.gpts_agent.init_assistant(self.gpts_async_callback)
             elif not self.chat_id:
                 self.db_assistant = assistant
@@ -360,6 +366,11 @@ class ChatClient:
             return
         logger.debug(f"receive client message, client_key: {self.client_key} message: {message}")
         question_saved = False
+        observation = None
+        observation_token = None
+        board_sink = getattr(self, "kwargs", {}).get("board_sink")
+        outcome = "failed"
+        terminal_message_id = None
         try:
             # Start each round with its own stream buffer, including immediate stops.
             await self.clear_stream_queue()
@@ -376,7 +387,13 @@ class ChatClient:
                 await self.init_gpts_agent()
                 return
 
-            # Inisialisasiagent
+            if board_sink and self.chat_id:
+                try:
+                    observation = await board_sink(self.client_id, self.user_id)
+                except Exception:
+                    logger.exception("Could not start company board observation")
+                if observation is not None:
+                    observation_token = current_observation.set(observation)
             await self.init_gpts_agent()
 
             # Write user issue to database
@@ -388,7 +405,11 @@ class ChatClient:
             chat_history = await self.get_latest_history()
             self.gpts_agent.reset_citation_registry_items()
             # RecallagentGet Results
-            result = await self.gpts_agent.run(input_msg, chat_history, self.gpts_async_callback)
+            callbacks = self.gpts_async_callback
+            if observation:
+                observation.start()
+                callbacks = [*(callbacks or []), observation]
+            result = await self.gpts_agent.run(input_msg, chat_history, callbacks)
             # Providers may catch cancellation while completing their own cleanup.
             if asyncio.current_task().cancelling():
                 raise asyncio.CancelledError
@@ -430,6 +451,7 @@ class ChatClient:
             res = await self.add_message("bot", reasoning_content, "reasoning_answer")
             res = await self.add_message("bot", answer, "answer")
             if res:
+                terminal_message_id = res.id
                 await save_message_citations(
                     message_id=res.id,
                     items=citation_items,
@@ -455,11 +477,13 @@ class ChatClient:
             logger.info(f"gptsAgentOver assistant_id:{self.client_id} chat_id:{self.chat_id} question:{input_msg}")
             logger.info(f"gptsAgentOver assistant_id:{self.client_id} chat_id:{self.chat_id} answer:{answer}")
 
+            outcome = "success"
             title_task = asyncio.create_task(self.generate_session_title(input_msg))
             self.background_tasks.add(title_task)
             title_task.add_done_callback(self.background_tasks.discard)
 
         except asyncio.CancelledError:
+            outcome = "cancelled"
             self.finalizing_tasks.add(asyncio.current_task())
             if question_saved:
                 try:
@@ -481,6 +505,13 @@ class ChatClient:
             await e.websocket_close_message(websocket=self.websocket, close_ws=False)
         finally:
             self.finalizing_tasks.add(asyncio.current_task())
+            if observation_token is not None:
+                current_observation.reset(observation_token)
+                if self.db_assistant is not None and self.db_assistant.status == AssistantStatus.ONLINE.value:
+                    try:
+                        await observation.persist(outcome, terminal_message_id)
+                    except Exception:
+                        logger.exception("Could not persist company board observation")
             await self.send_response("processing", "close", "")
 
     async def generate_session_title(self, question: str):

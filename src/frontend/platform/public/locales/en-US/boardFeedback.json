@@ -1,0 +1,15 @@
+{
+  "title": "Feedback issues",
+  "scope": "Observed successful tasks first rated negatively in the selected period, grouped by status at the cutoff.",
+  "pending": "Open",
+  "closed": "Resolved",
+  "retry": "Reload",
+  "loading": "Loading feedback",
+  "measure": "Resolution notes",
+  "close": "Mark resolved",
+  "cancel": "Cancel",
+  "process": "Review",
+  "error": "Could not save. Try again.",
+  "previous": "Previous",
+  "next": "Next"
+}

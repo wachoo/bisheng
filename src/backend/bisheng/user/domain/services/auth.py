@@ -21,7 +21,7 @@ from bisheng.database.constants import AdminRole
 from bisheng.database.models.department import DepartmentDao
 from bisheng.database.models.group import GroupDao
 from bisheng.database.models.role import RoleDao
-from bisheng.database.models.role_access import AccessType, RoleAccessDao, WebMenuResource
+from bisheng.database.models.role_access import COMPANY_WIDE_BOARD_KEYS, AccessType, RoleAccessDao, WebMenuResource
 from bisheng.database.models.user_group import UserGroupDao
 
 from ..models.user import User, UserDao
@@ -36,6 +36,7 @@ _DEPARTMENT_ADMIN_WEB_MENU_SYSTEM = frozenset({"admin", "system_config", "sys"})
 # Disabled parent menu sections keep stored child grants inactive, matching Roles.tsx.
 _WORKBENCH_ENTRY_KEYS = frozenset({"workstation", "frontend"})
 _ADMIN_ENTRY_KEYS = frozenset({"admin", "backend"})
+
 _ROLE_UI_WORKBENCH_CHILDREN = frozenset(
     {
         "home",
@@ -89,6 +90,8 @@ _WEB_MENU_ADMIN_ALL = frozenset(
         "mark_task",
         "board",
         "create_dashboard",
+        "company_leadboard",
+        "company_monitorboard",
     }
 )
 
@@ -696,12 +699,19 @@ class LoginUser(BaseModel):
             role = non_admin_role_ids
             # AC-13: union of all roles' menu permissions
             web_menu = await RoleAccessDao.aget_role_access(non_admin_role_ids, AccessType.WEB_MENU)
+            # Department administrators can edit scoped roles. Company-wide leadership,
+            # ledger and feedback permissions must come from a company-level role.
+            if any(grant.third_id in COMPANY_WIDE_BOARD_KEYS for grant in web_menu):
+                roles = await RoleDao.aget_role_by_ids(non_admin_role_ids)
+                company_roles = {item.id for item in roles if item.department_id is None}
+                web_menu = [grant for grant in web_menu
+                            if grant.third_id not in COMPANY_WIDE_BOARD_KEYS or grant.role_id in company_roles]
             web_menu = list({one.third_id for one in web_menu})
             personal_menu = await UserMenuAccessService.list_effective_menu_grants(
                 get_current_tenant_id() or DEFAULT_TENANT_ID,
                 user.user_id,
             )
-            web_menu = list(set(web_menu) | set(personal_menu))
+            web_menu = list(set(web_menu) | (set(personal_menu) - COMPANY_WIDE_BOARD_KEYS))
             if is_department_admin:
                 web_menu = list(set(web_menu) | set(_DEPARTMENT_ADMIN_WEB_MENU_SYSTEM))
             else:

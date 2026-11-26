@@ -228,8 +228,8 @@ async def get_group_roles(
     if not user.check_groups_admin(group_id):
         return UnAuthorizedError.return_resp()
     # List of roles under query group
-    role_list = RoleDao.get_role_by_groups(group_id, keyword, page, limit)
-    total = RoleDao.count_role_by_groups(group_id, keyword)
+    role_list = RoleDao.get_role_by_groups(group_id, keyword, page, limit, exclude_company_roles=True)
+    total = RoleDao.count_role_by_groups(group_id, keyword, exclude_company_roles=True)
 
     return resp_200(data={"data": role_list, "total": total})
 

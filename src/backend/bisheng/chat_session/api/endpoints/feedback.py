@@ -1,14 +1,15 @@
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Depends
 
 from bisheng.api.v1.schemas import ChatInput, resp_200
 from bisheng.chat_session.domain.services.chat_message_service import ChatMessageService
+from bisheng.common.dependencies.user_deps import UserPayload
 
 router = APIRouter()
 
 
 @router.post('/liked', status_code=200)
-def like_response(*, data: ChatInput):
-    ChatMessageService.like_response(data)
+def like_response(*, data: ChatInput, user: UserPayload = Depends(UserPayload.get_login_user)):
+    ChatMessageService.like_response(data, user)
     return resp_200()
 
 

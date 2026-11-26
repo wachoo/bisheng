@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { EmptyStateIllustration, StateView } from "@bisheng/ui";
+import { Outlined } from "bisheng-icons";
+import "./leaderViews.css";
 import { useResearchReport } from "@/controllers/API/companyResearchReport";
 import type { BoardAsset } from "@/controllers/API/companyBoards";
 import type { MonitorSnapshot } from "@/controllers/API/companyMonitoring";
@@ -96,7 +99,9 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
     size.width,
     size.height,
   );
-  const active = data.find((r) => r.asset.id === hover);
+  const activeIndex = data.findIndex((r) => r.asset.id === hover);
+  const active = data[activeIndex];
+  const activeDot = dots[activeIndex];
   const name = (asset: BoardAsset) =>
     topics
       .filter((r) => associations.get(r.id)?.has(asset.id))
@@ -124,19 +129,26 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
       </div>
       <div className="al-cloud-wrap">
         <div className="al-cloud" ref={box} data-ready="true" role="group" aria-label={t("数字员工使用气泡云")}>
-          {!data.length && <p className="al-empty">{t("暂无可核对数据")}</p>}
+          {!data.length && (
+            <StateView
+              size="panel"
+              className="lv-cloud-empty"
+              image={<EmptyStateIllustration />}
+              title={t(employees.length ? "本月暂无已记录的成功执行" : "当前范围没有数字员工")}
+            />
+          )}
           {dots.map((p, i) => {
             const { asset, metrics } = data[i];
             const color = topics.findIndex((topic) => associations.get(topic.id)?.has(asset.id));
             const title = asset.name + " · " + fmt(metrics.success) + " " + t("次");
+            const fullLabel = p.r >= 48 && Array.from(asset.name).length <= 12;
             return (
               <button
                 key={asset.id}
                 className="al-bubble"
                 data-app={asset.id}
                 data-uses={metrics.success}
-                data-label={p.r * 2 >= 57 ? "name" : "none"}
-                data-count={p.r * 2 >= 83 ? "yes" : "no"}
+                data-full-label={fullLabel || undefined}
                 style={
                   {
                     left: p.x,
@@ -144,7 +156,7 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
                     width: p.r * 2,
                     height: p.r * 2,
                     "--bubble-color": colors[Math.max(0, color) % 4],
-                    "--bubble-font": Math.max(11, Math.min(38, p.r * 0.8)) + "px",
+                    "--bubble-font": (fullLabel ? Math.min(17, p.r * 0.25) : Math.max(10, Math.min(25, p.r * 0.72))) + "px",
                   } as CSSProperties
                 }
                 aria-label={title}
@@ -154,13 +166,21 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
                 onBlur={() => setHover(null)}
                 onClick={() => props.open("asset:" + asset.id, asset.name)}
               >
-                <span className="al-bubble-name">{Array.from(asset.name)[0]}</span>
+                {p.r >= 9 && (
+                  <span className="al-bubble-name">{fullLabel ? asset.name : Array.from(asset.name)[0]}</span>
+                )}
+                {fullLabel && p.r >= 58 && <span className="lv-bubble-count">{fmt(metrics.success)} {t("次")}</span>}
               </button>
             );
           })}
         </div>
-        {active && (
-          <div className="al-bubble-tooltip" role="status" style={{ left: 4, top: 4 }}>
+        {active && activeDot && (
+          <div className="al-bubble-tooltip" role="status" style={{
+            left: Math.max(4, Math.min(size.width - 216, activeDot.x - 104)),
+            top: activeDot.y + activeDot.r + 78 <= size.height
+              ? activeDot.y + activeDot.r + 4
+              : Math.max(4, activeDot.y - activeDot.r - 70),
+          }}>
             <b>{active.asset.name}</b>
             <span>
               {name(active.asset)} · {fmt(active.metrics.success)} {t("次")} · {t("好评率")}{" "}
@@ -181,11 +201,12 @@ function topicSummary(props: PrototypeViewProps, id: string, snapshot?: MonitorS
   const ids = associatedAssets(props, id);
   const scoped = props.data.assets.filter((a) => a.kind !== "skill" && ids.has(a.id));
   if (!snapshot) return { count: scoped.length, abnormal: null, unknown: null };
-  const related = snapshot.assets.filter((a) => ids.has(a.id));
+  const scopedIds = new Set(scoped.map((asset) => asset.id));
+  const monitored = snapshot.assets.filter((asset) => asset.monitored && scopedIds.has(asset.id));
   return {
     count: scoped.length,
-    abnormal: related.filter((a) => health(a) === "异常").length,
-    unknown: related.filter((a) => !a.monitored).length,
+    abnormal: scoped.length > 0 && !monitored.length ? null : monitored.filter((a) => health(a) === "异常").length,
+    unknown: scoped.length - monitored.length,
   };
 }
 export default function Impact(props: PrototypeViewProps) {
@@ -209,6 +230,24 @@ export default function Impact(props: PrototypeViewProps) {
     );
   const topics = data.ledger.filter((r) => r.kind === "topic"),
     topicList = useRef<HTMLDivElement>(null);
+  const [scrollable, setScrollable] = useState({ up: false, down: false });
+  useEffect(() => {
+    const el = topicList.current;
+    if (!el) return;
+    const check = () => setScrollable({
+      up: el.scrollTop > 1,
+      down: el.scrollTop + el.clientHeight < el.scrollHeight - 1,
+    });
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    Array.from(el.children).forEach(child => observer.observe(child));
+    el.addEventListener("scroll", check, { passive: true });
+    check();
+    return () => {
+      el.removeEventListener("scroll", check);
+      observer.disconnect();
+    };
+  }, [topics.length]);
   const title = t("年度累计") + " · " + t("已观测 Web 运行");
   return (
     <section id="al-business" className="al-view" aria-label={t("业务赋能")}>
@@ -252,6 +291,7 @@ export default function Impact(props: PrototypeViewProps) {
       </div>
       <div className="al-business-overview">
         <Panel
+          className="lv-cloud-panel"
           title={t("数字员工使用分布")}
           action={<Link to="applications" open={open} title={t("数字员工明细")} />}
         >
@@ -261,46 +301,45 @@ export default function Impact(props: PrototypeViewProps) {
           <div className="al-panel-head">
             <h3>{t("业务专题")}</h3>
             <div className="al-topic-controls">
-              <button
-                className="al-link al-topic-register"
-                data-detail="topic-register"
-                onClick={() => open("topic-register", t("专题台账"))}
-              >
-                {t("专题台账")} ↗
-              </button>
+              <Link open={open} to="topic-register" title={t("专题台账")} />
               {[-1, 1].map((d) => (
                 <button
                   key={d}
                   data-topic-scroll={d}
                   aria-label={t(d < 0 ? "向上查看专题" : "向下查看专题")}
-                  onClick={() => topicList.current?.scrollBy({ top: d * 155, behavior: "smooth" })}
+                  disabled={d < 0 ? !scrollable.up : !scrollable.down}
+                  onClick={() => {
+                    const el = topicList.current;
+                    el?.scrollBy({ top: d * el.clientHeight * 0.85, behavior: "auto" });
+                  }}
                 >
-                  {d < 0 ? "↑" : "↓"}
+                  {d < 0 ? <Outlined.Up aria-hidden /> : <Outlined.Down aria-hidden />}
                 </button>
               ))}
             </div>
           </div>
-          <div className="al-topic-scroll" ref={topicList} role="region" aria-label={t("业务专题列表")}>
+          <div className="al-topic-scroll" ref={topicList} role="region" aria-label={t("业务专题列表")} data-single={topics.length === 1}>
             {!topics.length && <p className="al-empty">{t("暂无已登记专题")}</p>}
-            {topics.map((r) => {
+            {topics.map((r, index) => {
               const m = topicSummary(props, r.id, monitoring.data);
               return (
                 <button
                   key={r.id}
                   className="al-topic-entry"
+                  style={{ "--topic-color": colors[index % colors.length] } as CSSProperties}
                   data-detail={"topic-operations:" + r.id}
                   onClick={() => open("topic-operations:" + r.id, r.name)}
                 >
                   <div className="al-topic-summary-title">
                     <h3>{r.name}</h3>
-                    <span className="al-topic-entry-arrow">{t("查看运行")} ↗</span>
+                    <span className="al-topic-entry-arrow">{t("查看运行")} <Outlined.ArrowRightUp aria-hidden /></span>
                   </div>
                   <div className="al-topic-counts">
                     <div>
                       <strong>{m.count}</strong>
                       <span>{t("运行管理资产")}</span>
                     </div>
-                    <div>
+                    <div data-alert={!!m.abnormal}>
                       <strong>{fmt(m.abnormal)}</strong>
                       <span>{t("异常资产")}</span>
                       {!!m.unknown && (
@@ -588,7 +627,10 @@ export function ImpactDetail(props: PrototypeDetailProps) {
   }
   if (route === "topic-register")
     return (
-      <Panel title={t("建设与运行")}>
+      <Panel
+        title={t("建设与运行")}
+        action={<Link open={open} to="strategy:special" title={t("公司建设与经营明细")} />}
+      >
         <Table
           heads={["专题", "年度计划资产", "年度已上线", "本期运行管理资产", "本期异常资产", "未监测"].map(t)}
           rows={topics.map((r) => {

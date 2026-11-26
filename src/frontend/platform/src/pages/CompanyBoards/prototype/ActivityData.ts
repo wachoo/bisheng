@@ -8,7 +8,12 @@ import { getActivityTrends, type TrendPeriod, type TrendRow } from "@/controller
 
 export const kinds: AssetKind[] = ["employee", "knowledge", "skill", "tool"];
 export const kindNames = { employee: "数字员工", knowledge: "知识库", skill: "Skill", tool: "工具/MCP" };
-export const kindColors = { employee: "#286889", knowledge: "#328e81", skill: "#6385ae", tool: "#9a855f" };
+export const kindColors = {
+  employee: "var(--al-blue)",
+  knowledge: "var(--al-teal)",
+  skill: "var(--al-slate)",
+  tool: "var(--al-amber)",
+};
 
 export function sceneAssets(props: PrototypeViewProps, sceneIds: Set<string>) {
   const { data, registers } = props;

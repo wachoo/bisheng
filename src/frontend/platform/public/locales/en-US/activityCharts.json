@@ -227,5 +227,11 @@
   "场景": "Scenario",
   "有效使用次数": "Effective uses",
   "作业工时（小时）": "Working hours",
-  "仅计入能归属到场景的执行。使用共用资产且未指定场景的任务保留为未归属。": "Only executions attributed to a scenario are counted. Work on a shared asset without a designated scenario remains unassigned."
+  "仅计入能归属到场景的执行。使用共用资产且未指定场景的任务保留为未归属。": "Only executions attributed to a scenario are counted. Work on a shared asset without a designated scenario remains unassigned.",
+  "当前范围没有数字员工": "No digital employees in this scope",
+  "本月暂无已记录的成功执行": "No successful runs recorded this month",
+  "本月各部门新增均为 0": "No department added assets this month",
+  "本月各部门使用均为 0": "No usage recorded across departments this month",
+  "本月各部门用量均为 0": "All departments recorded zero tokens this month",
+  "公司建设与经营明细": "Company development and operations"
 }

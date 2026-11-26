@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Segmented } from "@bisheng/ui";
 import { Outlined } from "bisheng-icons";
-import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { useContext, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -30,6 +30,7 @@ import type {
 } from "./prototype/types";
 import "./prototype/prototype.css";
 import "./prototype/shell.css";
+import "./prototype/analytics.css";
 
 const leadViews = [
   { view: "strategy", anchor: "strategy", icon: Outlined.Dashboard },
@@ -40,26 +41,34 @@ const leadViews = [
 interface LeadViewMenuProps {
   view: string;
   onChange: (view: string) => void;
+  periodPicker?: ReactNode;
 }
 
-function LeadViewMenu({ view, onChange }: LeadViewMenuProps) {
+function LeadViewMenu({ view, onChange, periodPicker }: LeadViewMenuProps) {
   const { t } = useTranslation("companyBoards");
   const [header, setHeader] = useState<HTMLElement | null>(null);
+  const [periodSlot, setPeriodSlot] = useState<HTMLElement | null>(null);
   useLayoutEffect(() => {
     setHeader(document.getElementById("leadboard-header-menu"));
+    setPeriodSlot(document.getElementById("leadboard-period-slot"));
   }, []);
-  return header && createPortal(
-    <Segmented
-      size="large"
-      className="rounded-full [&>span[aria-hidden]]:rounded-full"
-      aria-label={t("leadTitle")}
-      value={view}
-      onChange={onChange}
-      options={leadViews.map(({ view, icon: Icon }) => ({
-        value: view, label: t(view), icon: <Icon aria-hidden="true" />,
-      }))}
-    />,
-    header,
+  return (
+    <>
+      {header && createPortal(
+        <Segmented
+          size="large"
+          className="rounded-full [&>span[aria-hidden]]:rounded-full"
+          aria-label={t("leadTitle")}
+          value={view}
+          onChange={onChange}
+          options={leadViews.map(({ view, icon: Icon }) => ({
+            value: view, label: t(view), icon: <Icon aria-hidden="true" />,
+          }))}
+        />,
+        header,
+      )}
+      {periodSlot && periodPicker && createPortal(periodPicker, periodSlot)}
+    </>
   );
 }
 
@@ -268,6 +277,7 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
         {board === "lead" && allowed && (
           <LeadViewMenu
             view={current.view}
+            periodPicker={!active && current.view !== "strategy" ? picker : null}
             onChange={(view) => setParams({ view, period })}
           />
         )}
@@ -292,14 +302,6 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
                 hidden={!!active}
                 key={[...identity, board, current.view, period].join("/")}
               >
-                {(current.view === "impact" || current.view === "activity") && (
-                  <div className="al-page-heading">
-                    <div>
-                      <h1>{t(current.view)}</h1>
-                    </div>
-                    <div className="al-page-meta">{picker}</div>
-                  </div>
-                )}
                 <Home {...props} />
               </div>
               <section id="al-detail" hidden={!active} aria-live="polite">

@@ -5,7 +5,7 @@
 | TODO | 完成条件 | 状态 |
 |---|---|---|
 | 1. 四个首页的外壳 | 从毕昇左栏分别进入两块看板。领导看板三项切换位于管理端顶栏中央，监控入口直接展示运营监控。核对标题、留白、分栏、窄屏和授权 | 已从左栏进入两块看板，并与构建页顶栏控件的位置逐项比对 |
-| 2. 战略进展 | 对照年度建设、四类资产、知识与场景、专题与代表案例、部门贡献及排行；各专题/专项台账按原型列出字段 | 五个板块、四类资产和已填案例表已核对 |
+| 2. 战略进展 | 对照年度建设、四类资产、知识与场景、专题与代表案例、部门贡献及排行；各专题的明细保留原型字段 | 五个板块、四类资产和已填案例表已核对 |
 | 3. 业务赋能 | 四张年度指标卡、员工气泡、业务专题、工时及交付的双轴组合图；每张卡、气泡、专题和图表均有相应明细 | 四项指标、气泡、专题和两张图已核对 |
 | 4. 应用活力 | 对照存量、新增、四类用量、交互与 Token、部门排行和趋势；验证同一期间及部门的分项可加回汇总 | 四项指标、资产构成与部门排行已核对 |
 | 5. 运营监控 | 对照专题/场景/部门/资产筛选、双图趋势、五类健康状态、异常/突出榜及反馈待办/已办切换 | 四个筛选、趋势及反馈状态已实测 |
@@ -30,6 +30,8 @@
 
 ## 页面边界
 
+原型用于核对内容、图表类型、下钻和板块的大致位置。字号、配色、分栏比例、留白及各类空态按毕昇管理端设计。四屏首页直接从指标或筛选开始，名称由左栏或顶栏指示。业务赋能和应用活力在毕昇顶栏选择月份，运营监控在资产筛选栏选择月份。科研与经营可从「业务赋能 → 专题台账 → 公司建设与经营明细」进入。
+
 领导看板、监控看板、各层明细与填报台账共用毕昇原生管理端外壳。领导看板在管理端顶栏中央切换战略进展、业务赋能和应用活力，进入监控看板即显示运营监控。左栏指示当前入口。首页卡片按右侧面板的可用宽高分栏，窄屏可在面板内向下滚动。从历史月份经左栏进入填报台账时沿用所选年度。对照截图时，以右侧内容区尺寸打开 HTML 原型，另外截取含原生菜单的完整产品页面。
 
 ## 本地验收记录
@@ -40,6 +42,7 @@
 | 原型与实际读数 | 领导三页与监控页分别保存原型和本地截图。真实开发库当前目录有 43 项。尚未登记的专题和费用，以及尚无采集记录的任务和交付，按相应指标展示空态。案例登记后出现其真实列名和明细行。 |
 | 填报闭环 | 已登录的管理界面连接独立 SQLite 验收库，年度计划、知识接入和科研经营均已保存、重载并从看板核对。11 项科研经营指标与课题在同一月份快照保存。 |
 | 归属与期间 | 当年 11 月从战略页 5 月新增员工下钻，详情取 5 月；年度清单下钻取年累计。专题的首发和复用资产共 2 项，在业务与运营页一致。跨部门使用按调用部门归集，运营的资产归属部门筛选随返回恢复。 |
+| 运营监控读数 | 真实开发库的「AI先锋行动」有 39 项资产全部未监测，异常数显示「—」。隔离样例包含 6 项资产，其中 5 项已监测，共 190 次成功、13 次失败；页面对应显示 83.3% 监测覆盖率和 93.6% 运行成功率。 |
 | 运行与反馈 | 受控模型和数据库覆盖成功、失败、纯工具等待、文件及版本去重、Token 回执、历史评分及租户隔离。隔离浏览器样本覆盖反馈搜索、查看原执行、返回保留草稿、保存与已处理队列。 |
 | 权限 | 本机管理员与仅获监控授权的普通账号均从网页验证。普通账号读取领导数据、填报清单及管理数据均返回业务码 403。未登录直接请求返回 HTTP 401。数科部管理能力按公司级角色授权测试验证，当前本机未给普通组织账号增授台账权限。 |
 
@@ -50,9 +53,9 @@
 | 视图 | HTML 原型 | 本地管理端 |
 |---|---|---|
 | 战略进展 | [原型](screenshots/parity/strategy-prototype.png) | [真实开发库](screenshots/parity/strategy-local.png) · [深色主题](screenshots/parity/strategy-dark.png) |
-| 业务赋能 | [原型](screenshots/parity/business-prototype.png) | [业务赋能](screenshots/parity/business-local.png) |
-| 应用活力 | [原型](screenshots/parity/adoption-prototype.png) | [应用活力](screenshots/parity/adoption-local.png) |
-| 运营监控 | [原型](screenshots/parity/operations-prototype.png) | [运营监控](screenshots/parity/operations-local.png) |
+| 业务赋能 | [原型](screenshots/parity/business-prototype.png) | [浅色](screenshots/parity/business-local.png) · [深色](screenshots/parity/business-dark.png) |
+| 应用活力 | [原型](screenshots/parity/adoption-prototype.png) | [浅色](screenshots/parity/adoption-local.png) · [深色](screenshots/parity/adoption-dark.png) |
+| 运营监控 | [原型](screenshots/parity/operations-prototype.png) | [浅色](screenshots/parity/operations-local.png) · [深色](screenshots/parity/operations-dark.png) · [覆盖部分资产的运行样例](screenshots/parity/operations-monitored-sample.png) |
 | 填报及对账 | 按业务需要新增 | [填报台账](screenshots/parity/registers-local.png) · [年度计划样例](screenshots/parity/annual-plan-sample.png) · [知识接入样例](screenshots/parity/knowledge-plan-sample.png) · [科研经营月报](screenshots/parity/research-monthly.png) |
 
 

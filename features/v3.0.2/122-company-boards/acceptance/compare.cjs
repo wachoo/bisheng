@@ -29,7 +29,7 @@ async function inventory(frame) {
   return frame.locator("#al-home").evaluate(el=>{
     function elements(node){return [...node.querySelectorAll("*")].flatMap(x=>x.shadowRoot?[x,...elements(x.shadowRoot)]:[x]);}
     const visible=elements(el).filter(x=>x.getBoundingClientRect().width>0);
-    return {headings:visible.filter(x=>x.matches("h1,h2,h3,h4,.card-title,.al-stat-label")).map(x=>x.textContent.trim()),text:visible.filter(x=>x.children.length===0).map(x=>x.textContent.trim()).filter(Boolean).join(" "),
+    return {headings:visible.filter(x=>x.matches("h1,h2,h3,h4,.card-title,.al-stat-label")).map(x=>x.textContent.trim()),text:visible.flatMap(x=>[...x.childNodes].filter(n=>n.nodeType===Node.TEXT_NODE).map(n=>n.textContent.trim())).filter(Boolean).join(" "),
       tables:visible.filter(x=>x.matches("table")).length,charts:visible.filter(x=>x.matches("svg,.al-ring,.al-cloud-wrap,.al-chart")).length};
   });
 }
@@ -78,7 +78,7 @@ async function checkTabHistory(page) {
   await page.goto(root + "/leadboard");
   const group = headerGroup(page);
   await group.getByRole("radio", {name:leadTabs.impact}).click();
-  const month = page.locator('#al-home input[type="month"]');
+  const month = page.locator('#leadboard-period-slot input[type="month"]');
   const period = "2025-05";
   await month.fill(period);
   await page.waitForURL(url => url.searchParams.get("period") === period);
@@ -86,6 +86,12 @@ async function checkTabHistory(page) {
   const detail = page.locator("#al-detail > div:visible");
   await detail.getByRole("heading", {name:"专题台账", exact:true}).first().waitFor();
   const detailUrl = page.url();
+  await detail.getByRole("button", {name:"公司建设与经营明细", exact:true}).click();
+  await detail.getByRole("button", {name:/科研项目与课题/}).click();
+  await detail.getByRole("button", {name:"课题", exact:true}).waitFor();
+  await detail.locator("[data-back]").click();
+  await detail.locator("[data-back]").click();
+  assert.equal(page.url(), detailUrl, "financial drilldown returns to the topics for the selected month");
   await group.getByRole("radio", {name:leadTabs.activity}).click();
   await page.locator("#al-home:visible #al-adoption").waitFor();
   const next = new URL(page.url()).searchParams;
@@ -133,6 +139,14 @@ async function checkTabHistory(page) {
       await page.locator("#al-home:not([hidden])").waitFor();
       await page.locator('#ai-leader[data-active-screen="'+anchor+'"]').waitFor();
       await page.waitForLoadState("networkidle");
+      assert.equal(await page.locator("#al-home h1:visible").count(),0,anchor + " has no duplicate title row");
+      assert.equal(await page.getByRole("button",{name:/专项台账/}).count(),0);
+      if (view === "impact" || view === "activity") {
+        const periodField = page.locator("#leadboard-period-slot input[type=month]");
+        assert(await periodField.isVisible(), "period remains available in the native header");
+        const pickerEnd = await periodField.boundingBox(), tabs = await headerGroup(page).boundingBox();
+        assert(pickerEnd.x + pickerEnd.width <= tabs.x, "month control clears the central navigation");
+      }
       const area=await checkShell(page,sidebar,screen,nativeCenters.get(screen.width),anchor,view);
       await original.setViewportSize({width:Math.round(area.width),height:Math.round(area.height)});
       await frame.locator("#al-home").waitFor();
@@ -179,6 +193,20 @@ async function checkTabHistory(page) {
       assert.equal(colors[0],colors[1],"strategy follows the native dark theme on "+selector);
     }
     await page.screenshot({path:path.join(out,"strategy-dark.png")});
+    for (const [anchor, view, route] of screens.slice(1)) {
+      await page.goto(root + "/" + route + "?view=" + view);
+      const card = page.locator(anchor === "operations" ? ".om-panel" : "#al-home .al-panel").first();
+      await card.waitFor();
+      await page.waitForLoadState("networkidle");
+      const style = await card.evaluate(el => {
+        const css = getComputedStyle(el);
+        return {dark:document.documentElement.classList.contains("dark"), fill:css.backgroundColor,
+          palette:css.getPropertyValue("--bg-page").trim()};
+      });
+      assert(style.dark, anchor + " preserves the current theme");
+      assert.equal(style.fill.match(/\d+/g).join(" "), style.palette, anchor + " uses the native dark surface");
+      await page.screenshot({path:path.join(out, anchor + "-dark.png")});
+    }
     await page.getByRole("button",{name:/主题/}).first().click();
     console.log("Three registers, native light/dark theme, page errors:",errors);
     assert.equal(errors.length,0);

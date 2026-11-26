@@ -71,7 +71,7 @@ async function verify(page) {
   await page.goto(base+'/monitorboard?view=monitor&period='+period);
   const home=page.locator('#al-home'), detail=()=>page.locator('#al-detail > div:visible').last();
   const backward=async()=>{await detail().locator('[data-back]').first().click();};
-  await home.getByRole('heading',{name:'数据资产运行监控'}).waitFor();
+  await home.getByRole('heading',{name:'每日运行趋势'}).waitFor();
   for(const [key,value] of [['topic',topic],['scene',scene],['department',String(department)],['type','employee']]){
     await home.locator('[data-op-field="'+key+'"]').selectOption(value);
   }

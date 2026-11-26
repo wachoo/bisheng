@@ -1,0 +1,153 @@
+/* Shared surfaces and type for the analytical views in the BiSheng shell. */
+@scope (.company-board-screen) {
+  #ai-leader :is(#al-business, #al-adoption) {
+    --analytics-gap: clamp(12px, 1.15cqw, 20px);
+    gap: var(--analytics-gap);
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) > .al-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: var(--analytics-gap);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) > .al-stats > .al-stat {
+    display: grid;
+    align-content: center;
+    justify-items: start;
+    gap: 4px;
+    min-width: 0;
+    padding: 14px clamp(14px, 1.3cqw, 22px);
+    text-align: start;
+    border: 1px solid var(--al-line);
+    border-radius: 12px;
+    background: var(--al-paper);
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) > .al-stats > button:is(:hover, :focus-visible) {
+    background: color-mix(in srgb, var(--al-blue) 3%, var(--al-paper));
+    border-color: rgb(var(--brand-300));
+  }
+
+  #ai-leader .al-metric-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    color: var(--al-blue);
+    background: var(--al-soft);
+    flex: none;
+  }
+
+  #ai-leader .al-metric-icon svg {width: 16px; height: 16px}
+  #ai-leader .al-drill-icon {display: inline-block; width: 14px; height: 14px; vertical-align: -2px}
+  #ai-leader .al-stat-label .al-arrow {width: 14px; height: 14px; flex: none; margin-inline-start: auto; color: var(--al-muted)}
+  #ai-leader :is(#al-business, #al-adoption) .al-stat-label {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    color: var(--al-ink);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 22px;
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) .al-stat-value {
+    margin: 0;
+    font-family: inherit;
+    font-size: clamp(28px, 2.4cqw, 36px);
+    line-height: 1.24;
+    font-weight: 600;
+    letter-spacing: -.025em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) .al-stat-value[data-unavailable] {
+    color: var(--al-muted);
+    font-weight: 400;
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) .al-stat-value small {
+    margin-inline-start: 6px;
+    color: var(--al-muted);
+    font-weight: 400;
+    font-family: inherit;
+    font-size: 13px;
+    letter-spacing: normal;
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) .al-stat-note,
+  #ai-leader :is(#al-business, #al-adoption) .al-chart-topline {
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--al-muted);
+  }
+
+  #ai-leader :is(#al-business, #al-adoption) .al-panel {
+    border-radius: 12px;
+    border-color: var(--al-line);
+    background: var(--al-paper);
+  }
+  #ai-leader :is(#al-business, #al-adoption) .al-panel-head h3 {
+    font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: normal;
+  }
+  #ai-leader :is(#al-business, #al-adoption) .al-panel-head {
+    align-items: center;
+    gap: 8px 12px;
+    padding: 16px 20px 0;
+  }
+  #ai-leader :is(#al-business, #al-adoption) .al-panel-body {padding: 12px 20px 16px}
+  #ai-leader :is(#al-business, #al-adoption) .al-link {
+    color: var(--al-blue); font-size: 13px; line-height: 20px;
+  }
+  #ai-leader .al-chart.al-chart-empty {
+    display: flex;
+    flex: 1 1 auto;
+    min-height: 88px;
+    flex-flow: column;
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: var(--al-bg);
+    color: var(--al-muted);
+    font-size: 13px;
+    line-height: 20px;
+  }
+  #ai-leader .al-chart.al-chart-empty > svg {
+    width: 26px; height: 26px; flex: none; color: rgb(var(--text-3));
+  }
+
+  @container board-content (max-width: 900px) {
+    #ai-leader :is(#al-business, #al-adoption) > .al-stats {grid-template-columns: repeat(2, minmax(0, 1fr))}
+  }
+}
+
+/* Keep the month beside the native logo; the view switcher stays centered. */
+#leadboard-period-slot:not(:empty) {
+  display: flex;
+  align-items: center;
+  margin-left: clamp(20px, 3vw, 52px);
+}
+#leadboard-period-slot label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: rgb(var(--text-2));
+}
+#leadboard-period-slot input {
+  color-scheme: light; color: rgb(var(--text-1)); background: rgb(var(--bg-page));
+  border: 1px solid rgb(var(--border-base)); border-radius: 8px;
+  font: inherit; line-height: 20px; height: 32px; max-width: 136px; padding: 0 8px;
+}
+.dark #leadboard-period-slot input {color-scheme: dark}
+#leadboard-period-slot input:focus-visible {outline: 2px solid rgb(var(--brand-main)); outline-offset: 2px}
+@media (max-width: 1200px) {
+  #leadboard-period-slot label > span {display: none}
+}

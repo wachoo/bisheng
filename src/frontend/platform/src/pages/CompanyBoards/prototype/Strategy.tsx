@@ -87,7 +87,6 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   const detail = (key: string, title: string) => open("strategy:" + key, title);
   const topicTitle = topic?.name || "尚未登记专题";
   const launchTopic = () => detail("topic:" + selected, topicTitle + " · 专题资产明细");
-  const through = data.cutoff.split("-");
   const categories = knowledgeCategories(registers, data.cutoff);
   const byArea = (area: string) => collections.filter((r) => (categories.get(r.id) || "未归类") === area);
   const groupLabels = Array.from(
@@ -111,19 +110,6 @@ export default function Strategy({ data, period, open, registers, board }: Proto
             <style>{frameCss}</style>
             <div className="page">
               <main className="shell">
-                <div className="heading">
-                  <h1>战略进展</h1>
-                  <span className="time">
-                    <button
-                      className="text-btn"
-                      id="v4-special"
-                      onClick={() => detail("special", "专项台账")}
-                    >
-                      专项台账 ↗
-                    </button>
-                    　{data.year} 年度 · 截至 {Number(through[1])} 月 {Number(through[2])} 日
-                  </span>
-                </div>
                 <div className="dashboard">
                   <Card cls="hero" title="年度数字员工建设计划" period="年度累计">
                     <div className="hero-grid">

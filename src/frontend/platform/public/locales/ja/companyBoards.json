@@ -1,4 +1,27 @@
 {
+  "monitorView": {
+    "successDefinition": "成功回数 / 完了した実行回数",
+    "noMonitoring": "監視記録はありません",
+    "unknownHealth": "健全性を判定するデータがありません",
+    "assetCount": "資産別 · 全 {{total}} 件",
+    "noAssets": "条件に一致する資産はありません",
+    "notRanked": "対象資産はまだ監視されていないため、ランキングを表示できません",
+    "noRuns": "監視対象の資産にこの期間の実行記録はありません",
+    "noAnomalies": "異常しきい値に達した監視対象の資産はありません",
+    "noLeaders": "正常で成功実績のある資産はありません",
+    "rankingGroup": "重点資産の一覧",
+    "abnormalList": "注意が必要な異常資産",
+    "leadersList": "実績の高い資産",
+    "feedbackGroup": "フィードバックの状態",
+    "pending": "未対応",
+    "closed": "対応済み",
+    "month": "対象月",
+    "monthPicker": "集計月を選択",
+    "filters": "資産の絞り込み",
+    "noTrend": "稼働推移のデータがありません",
+    "unmonitoredCount": "監視されていない資産は {{total}} 件です。",
+    "viewUnmonitored": "未監視の資産を表示"
+  },
   "assetContext": {
     "direction": "業務分野",
     "description": "ダッシュボード用の説明",

@@ -1,3 +1,6 @@
+import { useTranslation } from "react-i18next";
+import { EmptyStateIllustration, StateView } from "@bisheng/ui";
+import type { PrototypeViewProps } from "./types";
 import type { MonitorSnapshot } from "@/controllers/API/companyMonitoring";
 import { fmt } from "./MonitorParts";
 
@@ -5,11 +8,14 @@ export function MonitorTrend({
   snapshot,
   period,
   cutoff,
+  open,
 }: {
   snapshot: MonitorSnapshot;
   period: string;
   cutoff: string;
+  open: PrototypeViewProps["open"];
 }) {
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
   const n = Number(cutoff.slice(-2));
   const map = new Map(snapshot.days.map((row) => [row.day, row]));
   const dates = Array.from({ length: n }, (_, i) => ({
@@ -53,7 +59,7 @@ export function MonitorTrend({
             <g className="omt-marks">
               {key === "success" ? (
                 dates.map((d, i) => (
-                  <rect key={d.date} x={x(i) - 6} y={y(d.success)} width="12" height={97 - y(d.success)} />
+                  <rect key={d.date} x={x(i) - 6} y={y(d.success)} width="12" height={97 - y(d.success)} rx="2" />
                 ))
               ) : (
                 <polyline points={dates.map((d, i) => x(i) + "," + y(d.failed)).join(" ")} />
@@ -79,7 +85,7 @@ export function MonitorTrend({
           <h2>每日运行趋势</h2>
           <p>
             {period}-01 至 {cutoff}
-            {missing > 0 && " · " + fmt(missing) + " 项未监测"}
+            {observed > 0 && missing > 0 && " · " + fmt(missing) + " 项未监测"}
           </p>
         </div>
         <div className="omt-legend" aria-label="期间合计">
@@ -93,7 +99,7 @@ export function MonitorTrend({
           </span>
         </div>
       </header>
-      <div className="omt-chart">
+      {observed > 0 ? <div className="omt-chart">
         {plot("success", "成功")}
         {plot("failed", "失败")}
         <div className="omt-dates" style={{ gridTemplateColumns: `repeat(${n},minmax(0,1fr))` }}>
@@ -103,7 +109,14 @@ export function MonitorTrend({
             </span>
           ))}
         </div>
-      </div>
+      </div> : (
+        <StateView size="panel" className="omt-empty-state" image={<EmptyStateIllustration grey />}
+          title={missing ? t("noTrend") : t("noAssets")}
+          description={missing > 0 && <>{t("unmonitoredCount", { total: fmt(missing) })}{" "}
+            <button type="button" className="al-link" onClick={() => open("monitor:ledger:未监测", "资产运行台账")}>
+              {t("viewUnmonitored")}
+            </button></>} />
+      )}
       <details className="omt-data">
         <summary>查看逐日次数</summary>
         <table>
@@ -125,14 +138,8 @@ export function MonitorTrend({
           </tbody>
         </table>
       </details>
-      {success + fail === 0 && (
-        <p className="al-caption" role="status">
-          {!snapshot.assets.length
-            ? "当前筛选范围内没有资产"
-            : !observed
-              ? "当前范围的资产均无监测接入记录"
-              : "已监测资产在此期间没有执行或调用记录"}
-        </p>
+      {observed > 0 && success + fail === 0 && (
+        <p className="al-caption" role="status">已监测资产在此期间没有执行或调用记录</p>
       )}
     </section>
   );

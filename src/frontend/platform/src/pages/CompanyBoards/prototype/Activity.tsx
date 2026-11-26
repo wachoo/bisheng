@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { StateView } from "@bisheng/ui";
+import { Outlined } from "bisheng-icons";
+import "./leaderViews.css";
 import Directory from "./ActivityDirectory";
 import type { AssetKind, BoardOverview } from "@/controllers/API/companyBoards";
 import type { TrendPeriod } from "@/controllers/API/activityTrends";
@@ -98,7 +101,7 @@ function HealthHelp() {
   return (
     <details className="wr-help">
       <summary title={t("健康程度口径")} aria-label={t("查看健康程度口径")}>
-        ?
+        <Outlined.Info aria-hidden />
       </summary>
       <div>
         {t("按所选月份的执行成功率分级。")}
@@ -221,7 +224,7 @@ function WorkerTable({
           {!list.length && (
             <tr>
               <td className="al-empty" colSpan={full ? 6 : 5}>
-                {t("没有匹配的数字员工")}
+                <StateView size="inline" title={t("没有匹配的数字员工")} />
               </td>
             </tr>
           )}
@@ -316,6 +319,9 @@ export default function Activity(props: PrototypeViewProps) {
     })
     .sort((a, b) => (b.total ?? -1) - (a.total ?? -1));
   const max = Math.max(1, ...rows.map((r) => r.total || 0));
+  const departmentNote = rows.length && rows.every(r => r.values.every(n => n === 0))
+    ? { assets: "本月各部门新增均为 0", usage: "本月各部门使用均为 0", tokens: "本月各部门用量均为 0" }[mode]
+    : null;
   const months = Array.from({ length: month }, (_, i) => aggregation(series?.months[i]));
   const link = (id: string, name: string) => <Link open={open} to={id} title={t(name)} />;
   return (
@@ -398,10 +404,11 @@ export default function Activity(props: PrototypeViewProps) {
           />
         </Panel>
         <Panel
+          className="lv-department-panel"
           title={t("部门贡献与使用")}
           action={
-            <span>
-              {link("departments", "部门明细")}　{link("strategy:department-ranking", "年度沉淀排行")}
+            <span className="lv-actions">
+              {link("departments", "部门明细")}{link("strategy:department-ranking", "年度沉淀排行")}
             </span>
           }
         >
@@ -417,7 +424,7 @@ export default function Activity(props: PrototypeViewProps) {
             attribute="data-dept-chart"
           />
           <div className="al-chart-legend">
-            <span className="v4-scope-note">{t(mode === "assets" ? "本月首次正式发布" : "按使用部门")}</span>
+            <span className="v4-scope-note">{t(departmentNote || (mode === "assets" ? "本月首次正式发布" : "按使用部门"))}</span>
             {mode === "tokens" ? (
               <span>{t("百万 Token")}</span>
             ) : (
@@ -429,34 +436,33 @@ export default function Activity(props: PrototypeViewProps) {
               ))
             )}
           </div>
-          <div
-            className="al-department-rows"
-            style={{ overflowY: "auto", maxHeight: "13rem", alignContent: "start" }}
-          >
+          <div className="al-department-rows" tabIndex={0} role="region" aria-label={t("部门贡献与使用")}>
+            {!rows.length && <StateView size="inline" title={t("当前筛选范围内暂无记录")} />}
             {rows.map((r) => (
               <button
                 key={r.id}
                 className="al-department-row"
                 onClick={() => open((mode === "assets" ? "activity-new:" : "department:") + r.id, r.name)}
               >
-                <span title={r.name}>{r.name}</span>
-                <span className="al-bar-track">
+                <span className="lv-department-name" title={r.name}>{r.name}</span>
+                <span className="al-bar-track" aria-hidden>
                   {r.values.map((n, i) =>
                     n === null ? null : (
                       <span key={i} style={{ width: (n / max) * 100 + "%", background: kindColors[kinds[i]] }} />
                     ),
                   )}
                 </span>
-                <strong>{fmt(r.total)}</strong>
+                <strong data-empty={r.total === null || r.total === 0}>{fmt(r.total)}</strong>
               </button>
             ))}
           </div>
         </Panel>
         <Panel
+          className="lv-composition"
           title={t("AI 资产构成")}
           action={
-            <span>
-              {link("app-ranking", "分类使用明细")}　{link("activity-catalog", "资产明细")}
+            <span className="lv-actions">
+              {link("app-ranking", "分类使用明细")}{link("activity-catalog", "资产明细")}
             </span>
           }
         >
@@ -470,7 +476,7 @@ export default function Activity(props: PrototypeViewProps) {
                 <span className="al-bar-track">
                   <span style={{ width: ((counts[i] || 0) / maxCount) * 100 + "%", background: kindColors[k] }} />
                 </span>
-                <strong>{fmt(counts[i])}</strong>
+                <strong data-empty={counts[i] === null || counts[i] === 0}>{fmt(counts[i])}</strong>
               </button>
             ))}
           </div>

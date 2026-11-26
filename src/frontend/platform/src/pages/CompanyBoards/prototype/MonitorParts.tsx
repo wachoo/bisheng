@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useContext, type ReactNode } from "react";
 import { useSearchParams } from "react-router-dom";
 import { userContext } from "@/contexts/userContext";
@@ -7,11 +8,11 @@ import type { PrototypeViewProps } from "./types";
 export const healthStates = ["异常", "关注", "正常", "暂无执行", "未监测"] as const;
 export type Health = (typeof healthStates)[number];
 export const colors: Record<Health, string> = {
-  异常: "var(--al-danger)",
-  关注: "var(--al-amber)",
-  正常: "var(--al-success)",
-  暂无执行: "rgb(var(--border-deep))",
-  未监测: "rgb(var(--text-3))",
+  异常: "color-mix(in srgb, rgb(var(--danger)) 64%, rgb(var(--text-3)))",
+  关注: "color-mix(in srgb, rgb(var(--warning)) 64%, rgb(var(--text-3)))",
+  正常: "color-mix(in srgb, rgb(var(--success)) 64%, rgb(var(--text-3)))",
+  暂无执行: "rgb(var(--brand-muted))",
+  未监测: "rgb(var(--border-deep))",
 };
 export const kindNames: Record<OperationalKind, string> = {
   employee: "数字员工",
@@ -177,6 +178,7 @@ export function Filters({
   scenes: { id: string; name: string }[];
   fixedTopic?: boolean;
 }) {
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
   const controls: {
     key: keyof MonitorScope;
     title: string;
@@ -202,7 +204,7 @@ export function Filters({
     },
   ];
   return (
-    <div className="al-toolbar al-operations-filters">
+    <div className="al-toolbar al-operations-filters" role="group" aria-label={t("filters")}>
       {controls.map((c) => (
         <label key={c.key} className="al-revision-select">
           {c.title}

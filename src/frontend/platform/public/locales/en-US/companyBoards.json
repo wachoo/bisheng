@@ -1,4 +1,27 @@
 {
+  "monitorView": {
+    "successDefinition": "Successful runs / completed runs",
+    "noMonitoring": "No monitoring records",
+    "unknownHealth": "Insufficient data to assess health",
+    "assetCount": "By asset · {{total}} total",
+    "noAssets": "No assets match these filters",
+    "notRanked": "Assets are not monitored yet, so no ranking is available",
+    "noRuns": "No runs were recorded for monitored assets in this period",
+    "noAnomalies": "No monitored assets reached the alert threshold",
+    "noLeaders": "No healthy assets have successful runs",
+    "rankingGroup": "Priority asset rankings",
+    "abnormalList": "Assets requiring attention",
+    "leadersList": "Top-performing assets",
+    "feedbackGroup": "Feedback status",
+    "pending": "Pending",
+    "closed": "Resolved",
+    "month": "Month",
+    "monthPicker": "Select reporting month",
+    "filters": "Asset filters",
+    "noTrend": "No run trend available",
+    "unmonitoredCount": "{{total}} assets are not monitored yet.",
+    "viewUnmonitored": "View unmonitored assets"
+  },
   "assetContext": {
     "direction": "Business area",
     "description": "Dashboard description",

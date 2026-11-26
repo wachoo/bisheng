@@ -1,3 +1,7 @@
+import { useTranslation } from "react-i18next";
+import { Segmented, StateView } from "@bisheng/ui";
+import { Outlined } from "bisheng-icons";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getMonitoring,
@@ -20,6 +24,7 @@ import {
 } from "./MonitorParts";
 import { MonitorTrend } from "./MonitorTrend";
 import { MonitorFeedback } from "./MonitorFeedback";
+import "./monitor.css";
 
 export { MonitorDetail } from "./MonitorDetail";
 
@@ -38,62 +43,48 @@ export function ManagementCards({
   assets: OperationalAsset[];
   open: PrototypeViewProps["open"];
 }) {
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
   const monitored = assets.filter((a) => a.monitored),
     success = monitored.reduce((n, a) => n + a.success, 0),
     fail = monitored.reduce((n, a) => n + a.failed, 0);
-  const metric = (label: string, value: string, unit: string, note: string, target?: string) => {
+  const abnormal = monitored.filter(a => health(a) === "异常").length;
+  const finished = success + fail;
+  const metric = (label: string, value: string, unit: string, note: string, icon: ReactNode, tone: string, target?: string) => {
     const content = (
       <>
-        <span>
-          {label}
-          {target ? " ↗" : ""}
-        </span>
-        <strong>
-          {value}
-          {unit && <em>{unit}</em>}
-        </strong>
+        <span className="om-metric-name">{label}{target && <Outlined.ArrowRightUp aria-hidden />}</span>
+        <strong>{value}{unit && <em>{unit}</em>}</strong>
         <small>{note}</small>
+        <span className="om-metric-icon" aria-hidden>{icon}</span>
       </>
     );
     return target ? (
-      <button
-        className="om-metric"
-        type="button"
-        data-op-drill={target}
-        onClick={() => open("monitor:ledger:" + target, "资产运行台账")}
-      >
+      <button className="om-metric" data-tone={tone} type="button" data-op-drill={target}
+        onClick={() => open("monitor:ledger:" + target, "资产运行台账")}>
         {content}
       </button>
-    ) : (
-      <div className="om-metric">{content}</div>
-    );
+    ) : <div className="om-metric" data-tone={tone}>{content}</div>;
   };
   return (
     <div className="om-metrics">
-      {metric("纳入管理的资产", fmt(assets.length), "项", fmt(monitored.length) + " 项已监测", "all")}
-      {metric("运行成功率", ratio(success, success + fail), "", fmt(success + fail) + " 次已结束运行")}
-      {metric(
-        "失败次数",
-        monitored.length ? fmt(fail) : "—",
-        monitored.length ? "次" : "",
-        monitored.length
-          ? fmt(monitored.filter((a) => a.failed > 0).length) + " 项资产有失败记录"
-          : "当前范围无监测记录",
-      )}
-      {metric(
-        "异常资产",
-        fmt(assets.filter((a) => health(a) === "异常").length),
-        "项",
-        fmt(assets.filter((a) => health(a) === "关注").length) + " 项处于关注状态",
-        "异常",
-      )}
+      {metric("纳入管理的资产", fmt(assets.length), "项", fmt(monitored.length) + " 项已监测",
+        <Outlined.Dashboard />, "primary", "all")}
+      {metric("运行成功率", ratio(success, finished), "",
+        monitored.length ? fmt(finished) + " 次已结束运行" : t("successDefinition"), <Outlined.CheckCircle />, "neutral")}
+      {metric("失败次数", monitored.length ? fmt(fail) : "—", monitored.length ? "次" : "",
+        monitored.length ? fmt(monitored.filter(a => a.failed > 0).length) + " 项资产有失败记录" : t("noMonitoring"),
+        <Outlined.FileSearch />, fail ? "danger" : "neutral")}
+      {metric("异常资产", monitored.length || !assets.length ? fmt(abnormal) : "—",
+        monitored.length || !assets.length ? "项" : "",
+        monitored.length ? fmt(monitored.filter(a => health(a) === "关注").length) + " 项处于关注状态" : t("unknownHealth"),
+        <Outlined.Info />, abnormal ? "danger" : "neutral", "异常")}
     </div>
   );
 }
 
 function HealthRing({ snapshot, open }: { snapshot: MonitorSnapshot; open: PrototypeViewProps["open"] }) {
-  const { assets } = snapshot,
-    total = assets.length;
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
+  const { assets } = snapshot, total = assets.length;
   const counts = healthStates.map((status) => assets.filter((a) => health(a) === status).length);
   let angle = 0;
   const gradient = healthStates
@@ -108,7 +99,7 @@ function HealthRing({ snapshot, open }: { snapshot: MonitorSnapshot; open: Proto
     <section className="om-panel om-health-panel">
       <header>
         <h2>资产健康分布</h2>
-        <span>按资产计</span>
+        <span>{t("assetCount", { total: fmt(total) })}</span>
       </header>
       <div className="om-health">
         <div
@@ -150,6 +141,7 @@ function Rankings({
   assets: OperationalAsset[];
   oneType: boolean;
 }) {
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
   const { params, change, scope } = useMonitorFilters();
   const mode = params.get("om-list") === "leaders" ? "leaders" : "abnormal";
   const abnormal = mode === "abnormal";
@@ -169,23 +161,24 @@ function Rankings({
     abnormal || oneType
       ? rows.slice(0, 5)
       : Object.keys(kindNames).flatMap((kind) => rows.find((a) => a.kind === kind) ?? []);
+  function emptyMessage() {
+    if (!assets.length) return t("noAssets");
+    const monitored = assets.filter(a => a.monitored);
+    if (!monitored.length) return t("notRanked");
+    if (monitored.every(a => a.success + a.failed === 0)) return t("noRuns");
+    return abnormal ? t("noAnomalies") : t("noLeaders");
+  }
   const depts = new Map(props.data.departments.map((d) => [d.id, d.name]));
   return (
     <section className="om-panel om-list">
       <header>
         <h2>重点资产</h2>
-        <div className="al-tabs" role="group" aria-label="重点资产名单">
-          {(["abnormal", "leaders"] as const).map((key, i) => (
-            <button
-              key={key}
-              data-op-list-choice={key}
-              aria-pressed={mode === key}
-              onClick={() => change("list", key)}
-            >
-              {i ? "表现突出的资产" : "重点关注的异常资产"}
-            </button>
-          ))}
-        </div>
+        <Segmented size="small" aria-label={t("rankingGroup")} value={mode}
+          onChange={value => change("list", value)}
+          options={[
+            { value: "abnormal", label: <span data-op-list-choice="abnormal">{t("abnormalList")}</span> },
+            { value: "leaders", label: <span data-op-list-choice="leaders">{t("leadersList")}</span> },
+          ]} />
       </header>
       <div data-op-list={mode}>
         <p className="al-caption">
@@ -226,9 +219,7 @@ function Rankings({
               );
             })
           ) : (
-            <p className="om-empty">
-              {abnormal ? "当前范围没有达到异常阈值的资产" : "当前范围没有健康正常且有成功记录的资产"}
-            </p>
+            <StateView size="inline" className="om-list-empty" title={emptyMessage()} />
           )}
         </div>
       </div>
@@ -237,6 +228,10 @@ function Rankings({
 }
 
 function MonthPicker({ props }: { props: PrototypeViewProps }) {
+  const { t, i18n } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
+  const monthFormat = new Intl.DateTimeFormat(i18n.resolvedLanguage || i18n.language, {
+    year: "numeric", month: "long", timeZone: "UTC",
+  });
   const current = props.data.catalog_as_of.slice(0, 7);
   const [year, month] = current.split("-").map(Number);
   const months = Array.from(
@@ -249,18 +244,17 @@ function MonthPicker({ props }: { props: PrototypeViewProps }) {
   if (!months.includes(props.period)) months.push(props.period);
   return (
     <label className="al-month-picker">
-      <span>月度数据</span>
+      <span>{t("month")}</span>
       <select
         className="al-select"
         data-month
-        aria-label="选择统计月份"
+        aria-label={t("monthPicker")}
         value={props.period}
         onChange={(e) => props.changePeriod(e.target.value)}
       >
         {months.map((m) => (
           <option key={m} value={m}>
-            {m.slice(0, 4)} 年 {Number(m.slice(5))} 月
-            {m === current ? " · 截至 " + Number(props.data.catalog_as_of.slice(8)) + " 日" : ""}
+            {monthFormat.format(new Date(m + "-01T00:00:00Z"))}
           </option>
         ))}
       </select>
@@ -273,18 +267,6 @@ export default function Monitor(props: PrototypeViewProps) {
   const snap = query.data;
   return (
     <>
-      <div className="al-page-heading op-heading">
-        <div>
-          <h1>数据资产运行监控</h1>
-          <p>监测数字员工执行、知识库检索和工具／MCP 调用。</p>
-        </div>
-        <div className="op-period">
-          <span>
-            {props.period}-01 至 {props.data.cutoff} · 数据截止 {props.data.catalog_as_of}
-          </span>
-          <MonthPicker props={props} />
-        </div>
-      </div>
       {!snap ? (
         query.isError ? (
           <p role="alert" className="al-empty">
@@ -302,17 +284,20 @@ export default function Monitor(props: PrototypeViewProps) {
         <div className="om-dashboard" data-op-view="home/all">
           <div className="om-tools">
             <Filters props={props} scope={scope} change={change} {...snap.filters} />
-            <button
-              className="om-register-link"
-              data-op-drill="all"
-              onClick={() => props.open("monitor:ledger:all", "资产运行台账")}
-            >
-              资产运行台账 ↗
-            </button>
+            <div className="om-tool-actions">
+              <MonthPicker props={props} />
+              <button
+                className="om-register-link"
+                data-op-drill="all"
+                onClick={() => props.open("monitor:ledger:all", "资产运行台账")}
+              >
+                资产运行台账 <Outlined.ArrowRightUp aria-hidden />
+              </button>
+            </div>
           </div>
           <ManagementCards assets={snap.assets} open={props.open} />
           <div className="om-grid">
-            <MonitorTrend snapshot={snap} period={props.period} cutoff={props.data.cutoff} />
+            <MonitorTrend snapshot={snap} period={props.period} cutoff={props.data.cutoff} open={props.open} />
             <HealthRing snapshot={snap} open={props.open} />
             <Rankings props={props} assets={snap.assets} oneType={!!scope.kind} />
             <MonitorFeedback

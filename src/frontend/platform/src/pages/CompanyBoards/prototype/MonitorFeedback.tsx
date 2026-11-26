@@ -1,3 +1,5 @@
+import { useTranslation } from "react-i18next";
+import { Segmented, StateView } from "@bisheng/ui";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { resolveBoardIssue } from "@/controllers/API/boardFeedback";
@@ -48,6 +50,7 @@ export function MonitorFeedback({
   scope: MonitorScope;
   hasEmployees: boolean;
 }) {
+  const { t } = useTranslation("companyBoards", { keyPrefix: "monitorView" });
   const { params, change } = useMonitorFilters();
   const stage: IssueStage = params.get("om-feedbackTab") === "closed" ? "closed" : "pending";
   const q = useIssues(props, scope, stage, 1, 5);
@@ -57,18 +60,13 @@ export function MonitorFeedback({
     <section className="om-panel om-feedback">
       <header>
         <h2>反馈问题管理</h2>
-        <div className="fb-tabs" role="group" aria-label="问题状态">
-          {(["pending", "closed"] as const).map((s) => (
-            <button
-              key={s}
-              data-feedback-tab={stageLabel[s]}
-              aria-pressed={s === stage}
-              onClick={() => change("feedbackTab", s)}
-            >
-              {stageLabel[s]} <strong>{result ? fmt(result[s]) : "—"}</strong>
-            </button>
-          ))}
-        </div>
+        <Segmented aria-label={t("feedbackGroup")} size="small" value={stage}
+          onChange={value => change("feedbackTab", value)}
+          options={(["pending", "closed"] as const).map(value => ({
+            value, label: <span data-feedback-tab={stageLabel[value]}>
+              {t(value)} <strong>{result ? fmt(result[value]) : "—"}</strong>
+            </span>,
+          }))} />
       </header>
       <div className="fb-preview-tools">
         <span>
@@ -108,10 +106,8 @@ export function MonitorFeedback({
             </button>
           ))
         ) : (
-          <DataTable
-            headers={["反馈内容", "数字员工", stage === "pending" ? "提出时间" : "最近处置时间"]}
-            rows={[]}
-            empty={
+          <StateView size="inline" className="om-feedback-empty"
+            title={
               q.isLoading
                 ? "正在读取反馈…"
                 : !result?.details && result?.[stage]

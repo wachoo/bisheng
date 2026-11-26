@@ -162,3 +162,4 @@ dl dd:last-child { margin-bottom: 0px; }
 .demo,.sample-head,.knowledge-summary { background:var(--al-soft); color:var(--al-ink); }
 button:focus-visible,a:focus-visible { outline:2px solid var(--al-blue); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:0s !important; animation-duration:0s !important; } }
+.shell { padding-block-start: clamp(10px, 1.5cqh, 20px); }

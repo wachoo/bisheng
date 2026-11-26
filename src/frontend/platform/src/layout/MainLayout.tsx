@@ -161,6 +161,9 @@ export default function MainLayout() {
                                 alt=""
                             />
                         </div>
+                        {location.pathname.replace(__APP_ENV__.BASE_URL, "").replace(/\/$/, "") === "/leadboard" && (
+                            <div id="leadboard-period-slot" />
+                        )}
                     </div>
                     <div>
                         <HeaderMenu />

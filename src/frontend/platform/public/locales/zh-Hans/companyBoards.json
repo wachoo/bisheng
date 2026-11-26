@@ -1,4 +1,27 @@
 {
+  "monitorView": {
+    "successDefinition": "成功次数 / 已结束运行次数",
+    "noMonitoring": "暂无监测记录",
+    "unknownHealth": "缺少健康判定依据",
+    "assetCount": "按资产计 · {{total}} 项",
+    "noAssets": "当前筛选范围内没有资产",
+    "notRanked": "资产尚未接入监测，暂无可排名数据",
+    "noRuns": "已监测资产本期暂无执行记录",
+    "noAnomalies": "已监测资产中暂无达到异常阈值的资产",
+    "noLeaders": "暂无健康正常且有成功记录的资产",
+    "rankingGroup": "重点资产名单",
+    "abnormalList": "重点关注的异常资产",
+    "leadersList": "表现突出的资产",
+    "feedbackGroup": "问题状态",
+    "pending": "待处理",
+    "closed": "已处理",
+    "month": "月份",
+    "monthPicker": "选择统计月份",
+    "filters": "资产筛选",
+    "noTrend": "尚无运行趋势",
+    "unmonitoredCount": "{{total}} 项资产尚未接入监测。",
+    "viewUnmonitored": "查看未监测资产"
+  },
   "assetContext": {
     "direction": "业务方向",
     "description": "看板业务说明",

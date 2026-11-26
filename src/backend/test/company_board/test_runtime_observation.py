@@ -168,7 +168,7 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         summary = await self.query()
         self.assertEqual((summary["file_outputs"], summary["tool_success"], summary["successful_tasks"]), (2, 2, 2))
 
-    async def test_real_turn_handler_counts_both_outcomes_and_excludes_preview(self):
+    def web_chat_client(self):
         client = object.__new__(ChatClient)
         client.kwargs = {"board_sink": WebAssistantObservation.begin}
         client.client_key, client.client_id, client.chat_id, client.user_id = "test", "asset", "web-session", 7
@@ -191,6 +191,10 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
             return [response]
 
         client.gpts_agent.run = respond
+        return client
+
+    async def test_real_turn_handler_counts_both_outcomes_and_excludes_preview(self):
+        client = self.web_chat_client()
         with patch("bisheng.common.chat.client.save_message_citations", AsyncMock()):
             await client.handle_gpts_message({"inputs": {"input": "success"}})
             await client.handle_gpts_message({"inputs": {"input": "fail"}})
@@ -202,6 +206,26 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         self.assertGreater(summary["active_seconds"], 0)
         self.assertIsNone(summary["timing_coverage"])
         self.assertEqual(summary["usage"], [{"kind": "employee", "asset_id": "assistant:asset", "count": 1}])
+
+    async def test_runtime_insert_failure_preserves_reply_but_drops_that_turn(self):
+        client = self.web_chat_client()
+        async with self.engine.begin() as conn:
+            await conn.exec_driver_sql(
+                "CREATE TRIGGER reject_events BEFORE INSERT ON board_runtime_event "
+                "BEGIN SELECT RAISE(ABORT, 'controlled write failure'); END"
+            )
+        self.enterContext(patch("bisheng.common.chat.client.save_message_citations", AsyncMock()))
+        with patch("bisheng.company_board.domain.services.runtime.logger") as log:
+            await client.handle_gpts_message({"inputs": {"input": "during outage"}})
+            log.exception.assert_called_once()
+        replies = [call.args for call in client.send_response.await_args_list]
+        self.assertIn(("answer", "end", "ok"), replies)
+        self.assertEqual((await self.query())["observed_runs"], 0)
+
+        async with self.engine.begin() as conn:
+            await conn.exec_driver_sql("DROP TRIGGER reject_events")
+        await client.handle_gpts_message({"inputs": {"input": "after recovery"}})
+        self.assertEqual((await self.query())["successful_tasks"], 1)
 
     async def test_actual_skill_and_version_replay(self):
         turn = BoardObservation("one", 7)

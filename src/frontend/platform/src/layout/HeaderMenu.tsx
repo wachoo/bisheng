@@ -65,6 +65,10 @@ export function HeaderMenu() {
         );
     }
 
+    if (location.pathname.replace(__APP_ENV__.BASE_URL, "").replace(/\/$/, "") === "/leadboard") {
+        return <div id="leadboard-header-menu" className="flex h-16 items-center justify-center" />;
+    }
+
     if (location.pathname.replace(__APP_ENV__.BASE_URL, "") === "/approval") {
         return <div id="approval-header-menu" className="flex h-16 items-center justify-center" />;
     }

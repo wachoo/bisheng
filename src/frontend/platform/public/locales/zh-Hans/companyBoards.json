@@ -1,4 +1,12 @@
 {
+  "navigation": {
+    "detail": "数据明细",
+    "leadDetail": "请从领导看板打开该明细。",
+    "unknownDetail": "未找到此明细，请返回上一级。",
+    "pendingFeedback": "反馈待办",
+    "backOne": "返回上一级",
+    "backHome": "返回看板"
+  },
   "registers": {
     "sample": {
       "help": "复制 Excel 中含表头的数据区域，粘贴到此处。每列之间使用制表符，每行是一条记录。",

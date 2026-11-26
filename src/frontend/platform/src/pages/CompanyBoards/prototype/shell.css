@@ -1,7 +1,3 @@
 .company-board-screen{height:100%;width:100%;min-width:0;container:board-content / size;overflow:auto;background:#f7f9fa}
 #ai-leader [hidden]{display:none!important}
-#ai-leader .al-header{position:relative}
-#ai-leader .al-utilities{position:absolute;right:1.2rem;top:50%;transform:translateY(-50%);font:12px/1.5 system-ui;color:#536b78;display:flex;gap:.85rem}
-#ai-leader .al-utilities a:hover{text-decoration:underline}
 #ai-leader .al-month-picker input{max-width:10rem}
-@container board-content (max-width:750px){#ai-leader .al-utilities{position:static;transform:none;margin:auto;justify-content:center}}

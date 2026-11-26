@@ -1,4 +1,12 @@
 {
+  "navigation": {
+    "detail": "データ明細",
+    "leadDetail": "この明細は経営ダッシュボードから開いてください。",
+    "unknownDetail": "明細が見つかりません。一つ前に戻ってください。",
+    "pendingFeedback": "未対応のフィードバック",
+    "backOne": "一つ前に戻る",
+    "backHome": "ダッシュボードに戻る"
+  },
   "registers": {
     "sample": {
       "help": "Excelで見出し付きの範囲をコピーし、ここに貼り付けます。列をタブ、行を改行で区切ります。",

@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { useContext, useLayoutEffect, useRef } from "react";
+import { Segmented } from "@bisheng/ui";
+import { Outlined } from "bisheng-icons";
+import { useContext, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { useTranslation } from "react-i18next";
 import {
-  Link,
   Navigate,
   useLocation,
   useNavigate,
@@ -14,6 +17,7 @@ import {
   type CompanyBoard,
 } from "@/controllers/API/companyBoards";
 import { getBoardRegisters } from "@/controllers/API/companyRegisters";
+import { currentBoardMonth, resolveBoardMonth } from "./boardPeriod";
 import Activity, { ActivityDetail } from "./prototype/Activity";
 import Impact, { ImpactDetail } from "./prototype/Impact";
 import Monitor from "./prototype/Monitor";
@@ -27,24 +31,51 @@ import type {
 import "./prototype/prototype.css";
 import "./prototype/shell.css";
 
-const views = [
-  { view: "strategy", anchor: "strategy", name: "战略进展", board: "lead" },
-  { view: "impact", anchor: "business", name: "业务赋能", board: "lead" },
-  { view: "activity", anchor: "adoption", name: "应用活力", board: "lead" },
-  { view: "monitor", anchor: "operations", name: "运营监控", board: "monitor" },
+const leadViews = [
+  { view: "strategy", anchor: "strategy", icon: Outlined.Dashboard },
+  { view: "impact", anchor: "business", icon: Outlined.BlocksAndArrows },
+  { view: "activity", anchor: "adoption", icon: Outlined.Application },
 ] as const;
+
+interface LeadViewMenuProps {
+  view: string;
+  onChange: (view: string) => void;
+}
+
+function LeadViewMenu({ view, onChange }: LeadViewMenuProps) {
+  const { t } = useTranslation("companyBoards");
+  const [header, setHeader] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    setHeader(document.getElementById("leadboard-header-menu"));
+  }, []);
+  return header && createPortal(
+    <Segmented
+      size="large"
+      className="rounded-full [&>span[aria-hidden]]:rounded-full"
+      aria-label={t("leadTitle")}
+      value={view}
+      onChange={onChange}
+      options={leadViews.map(({ view, icon: Icon }) => ({
+        value: view, label: t(view), icon: <Icon aria-hidden="true" />,
+      }))}
+    />,
+    header,
+  );
+}
+
 type Step = { target: string; title: string };
-function getSteps(params: URLSearchParams): Step[] {
+function getSteps(params: URLSearchParams, defaultTitle: string): Step[] {
   const targets = params.getAll("detail");
   const labels = params.getAll("title");
   return targets
     .filter(Boolean)
-    .map((target, i) => ({ target, title: labels[i] || "数据明细" }));
+    .map((target, i) => ({ target, title: labels[i] || defaultTitle }));
 }
 function Detail(props: PrototypeDetailProps) {
+  const { t } = useTranslation("companyBoards");
   const key = props.target.split(":")[0];
   if(props.board==="monitor" && !["asset","department","topic-operations","monitor","feedback-queue","operations-register","topic-scenes"].includes(key))
-    return <p className="al-empty">请从领导看板打开该明细。</p>;
+    return <p className="al-empty">{t("navigation.leadDetail")}</p>;
   if (key === "asset" || key === "department")
     return <SubjectDetail {...props} />;
   if (key === "strategy") return <StrategyDetail {...props} />;
@@ -82,35 +113,21 @@ function Detail(props: PrototypeDetailProps) {
     ].includes(key)
   )
     return <ActivityDetail {...props} />;
-  return <p className="al-empty">未找到此明细，请返回上一级。</p>;
-}
-function monthNow() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    year: "numeric",
-    month: "2-digit",
-    timeZone: "Asia/Shanghai",
-  }).formatToParts(new Date());
-  return (
-    parts.find((p) => p.type === "year")?.value +
-    "-" +
-    parts.find((p) => p.type === "month")?.value
-  );
+  return <p className="al-empty">{t("navigation.unknownDetail")}</p>;
 }
 export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
+  const { t } = useTranslation("companyBoards");
   const { user } = useContext(userContext);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate(),
     location = useLocation();
-  const today = monthNow(),
-    raw = params.get("period") || today;
-  const period =
-    /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) && raw >= "2000-01" && raw <= today
-      ? raw
-      : today;
+  const today = currentBoardMonth();
+  const period = resolveBoardMonth(params.get("period"), today);
   const [year, month] = period.split("-").map(Number);
   const current =
-    views.find((v) => v.view === params.get("view") && v.board === board) ||
-    views.find((v) => v.board === board)!;
+    board === "monitor"
+      ? { view: "monitor", anchor: "operations" } as const
+      : leadViews.find((v) => v.view === params.get("view")) ?? leadViews[0];
   const identity = [user?.user_id, user?.tenant_id];
   const access = useQuery({
     queryKey: ["company-boards", "access", ...identity],
@@ -127,7 +144,7 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
     queryFn: () => getBoardRegisters(board, year, month),
     enabled: allowed,
   });
-  const steps = getSteps(params),
+  const steps = getSteps(params, t("navigation.detail")),
     active = steps[steps.length - 1];
   const viewport = useRef<HTMLDivElement>(null);
   const positions = useRef(new Map<string, number>());
@@ -197,9 +214,9 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
   }
   const picker = (
     <label className="al-month-picker">
-      <span>统计月份</span>
+      <span>{t("period")}</span>
       <input
-        aria-label="统计月份"
+        aria-label={t("period")}
         className="al-select"
         type="month"
         min="2000-01"
@@ -230,7 +247,7 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
         to={
           "/monitorboard?view=monitor&period=" +
           period +
-          "&detail=monitor:feedback:pending&title=反馈待办"
+          "&detail=monitor:feedback:pending&title=" + encodeURIComponent(t("navigation.pendingFeedback"))
         }
       />
     );
@@ -248,50 +265,25 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
         data-active-screen={current.anchor}
         data-overview={String(!active)}
       >
-        <header className="al-header">
-          <nav aria-label="看板主题">
-            {views
-              .filter((v) => access.data?.[v.board])
-              .map((v) => (
-                <button
-                  type="button"
-                  key={v.view}
-                  className={v.board === "monitor" ? "al-ops-link" : ""}
-                  aria-current={v.view === current.view ? "page" : undefined}
-                  data-anchor={v.anchor}
-                  onClick={() =>
-                    navigate(
-                      (v.board === "lead" ? "/leadboard" : "/monitorboard") +
-                        "?view=" +
-                        v.view +
-                        "&period=" +
-                        period,
-                    )
-                  }
-                >
-                  {v.name}
-                </button>
-              ))}
-          </nav>
-          <div className="al-utilities">
-            {access.data?.manage && (
-              <Link to={"/board-ledger?year=" + year}>填报台账</Link>
-            )}
-          </div>
-        </header>
+        {board === "lead" && allowed && (
+          <LeadViewMenu
+            view={current.view}
+            onChange={(view) => setParams({ view, period })}
+          />
+        )}
         <main className="al-main">
           {failed ? (
             <div role="alert" className="al-empty">
-              看板数据读取失败。{" "}
+              {t("loadFailed")}{" "}
               <button className="al-link" onClick={() => void failed.refetch()}>
-                重试
+                {t("retry")}
               </button>
             </div>
           ) : !props ? (
             <p role="status" className="al-empty">
               {access.data && !allowed
-                ? "当前账号无此看板权限。"
-                : "正在读取看板…"}
+                ? t("denied")
+                : t("loading")}
             </p>
           ) : (
             <>
@@ -303,7 +295,7 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
                 {(current.view === "impact" || current.view === "activity") && (
                   <div className="al-page-heading">
                     <div>
-                      <h1>{current.name}</h1>
+                      <h1>{t(current.view)}</h1>
                     </div>
                     <div className="al-page-meta">{picker}</div>
                   </div>
@@ -327,12 +319,12 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
                       data-back
                       onClick={back}
                     >
-                      ← 返回{i ? "上一级" : "看板"}
+                      ← {t(i ? "navigation.backOne" : "navigation.backHome")}
                     </button>
                     <div className="al-detail-title">
                       <div>
                         <div className="al-eyebrow">
-                          INTELLIGENT HUB / 数据明细
+                          INTELLIGENT HUB / {t("navigation.detail")}
                         </div>
                         <h1>{s.title}</h1>
                       </div>

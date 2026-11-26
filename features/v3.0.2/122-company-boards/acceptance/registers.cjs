@@ -1,5 +1,7 @@
 // The browser uses the local product UI. All board writes go to register_fixture's disposable SQLite database.
 const assert=require("node:assert/strict");
+const path=require("node:path");
+const screenshots=path.join(__dirname,"../screenshots/parity");
 const {chromium}=require(require.resolve("playwright",{paths:[process.cwd()]}));
 const origin="http://127.0.0.1:3001", fixture="http://127.0.0.1:17862";
 const names={};
@@ -7,7 +9,7 @@ const day="2026-05-01";
 (async()=>{
   const browser=await chromium.launch({channel:"chrome"});
   try{
-    const context=await browser.newContext({storageState:process.env.BOARD_SESSION,serviceWorkers:"block"});
+    const context=await browser.newContext({viewport:{width:1707,height:898},storageState:process.env.BOARD_SESSION,serviceWorkers:"block"});
     const page=await context.newPage();page.setDefaultTimeout(7000);
     await context.route("**/api/v1/company-boards/**",async route=>{
       const req=route.request(),u=new URL(req.url());
@@ -78,6 +80,7 @@ const day="2026-05-01";
     await page.getByRole("dialog").waitFor({state:"hidden"});
     await page.goto(origin+"/leadboard?period=2026-05&detail=strategy:receivables&title=合同收款");
     await amount.first().waitFor();assert.deepEqual((await amount.allTextContents()).map(Number),[5,2.1,2.9]);
+    await page.screenshot({path:path.join(screenshots,"receivables-sample.png")});
     await page.goto(origin+"/leadboard?period=2026-05&detail=strategy:forecast&title=预估年度AI产值");
     await page.getByText(names.scene,{exact:false}).last().waitFor();
     await page.goto(origin+"/leadboard?period=2026-05");
@@ -85,6 +88,7 @@ const day="2026-05-01";
     await sample.locator("thead th").first().waitFor();
     assert.deepEqual(await sample.locator("thead th").allTextContents(), ["供应商","含税总价","交货周期"]);
     assert.equal(await sample.locator("tbody tr").count(), 2);
+    await page.screenshot({path:path.join(screenshots,"strategy-registered-sample.png")});
     await page.getByRole("button",{name:/体验比价/}).click();
     await page.getByText("采购文件",{exact:true}).last().waitFor();
     await page.goto(origin+"/leadboard?period=2026-05&detail=strategy:candidates&title=场景价值榜");

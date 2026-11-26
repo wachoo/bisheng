@@ -1,4 +1,12 @@
 {
+  "navigation": {
+    "detail": "Details",
+    "leadDetail": "Open these details from the leadership dashboard.",
+    "unknownDetail": "These details could not be found. Go back one level.",
+    "pendingFeedback": "Pending feedback",
+    "backOne": "Back one level",
+    "backHome": "Back to dashboard"
+  },
   "registers": {
     "sample": {
       "help": "Paste an Excel range including its header row. Separate columns with tabs and records with new lines.",

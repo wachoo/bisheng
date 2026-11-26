@@ -24,6 +24,7 @@ import { userContext } from "../contexts/userContext";
 import { logoutApi } from "../controllers/API/user";
 import { User } from "../types/api/user";
 import { getBrandAssetUrl } from "../utils/brand";
+import { resolveBoardMonth } from "@/pages/CompanyBoards/boardPeriod";
 import { HeaderMenu } from "./HeaderMenu";
 import { LicenseBanner } from "./LicenseBanner";
 
@@ -116,6 +117,10 @@ export default function MainLayout() {
     // NavLink matches on pathname only, so every link falling back to
     // /menu-pending?menu=<key> would light up together; disambiguate by `menu`.
     const location = useLocation();
+    const boardPeriod = /^\/(?:leadboard|monitorboard)\/?$/.test(location.pathname)
+        ? new URLSearchParams(location.search).get("period")
+        : null;
+    const ledgerPath = boardPeriod ? "/board-ledger?year=" + resolveBoardMonth(boardPeriod).slice(0, 4) : "/board-ledger";
     const isPrimaryPage = PRIMARY_PAGE_PATHS.has(location.pathname.replace(/\/$/, "")) || /^\/board-ledger(?:\/|$)/.test(location.pathname);
     const pendingNavClass =
         (menuKey: string) =>
@@ -264,7 +269,7 @@ export default function MainLayout() {
                             )}
                             {(isSuperAdmin || (user.web_menu?.includes("company_monitorboard") && user.web_menu?.includes("company_board_ledger"))) &&
                                 window.APP_CONFIG?.companyBoardMenus?.monitorboard !== false && (
-                                <NavLink to="/board-ledger" className={pendingNavClass("company_board_ledger")}>
+                                <NavLink to={ledgerPath} className={pendingNavClass("company_board_ledger")}>
                                     <Outlined.Edit className="h-4 w-4 my-4 mr-2 shrink-0" />
                                     <span className="ml-[14px] text-[14px] leading-[48px] whitespace-nowrap">
                                         {t("menu.companyBoardLedger")}

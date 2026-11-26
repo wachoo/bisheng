@@ -44,7 +44,7 @@ export default function MessageButtons({ id, text, onCopy, data, children = null
         return pending
     }
 
-    const handleCopy = () => {
+    const handleCopy = (e) => {
         setCopied(true)
         onCopy()
         setTimeout(() => {
@@ -54,7 +54,9 @@ export default function MessageButtons({ id, text, onCopy, data, children = null
         copyTrackingApi(id)
     }
 
-    return <>
+    return <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        {children}
+        <TextToSpeechButton messageId={String(id)} text={text} />
         <button
             type="button"
             className={ACTION_BTN}
@@ -71,7 +73,5 @@ export default function MessageButtons({ id, text, onCopy, data, children = null
             onLike={handleLike}
             onDislikeComment={(comment) => disLikeCommentApi(id, comment)}
         />
-        {children}
-        <TextToSpeechButton messageId={String(id)} text={text} />
-    </>
+    </div>
 };

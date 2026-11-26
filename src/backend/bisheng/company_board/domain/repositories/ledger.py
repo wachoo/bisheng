@@ -40,7 +40,7 @@ async def list_ledger(tenant_id: int, year: int, as_of: date | None = None) -> l
         return [public_row(row) for row in (await session.exec(query)).all()]
 
 
-async def release_departments(tenant_id: int, cutoff: date) -> dict[str, int]:
+async def release_info(tenant_id: int, cutoff: date) -> dict:
     """The first-release attribution survives a change of reporting year or viewer role."""
     latest = (
         select(BoardLedger.id, func.max(BoardLedger.revision).label("version"))
@@ -49,13 +49,16 @@ async def release_departments(tenant_id: int, cutoff: date) -> dict[str, int]:
         .subquery()
     )
     query = (
-        select(BoardLedger.asset_key, BoardLedger.department_id)
+        select(BoardLedger.asset_key, BoardLedger.department_id, BoardLedger.effective_date)
         .join(latest, and_(BoardLedger.id == latest.c.id, BoardLedger.revision == latest.c.version))
-        .where(BoardLedger.tenant_id == tenant_id, BoardLedger.effective_date <= cutoff,
-               BoardLedger.department_id.is_not(None))
+        .where(BoardLedger.tenant_id == tenant_id, BoardLedger.effective_date <= cutoff)
     )
     async with get_async_db_session() as session:
-        return dict((await session.exec(query)).all())
+        return {asset: (department, day) for asset, department, day in (await session.exec(query)).all()}
+
+
+async def release_departments(tenant_id: int, cutoff: date) -> dict[str, int]:
+    return {asset: dept for asset, (dept, _) in (await release_info(tenant_id, cutoff)).items() if dept is not None}
 
 
 def new_id(tenant_id: int, data: LedgerInput) -> str:

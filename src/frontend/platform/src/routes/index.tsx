@@ -45,6 +45,7 @@ const SystemPage = lazy(() => import("@/pages/SystemPage"));
 const ApprovalPage = lazy(() => import("@/pages/ApprovalPage"));
 const ResoucePage = lazy(() => import("@/pages/resoucePage"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const RegisterCenter = lazy(() => import("@/pages/CompanyBoards/RegisterCenter"));
 const CompanyBoardPage = lazy(() => import("@/pages/CompanyBoards/CompanyBoardPage").then(module => ({ default: module.CompanyBoardPage })));
 const TenantPage = lazy(() => import("@/pages/TenantPage"));
 const TenantSelect = lazy(() => import("@/pages/LoginPage/TenantSelect"));
@@ -137,9 +138,10 @@ const privateRouter = [
       { path: "label", element: <LabelPage />, permission: 'mark_task' },
       { path: "label/:id", element: <TaskApps />, permission: 'mark_task' },
       { path: "label/chat/:id/:fid/:cid/:type", element: <TaskAppChats />, permission: 'mark_task' },
+      { path: "board-ledger/:kind?", element: <RegisterCenter />, errorElement: <RouteErrorBoundary />, permission: "company_board_ledger" },
+      { path: "leadboard", element: <CompanyBoardPage board="lead" />, errorElement: <RouteErrorBoundary />, permission: "company_leadboard" },
+      { path: "monitorboard", element: <CompanyBoardPage board="monitor" />, errorElement: <RouteErrorBoundary />, permission: "company_monitorboard" },
       { path: "dashboard", element: <Dashboard />, permission: 'board' },
-      { path: "leadboard", element: <CompanyBoardPage board="lead" />, permission: 'company_leadboard' },
-      { path: "monitorboard", element: <CompanyBoardPage board="monitor" />, permission: 'company_monitorboard' },
       { path: "tenant", element: <TenantPage />, permission: 'sys' },
       { path: "department", element: <Navigate to="/sys" replace /> },
       { path: "menu-pending", element: <MenuPermissionPlaceholder /> },

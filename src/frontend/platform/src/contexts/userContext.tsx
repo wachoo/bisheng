@@ -175,7 +175,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
             const requestedPath = location.pathname.replace(BASE_URL, '').replace(/\/+$/, '')
             // Board-only accounts can use their assigned route independently of the admin console.
             if ((requestedPath === '/leadboard' && web_menu.includes('company_leadboard')) ||
-                (requestedPath === '/monitorboard' && web_menu.includes('company_monitorboard'))) return
+                (requestedPath === '/monitorboard' && web_menu.includes('company_monitorboard')) ||
+                (/^\/board-ledger(?:\/|$)/.test(requestedPath) && web_menu.includes('company_monitorboard') && web_menu.includes('company_board_ledger'))) return
 
             // v2.5 角色菜单使用 admin 作为管理端父级；旧数据可能仍为 backend（WebMenuResource 遗留）
             const adminMenuKeys = new Set([

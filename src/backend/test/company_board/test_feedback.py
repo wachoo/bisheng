@@ -73,6 +73,38 @@ class FeedbackTest(unittest.IsolatedAsyncioTestCase):
         current_tenant_id.set(2)
         self.assertEqual((await feedback.feedback_snapshot(2, start, cutoff, True, 0, 10))["rows"][0]["run_id"], "2")
 
+    async def test_search_uses_authenticated_comment_as_of_cutoff(self):
+        async with self.session() as db:
+            for day, comment in [(3, "December mismatch"), (4, "January mismatch revised")]:
+                db.add(
+                    BoardRating(
+                        tenant_id=1,
+                        user_id=8,
+                        message_id=10,
+                        rating=2,
+                        comment=comment,
+                        rated_at=datetime(2026, 1, day),
+                    )
+                )
+            db.add(
+                BoardRating(
+                    tenant_id=1, user_id=9, message_id=10, rating=2, comment="forged", rated_at=datetime(2026, 1, 2)
+                )
+            )
+            await db.commit()
+        start = datetime(2026, 1, 1)
+
+        async def snapshot(cutoff, search):
+            return await feedback.feedback_snapshot(
+                1, start, cutoff, True, 0, 5, employees={"asset": "Worker"}, search=search
+            )
+
+        historic = await snapshot(datetime(2026, 1, 4), "December")
+        self.assertEqual(historic["rows"][0]["comment"], "December mismatch")
+        self.assertEqual((await snapshot(datetime(2026, 2, 1), "December"))["rows"], [])
+        self.assertEqual((await snapshot(datetime(2026, 2, 1), "January"))["total"], 1)
+        self.assertEqual((await snapshot(datetime(2026, 2, 1), "forged"))["total"], 0)
+
     async def test_satisfaction_keeps_unrated_tasks_in_denominator(self):
         register_tenant_filter_events()
         token = current_tenant_id.set(1)

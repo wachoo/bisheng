@@ -21,6 +21,6 @@ def copied_message(message_id: int = Body(embed=True)):
 
 
 @router.post('/chat/comment', status_code=200)
-def comment_resp(*, data: ChatInput):
-    ChatMessageService.comment_on_answer(data.message_id, data.comment)
+def comment_resp(*, data: ChatInput, user: UserPayload = Depends(UserPayload.get_login_user)):
+    ChatMessageService.comment_on_answer(data.message_id, data.comment, user)
     return resp_200()

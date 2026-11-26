@@ -1,0 +1,134 @@
+.br-center .cb-frame {
+  max-width: 1640px;
+}
+.br-links,
+.br-pager {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.br-links a,
+.br-work a {
+  color: rgb(var(--primary-6));
+  text-decoration: none;
+}
+.br-links a:hover,
+.br-work a:hover {
+  text-decoration: underline;
+}
+.br-layout {
+  display: grid;
+  grid-template-columns: 215px minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.br-nav {
+  display: grid;
+  gap: 16px;
+  padding: 17px 12px;
+}
+.br-nav nav {
+  display: grid;
+  gap: 2px;
+}
+.br-nav h2 {
+  padding: 0 10px 5px;
+  font-size: 12px;
+  font-weight: 650;
+  color: rgb(var(--text-2));
+}
+.br-nav a {
+  padding: 6px 10px;
+  line-height: 1.45;
+  font-size: 14px;
+  border-radius: 6px;
+}
+.br-current,
+.br-nav a:hover {
+  background: rgb(var(--fill-2));
+  font-weight: 600;
+}
+.br-work {
+  min-width: 0;
+  display: grid;
+  gap: 14px;
+}
+.br-usage b,
+.br-card strong {
+  font-size: 15px;
+  font-weight: 600;
+}
+.br-usage p,
+.br-card p {
+  font-size: 13px;
+  line-height: 1.55;
+  color: rgb(var(--text-2));
+}
+.br-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+.br-work .br-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px;
+  padding: 14px;
+  border: 1px solid rgb(var(--border-base));
+  border-radius: 8px;
+  color: inherit;
+}
+.br-card p {
+  grid-column: 1/-1;
+}
+.br-card span {
+  font-size: 12px;
+  line-height: 1.7;
+  color: rgb(var(--text-2));
+}
+.br-work .br-value {
+  max-width: 24rem;
+  min-width: 6rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.br-success {
+  color: rgb(var(--text-1));
+  padding: 8px 12px;
+  border-left: 3px solid #238575;
+  background: rgb(var(--background-main-content));
+}
+.br-pager {
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.br-center .cb-period select {
+  padding: 5px 8px;
+  border: 1px solid rgb(var(--border-base));
+  border-radius: 6px;
+  background: var(--background-main-content);
+}
+@media (max-width: 780px) {
+  .br-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .br-nav {
+    display: flex;
+    max-height: 180px;
+    overflow: auto;
+    gap: 12px;
+  }
+  .br-nav nav {
+    flex: 0 0 auto;
+  }
+  .br-nav > a {
+    align-self: flex-start;
+    white-space: nowrap;
+  }
+  .br-cards {
+    grid-template-columns: 1fr;
+  }
+  .br-work .cb-inline {
+    flex-wrap: wrap;
+  }
+}

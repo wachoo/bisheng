@@ -6,9 +6,17 @@ from bisheng.company_board.domain.schemas.ledger import BoardKind, LedgerEdit, L
 from bisheng.company_board.domain.services.boards import board_access, ledger_for, overview, record_entry
 
 from .feedback import router as feedback_router
+from .monitoring import router as monitoring_router
+from .subjects import router as subjects_router
+from .supplement import router as supplement_router
+from .trends import router as trends_router
 
 router = APIRouter(prefix="/company-boards", tags=["Company boards"])
 router.include_router(feedback_router)
+router.include_router(monitoring_router)
+router.include_router(subjects_router)
+router.include_router(supplement_router)
+router.include_router(trends_router)
 
 
 @router.get("/access")

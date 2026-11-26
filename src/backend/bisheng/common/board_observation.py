@@ -54,6 +54,10 @@ class BoardObservation(BaseCallbackHandler):
         self.call_ids = {}
         self.facts = {}
         self.output_links = {}
+        self.categories = {}
+        self.tokens = {}
+        self.started_at = None
+        self.input_message_id = None
         self.version_members = set()
         self.document_task = False
         self.started = False
@@ -65,6 +69,7 @@ class BoardObservation(BaseCallbackHandler):
             self.active += now - self.since
 
     def start(self):
+        self.started_at = datetime.now(UTC).replace(tzinfo=None)
         self.started = True
         self.since = self.clock()
 
@@ -111,6 +116,26 @@ class BoardObservation(BaseCallbackHandler):
 
     def on_llm_end(self, response, *, run_id, **kwargs):
         self._transition(self.models, run_id, False)
+        metadata = (getattr(response, "llm_output", None) or {}).get("token_usage") or {}
+        input_count = metadata.get("prompt_tokens")
+        output_count = metadata.get("completion_tokens")
+        if input_count is None or output_count is None:
+            batches = getattr(response, "generations", []) or []
+            receipts = [
+                getattr(getattr(batch[0], "message", None), "usage_metadata", None) for batch in batches if batch
+            ]
+            if receipts and all(
+                isinstance(r, dict)
+                and isinstance(r.get("input_tokens"), int)
+                and isinstance(r.get("output_tokens"), int)
+                for r in receipts
+            ):
+                input_count = sum(r["input_tokens"] for r in receipts)
+                output_count = sum(r["output_tokens"] for r in receipts)
+        if all(type(n) is int and n >= 0 for n in (input_count, output_count)):
+            with self.lock:
+                self.tokens[str(run_id)] = (input_count, output_count)
+                self.record("model", self.asset_id, "metered", run_id)
 
     def on_llm_error(self, error, *, run_id, **kwargs):
         self._transition(self.models, run_id, False)
@@ -136,6 +161,16 @@ class BoardObservation(BaseCallbackHandler):
                 if path:
                     key = sha256(path.encode()).hexdigest()
                     self.output_links[link] = key
+                    suffix = PurePosixPath(path).suffix.lower()
+                    if suffix in {".png", ".jpeg", ".jpg", ".svg", ".webp", ".gif"}:
+                        category = "image"
+                    elif suffix in {".htm", ".html"}:
+                        category = "page"
+                    elif suffix in DOCUMENT_OUTPUT_SUFFIXES or suffix in {".md", ".txt"}:
+                        category = "document"
+                    else:
+                        category = "other"
+                    self.categories[key] = category
                     if self.document_task and PurePosixPath(path).suffix.lower() in DOCUMENT_OUTPUT_SUFFIXES:
                         self.record("file", self.asset_id, "success", key)
 
@@ -149,6 +184,9 @@ class BoardObservation(BaseCallbackHandler):
         if project.strip():
             # The caller supplies the stable project identifier. The repository scopes it to the tenant.
             project_version = sha256(repr((project.strip(), version.strip())).encode()).hexdigest()
+            self.categories[project_version] = (
+                "page" if any(self.categories.get(k) == "page" for k in keys) else "other"
+            )
             self.record("version", self.asset_id, "success", project_version)
             for key in keys:
                 self.version_members.add(key)

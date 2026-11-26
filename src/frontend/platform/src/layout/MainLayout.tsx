@@ -116,7 +116,7 @@ export default function MainLayout() {
     // NavLink matches on pathname only, so every link falling back to
     // /menu-pending?menu=<key> would light up together; disambiguate by `menu`.
     const location = useLocation();
-    const isPrimaryPage = PRIMARY_PAGE_PATHS.has(location.pathname.replace(/\/$/, ""));
+    const isPrimaryPage = PRIMARY_PAGE_PATHS.has(location.pathname.replace(/\/$/, "")) || /^\/board-ledger(?:\/|$)/.test(location.pathname);
     const pendingNavClass =
         (menuKey: string) =>
         ({ isActive }: { isActive: boolean }) => {
@@ -261,6 +261,15 @@ export default function MainLayout() {
                                         </span>
                                     </NavLink>
                                 </>
+                            )}
+                            {(isSuperAdmin || (user.web_menu?.includes("company_monitorboard") && user.web_menu?.includes("company_board_ledger"))) &&
+                                window.APP_CONFIG?.companyBoardMenus?.monitorboard !== false && (
+                                <NavLink to="/board-ledger" className={pendingNavClass("company_board_ledger")}>
+                                    <Outlined.Edit className="h-4 w-4 my-4 mr-2 shrink-0" />
+                                    <span className="ml-[14px] text-[14px] leading-[48px] whitespace-nowrap">
+                                        {t("menu.companyBoardLedger")}
+                                    </span>
+                                </NavLink>
                             )}
                             {(showAdminNav("build") || canManageWorkbenchConfig) && (
                                 <NavLink

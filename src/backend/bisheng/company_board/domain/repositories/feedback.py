@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, case, func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
@@ -20,7 +20,12 @@ def issue_rows(tenant_id, cutoff):
     # Only a negative rating by the owner of the final message creates an issue.
     # Subsequent feedback is retained independently of the issue's resolution.
     return (
-        select(Run.run_id, Run.asset_id, func.min(BoardRating.rated_at).label("opened_at"))
+        select(
+            Run.run_id,
+            Run.asset_id,
+            func.min(BoardRating.rated_at).label("opened_at"),
+            func.max(case((BoardRating.comment.is_not(None), BoardRating.id))).label("comment_id"),
+        )
         .select_from(Run)
         .join(
             BoardRating,
@@ -42,7 +47,9 @@ def issue_rows(tenant_id, cutoff):
     )
 
 
-async def feedback_snapshot(tenant_id, start, cutoff, details, offset, limit):
+async def feedback_snapshot(
+    tenant_id, start, cutoff, details, offset, limit, *, employees=None, stage=None, search="", run_id=""
+):
     issues = issue_rows(tenant_id, cutoff).subquery()
     resolution = BoardIssueResolution.__table__.c
     match = and_(
@@ -54,6 +61,25 @@ async def feedback_snapshot(tenant_id, start, cutoff, details, offset, limit):
         .outerjoin(BoardIssueResolution.__table__, match)
         .where(issues.c.opened_at >= start)
     )
+    comment_rating = BoardRating.__table__.alias("issue_comment")
+    if details:
+        listing = listing.outerjoin(
+            comment_rating, and_(comment_rating.c.tenant_id == tenant_id, comment_rating.c.id == issues.c.comment_id)
+        ).add_columns(comment_rating.c.comment)
+    if employees is not None:
+        listing = listing.where(issues.c.asset_id.in_(list(employees)))
+    if run_id:
+        listing = listing.where(issues.c.run_id == run_id)
+    if search:
+        matched = [key for key, name in (employees or {}).items() if search.casefold() in name.casefold()]
+        listing = listing.where(
+            or_(
+                issues.c.run_id.contains(search, autoescape=True),
+                resolution.measure.contains(search, autoescape=True),
+                comment_rating.c.comment.contains(search, autoescape=True) if details else False,
+                issues.c.asset_id.in_(matched),
+            )
+        )
     summary = listing.subquery()
     async with get_async_db_session() as session:
         total, closed = (
@@ -61,6 +87,10 @@ async def feedback_snapshot(tenant_id, start, cutoff, details, offset, limit):
         ).one()
         rows = []
         if details:
+            if stage == "pending":
+                listing = listing.where(resolution.resolved_at.is_(None))
+            elif stage == "closed":
+                listing = listing.where(resolution.resolved_at.is_not(None))
             ordered = (
                 listing.order_by(
                     case((resolution.resolved_at.is_(None), 0), else_=1),

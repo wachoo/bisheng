@@ -2,7 +2,6 @@ from typing import Optional
 
 from loguru import logger
 
-from bisheng.api.services.chat_imp import comment_answer
 from bisheng.api.v1.schemas import AddChatMessages, ChatInput
 from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.common.errcode.http_error import NotFoundError, ServerError, UnAuthorizedError
@@ -167,6 +166,7 @@ class ChatMessageService:
     @staticmethod
     def like_response(data: ChatInput, user: UserPayload) -> None:
         from fastapi import HTTPException
+
         from bisheng.chat_session.domain.repositories.web_rating import save_web_rating
 
         if data.liked not in {choice.value for choice in LikedType}:
@@ -184,6 +184,7 @@ class ChatMessageService:
             MessageSessionDao.add_copied_count(message.chat_id, 1)
 
     @staticmethod
-    def comment_on_answer(message_id: int, comment: str) -> None:
-        """Add a comment to a message answer."""
-        comment_answer(message_id, comment)
+    def comment_on_answer(message_id: int, comment: str, user: UserPayload) -> None:
+        from bisheng.chat_session.domain.repositories.web_rating import save_web_comment
+
+        save_web_comment(_resolve_leaf_tenant_id(user), user.user_id, message_id, comment)

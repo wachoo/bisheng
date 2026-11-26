@@ -7,7 +7,7 @@ from bisheng.common.errcode.company_board import BoardLedgerInvalidError
 from bisheng.common.errcode.http_error import UnAuthorizedError
 from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.feedback import satisfaction
-from bisheng.company_board.domain.repositories.ledger import list_ledger, release_departments, save_ledger
+from bisheng.company_board.domain.repositories.ledger import list_ledger, release_info, save_ledger
 from bisheng.company_board.domain.schemas.ledger import BoardKind, LedgerInput
 from bisheng.core.context.tenant import get_current_tenant_id, strict_tenant_filter
 from bisheng.database.models.role_access import WebMenuResource
@@ -77,6 +77,7 @@ def strategic_totals(rows: list[dict], year: int, cutoff: date) -> dict:
 
 async def overview(user: UserPayload, board: BoardKind, year: int, month: int | None) -> dict:
     from bisheng.company_board.domain.services.runtime import read_runtime
+    from bisheng.company_board.domain.services.scene_usage import read_scenes
 
     access = await require_access(user, board)
     tenant_id = tenant_for(user)
@@ -86,9 +87,9 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
     cutoff = (end - timedelta(microseconds=1)).date()
     departments, assets = await load_catalog(tenant_id)
     rows = await list_ledger(tenant_id, year, cutoff) if board == "lead" or access["manage"] else []
-    first_publishers = await release_departments(tenant_id, cutoff)
+    first_publishers = await release_info(tenant_id, cutoff)
     for asset in assets:
-        asset["department_id"] = first_publishers.get(asset["id"])
+        asset["department_id"], asset["published_at"] = first_publishers.get(asset["id"], (None, None))
     runtime = await read_runtime(tenant_id, start, end)
     # No prompts, file contents or private feedback are returned to the company aggregate.
     visible_assets = {a["id"] for a in assets}
@@ -98,6 +99,7 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
         runtime["recent_runs"] = []
     return {
         "year": year,
+        "scene_usage": await read_scenes(tenant_id, start, end, monthly_only=board == "monitor"),
         "month": month,
         "cutoff": cutoff,
         "catalog_as_of": now.date(),
@@ -106,7 +108,9 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
         "ledger": rows,
         "strategy": strategic_totals(rows, year, cutoff) if board == "lead" else None,
         "runtime": runtime,
-        "satisfaction": await satisfaction(tenant_id, start - timedelta(hours=8), end - timedelta(hours=8)) if board == "lead" else None,
+        "satisfaction": await satisfaction(tenant_id, start - timedelta(hours=8), end - timedelta(hours=8))
+        if board == "lead"
+        else None,
     }
 
 

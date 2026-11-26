@@ -38,6 +38,8 @@ async def save_observation(observation, outcome, message_id):
             asset_id=observation.asset_id,
             status=outcome,
             terminal_message_id=message_id,
+            input_message_id=observation.input_message_id,
+            started_at=observation.started_at,
             active_seconds=seconds,
             occurred_at=datetime.now(UTC).replace(tzinfo=None),
             **common,
@@ -61,6 +63,9 @@ async def save_observation(observation, outcome, message_id):
                 member_version_id=sha256(f"{tenant}:version:{asset_id}".encode()).hexdigest()
                 if kind == "version_member"
                 else None,
+                input_tokens=observation.tokens[operation][0] if kind == "model" else None,
+                output_tokens=observation.tokens[operation][1] if kind == "model" else None,
+                output_category=observation.categories.get(operation) if kind in {"file", "version"} else None,
                 kind=kind,
                 asset_id=asset_id,
                 status=status,

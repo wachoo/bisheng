@@ -26,3 +26,8 @@ class BoardRuntimeEvent(SQLModel, table=True):
     terminal_message_id: int | None = Field(default=None, index=True)
     member_file_id: str | None = Field(default=None, max_length=64)
     member_version_id: str | None = Field(default=None, max_length=64)
+    started_at: datetime | None = None
+    input_message_id: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    output_category: str | None = Field(default=None, max_length=16)

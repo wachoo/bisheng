@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Index
+from sqlalchemy import Column, Index, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -15,6 +15,7 @@ class BoardRating(SQLModel, table=True):
     message_id: int
     user_id: int
     rating: int
+    comment: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     rated_at: datetime
 
 

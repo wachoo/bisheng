@@ -5,7 +5,7 @@ export type AssetKind = "employee" | "knowledge" | "skill" | "tool";
 export type LedgerKind = "goal" | "topic" | "scene" | "release" | "collection";
 export type GoalIndicator = "employee" | "scene" | "knowledge";
 export type BoardAccess = { lead: boolean; monitor: boolean; manage: boolean; resolve: boolean };
-export type BoardAsset = { id: string; name: string; kind: AssetKind; department_id: number | null };
+export type BoardAsset = { id: string; name: string; kind: AssetKind; department_id: number | null; published_at?: string | null };
 export type BoardDepartment = { id: number; name: string };
 export type LedgerInput = {
   kind: LedgerKind;
@@ -32,7 +32,13 @@ export type RuntimeMetrics = {
   detail_access: boolean;
   observed_timing_coverage: number | null;
 };
+export type SceneUsage = {
+  id:string; name:string; topic:string; topic_name?:string; asset_ids?:string[]; department_id:number|null; launched:string|null;
+  year:number; last90:number; month:number; positive_rate:number|null; month_positive_rate:number|null;
+  month_hours:number|null;month_linked:number;month_negative:number;last_used:string|null;
+};
 export type BoardOverview = {
+  scene_usage?: SceneUsage[];
   year: number; month: number | null; cutoff: string; catalog_as_of: string; assets: BoardAsset[]; departments: BoardDepartment[];
   ledger: LedgerRow[]; runtime: RuntimeMetrics;
   strategy: { employee_built: number; scene_launched: number; knowledge_verified: number; employee_target: number | null; scene_target: number | null; knowledge_target: number | null; knowledge_planned: number };

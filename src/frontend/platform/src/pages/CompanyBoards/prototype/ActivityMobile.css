@@ -1,0 +1,19 @@
+@media (max-width: 750px) {
+  .company-board-screen #ai-leader .al-chart .al-x-axis {
+    min-width: 0;
+  }
+  .company-board-screen #ai-leader .al-chart .al-x-axis > span {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+  }
+  .company-board-screen #ai-leader #al-adoption .al-stat-value {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    column-gap: 4px;
+  }
+  .company-board-screen #ai-leader #al-adoption .al-stat-value small {
+    margin-left: 0;
+  }
+}

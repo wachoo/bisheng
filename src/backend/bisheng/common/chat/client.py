@@ -398,7 +398,9 @@ class ChatClient:
 
             # Write user issue to database
             question_saved = True
-            await self.add_message("human", json.dumps(inputs, ensure_ascii=False), "question")
+            question = await self.add_message("human", json.dumps(inputs, ensure_ascii=False), "question")
+            if observation and isinstance(getattr(question, "id", None), int):
+                observation.input_message_id = question.id
             await self.send_response("processing", "begin", "")
 
             # Get callback history

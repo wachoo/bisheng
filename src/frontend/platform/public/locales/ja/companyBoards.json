@@ -23,6 +23,7 @@
     "viewUnmonitored": "未監視の資産を表示"
   },
   "assetContext": {
+    "associationsTitle": "ダッシュボードとの関連付け（任意）",
     "direction": "業務分野",
     "description": "ダッシュボード用の説明",
     "useAssetDescription": "空欄の場合は資産の説明を使用",

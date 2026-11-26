@@ -23,6 +23,7 @@
     "viewUnmonitored": "查看未监测资产"
   },
   "assetContext": {
+    "associationsTitle": "看板归属（选填）",
     "direction": "业务方向",
     "description": "看板业务说明",
     "useAssetDescription": "留空时使用资产简介",

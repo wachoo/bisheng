@@ -170,6 +170,8 @@ dl dd:last-child { margin-bottom: 0px; }
   font-weight: 600;
   line-height: 1.15;
 }
+.knowledge-empty { margin: 12px 0 0; font-size: 12px; color: var(--al-muted); }
+.knowledge-details:empty { display: none; }
 .knowledge-details { display: grid; gap: 7px; margin: 12px 0 0; }
 .knowledge-row, .knowledge-row dd {
   display: grid;

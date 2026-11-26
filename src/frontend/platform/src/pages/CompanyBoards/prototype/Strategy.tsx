@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { CaseOutput } from "../CaseOutput";
 import { kinds, knowledgeCategories, strategyRows, strategyTopicAssets } from "./StrategyModel";
@@ -63,6 +64,7 @@ function Card({
   );
 }
 export default function Strategy({ data, period, open, registers, board }: PrototypeViewProps) {
+  const { t } = useTranslation("boardPlans");
   const frame = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<ShadowRoot | null>(null);
   useLayoutEffect(() => {
@@ -90,7 +92,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   const categories = knowledgeCategories(registers, data.cutoff);
   const byArea = (area: string) => collections.filter((r) => (categories.get(r.id) || "未归类") === area);
   const groupLabels = Array.from(
-    new Set(["采购", "财务", "法务", ...collections.map((r) => categories.get(r.id) || "未归类")]),
+    new Set(collections.map((r) => categories.get(r.id) || "未归类")),
   );
   const caseRow = registers
     .filter((r) => r.kind === "case" && r.parent_id === topic?.id && r.date <= data.cutoff)
@@ -170,6 +172,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                             <b>{stats.knowledge_verified}</b> / {stats.knowledge_planned} 个
                           </span>
                         </Hit>
+                        {!collections.length && <p className="knowledge-empty">{t("emptyCollections")}</p>}
                         <dl className="knowledge-details">
                           {groupLabels.map((area) => (
                             <div className="knowledge-row" key={area}>

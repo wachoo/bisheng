@@ -221,7 +221,7 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
                         )}
                     </div>
                 </div>
-                <AssetContextFields ref={assetContext} assetKey={mode === "edit" && currentLib ? "knowledge:" + currentLib.id : undefined} />
+                <AssetContextFields associationsOnly ref={assetContext} assetKey={mode === "edit" && currentLib ? "knowledge:" + currentLib.id : undefined} />
                 <DialogFooter>
                     <DialogClose>
                         <Button variant="outlined" color="default">{t('cancel')}</Button>

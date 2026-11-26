@@ -18,7 +18,7 @@ interface Context {
   case_fields: CaseFields;
   profile: Partial<Record<"direction" | "description" | "rules", string>>;
 }
-interface Props { assetKey?: string; skill?: boolean; saveButton?: React.ReactNode }
+interface Props { assetKey?: string; associationsOnly?: boolean; skill?: boolean; saveButton?: React.ReactNode }
 export interface AssetContextHandle {
   persist: (kind: Kind, saveAsset: () => Promise<string | number>) => Promise<string | number>;
 }
@@ -29,7 +29,7 @@ export const AssetContextFields = forwardRef<AssetContextHandle, Props>(function
   return <AssetFields key={props.assetKey || "new"} {...props} ref={ref}/>;
 });
 
-const AssetFields = forwardRef<AssetContextHandle, Props>(function AssetFields({ assetKey, skill, saveButton }, ref) {
+const AssetFields = forwardRef<AssetContextHandle, Props>(function AssetFields({ assetKey, associationsOnly, skill, saveButton }, ref) {
   const { t } = useTranslation("companyBoards");
   const id = useId();
   const [expanded, setExpanded] = useState(false);
@@ -62,24 +62,26 @@ const AssetFields = forwardRef<AssetContextHandle, Props>(function AssetFields({
   useImperativeHandle(ref, () => ({
     async persist(kind, saveAsset) {
       if (!dirty || !context) return saveAsset();
-      const caseFields = context.case_name.trim() ? { ...context.case_fields } : {};
-      if (context.case_name.trim() && table.trim()) {
-        let grid: string[][];
-        try { grid = parseCasePaste(table); } catch { grid = []; }
-        const error = grid.length ? caseTableError(grid) : "quote";
-        if (error) {
-          const message = t("registers.sample." + error);
-          setMessage(message);
-          throw new Error(message);
-        }
-        caseFields.sampleTable = JSON.stringify(grid);
-      } else delete caseFields.sampleTable;
+      const caseFields = { ...context.case_fields };
+      if (!associationsOnly) {
+        if (context.case_name.trim() && table.trim()) {
+          let grid: string[][];
+          try { grid = parseCasePaste(table); } catch { grid = []; }
+          const error = grid.length ? caseTableError(grid) : "quote";
+          if (error) {
+            const message = t("registers.sample." + error);
+            setMessage(message);
+            throw new Error(message);
+          }
+          caseFields.sampleTable = JSON.stringify(grid);
+        } else delete caseFields.sampleTable;
+      }
       const ident = savedAsset.current ?? await saveAsset();
       savedAsset.current = ident;
       try {
         const result = await request.put<unknown, {revision:number}>(base + "/" + encodeURIComponent(kind + ":" + ident), {
           year: context.year, topic: context.topic, scenes: context.scene_ids, revision: context.revision,
-          case_name: context.case_name.trim(), case_fields: caseFields, profile: context.profile,
+          case_name: context.case_name.trim(), case_fields: context.case_name.trim() ? caseFields : {}, profile: context.profile,
         });
         setContext(old => old && { ...old, revision: result.revision });
         savedAsset.current = null;
@@ -94,7 +96,7 @@ const AssetFields = forwardRef<AssetContextHandle, Props>(function AssetFields({
   return <div className="my-3 rounded-lg border border-border">
     <button type="button" aria-expanded={expanded} aria-controls={id} onClick={() => setExpanded(!expanded)}
       className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium hover:bg-muted focus-visible:ring-2 focus-visible:ring-primary">
-      {t("assetContext.title")}<span aria-hidden="true">{expanded ? "−" : "+"}</span>
+      {t(associationsOnly ? "assetContext.associationsTitle" : "assetContext.title")}<span aria-hidden="true">{expanded ? "−" : "+"}</span>
     </button>
     {expanded && <div id={id} className="grid gap-3 px-3 pb-3">
       {message && <p role="alert" className="text-sm text-destructive">{message}</p>}
@@ -117,27 +119,29 @@ const AssetFields = forwardRef<AssetContextHandle, Props>(function AssetFields({
             </label>)}
           </div>
         </fieldset>}
-        <label className="grid gap-1 text-sm">{t("assetContext.direction")}
-          <Input maxLength={2048} value={context.profile.direction || ""} onChange={e => change({ profile: { ...context.profile, direction: e.target.value } })} />
-        </label>
-        <label className="grid gap-1 text-sm">{t("assetContext.description")}
-          <Textarea maxLength={2048} rows={2} placeholder={t("assetContext.useAssetDescription")}
-            value={context.profile.description || ""} onChange={e => change({ profile: { ...context.profile, description: e.target.value } })} />
-        </label>
-        {skill && <label className="grid gap-1 text-sm">{t("assetContext.rules")}
-          <Textarea maxLength={2048} rows={2} value={context.profile.rules || ""}
-            onChange={e => change({ profile: { ...context.profile, rules: e.target.value } })} />
-        </label>}
-        <label htmlFor={id+"case"} className="text-sm">{t("assetContext.case")}</label>
-        <Input id={id+"case"} maxLength={160} value={context.case_name} onChange={e => change({ case_name: e.target.value })} />
-        {context.case_name && <>
-          {caseKeys.map(k => <label key={k} className="grid gap-1 text-sm">{t("assetContext."+k)}
-            <Input value={context.case_fields[k] || ""} maxLength={k === "action" ? 40 : k === "sampleTitle" ? 100 : k === "summary" ? 512 : 2048}
-              onChange={e => change({ case_fields: { ...context.case_fields, [k]: e.target.value } })} />
-          </label>)}
-          <label className="grid gap-1 text-sm">{t("assetContext.table")}
-            <Textarea value={table} rows={3} placeholder={t("registers.sample.help")} onChange={e => { setTable(e.target.value); setDirty(true); }}/>
+        {!associationsOnly && <>
+          <label className="grid gap-1 text-sm">{t("assetContext.direction")}
+            <Input maxLength={2048} value={context.profile.direction || ""} onChange={e => change({ profile: { ...context.profile, direction: e.target.value } })} />
           </label>
+          <label className="grid gap-1 text-sm">{t("assetContext.description")}
+            <Textarea maxLength={2048} rows={2} placeholder={t("assetContext.useAssetDescription")}
+              value={context.profile.description || ""} onChange={e => change({ profile: { ...context.profile, description: e.target.value } })} />
+          </label>
+          {skill && <label className="grid gap-1 text-sm">{t("assetContext.rules")}
+            <Textarea maxLength={2048} rows={2} value={context.profile.rules || ""}
+              onChange={e => change({ profile: { ...context.profile, rules: e.target.value } })} />
+          </label>}
+          <label htmlFor={id+"case"} className="text-sm">{t("assetContext.case")}</label>
+          <Input id={id+"case"} maxLength={160} value={context.case_name} onChange={e => change({ case_name: e.target.value })} />
+          {context.case_name && <>
+            {caseKeys.map(k => <label key={k} className="grid gap-1 text-sm">{t("assetContext."+k)}
+              <Input value={context.case_fields[k] || ""} maxLength={k === "action" ? 40 : k === "sampleTitle" ? 100 : k === "summary" ? 512 : 2048}
+                onChange={e => change({ case_fields: { ...context.case_fields, [k]: e.target.value } })} />
+            </label>)}
+            <label className="grid gap-1 text-sm">{t("assetContext.table")}
+              <Textarea value={table} rows={3} placeholder={t("registers.sample.help")} onChange={e => { setTable(e.target.value); setDirty(true); }}/>
+            </label>
+          </>}
         </>}
       </>}
       {context && dirty && saveButton}

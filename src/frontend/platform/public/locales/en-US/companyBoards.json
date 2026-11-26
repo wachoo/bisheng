@@ -23,6 +23,7 @@
     "viewUnmonitored": "View unmonitored assets"
   },
   "assetContext": {
+    "associationsTitle": "Dashboard associations (optional)",
     "direction": "Business area",
     "description": "Dashboard description",
     "useAssetDescription": "Uses the asset description when empty",

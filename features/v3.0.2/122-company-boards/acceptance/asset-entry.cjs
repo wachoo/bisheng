@@ -128,8 +128,8 @@ async function main() {
     await page.getByRole("button",{name:/看板归属与代表案例/}).click();
     assert.equal(await page.getByRole("combobox",{name:/所属专题/}).inputValue(),defaultTopic);
     isolatedOptions = false;
-    async function verifyLiveFields() {
-      await page.getByRole("button",{name:/看板归属与代表案例/}).click();
+    async function verifyLiveFields(associationsOnly = false) {
+      await page.getByRole("button",{name:associationsOnly ? "看板归属（选填）" : /看板归属与代表案例/}).click();
       const select = page.getByRole("combobox",{name:/所属专题/});
       await select.waitFor();
       assert((await select.locator("option").allTextContents()).includes("AI先锋行动"));
@@ -138,7 +138,8 @@ async function main() {
       await page.goto(base+"/filelib");
       await page.getByRole("tab",{name:kb}).first().click();
       await page.getByRole("button",{name:"创建",exact:true}).click();
-      await verifyLiveFields();
+      await verifyLiveFields(true);
+      for (const label of ["业务方向","看板业务说明","代表案例名称"]) assert.equal(await page.getByLabel(label,{exact:true}).count(),0);
     }
     for (const [tab,action] of [["API工具","创建API工具"],["MCP工具","添加MCP服务器"],["技能","新建技能"],["技能","导入技能"]]) {
       await page.goto(base+"/build/tools");

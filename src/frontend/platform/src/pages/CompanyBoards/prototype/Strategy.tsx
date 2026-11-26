@@ -163,8 +163,9 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                           go={() => detail("knowledge", "年度重点知识接入清单")}
                         >
                           <strong className="knowledge-label" id="knowledge-summary">
-                            业务知识集接入<small>已接入 / 年度计划</small>
+                            业务知识集接入
                           </strong>
+                          <small>已接入 / 年度计划</small>
                           <span className="knowledge-total">
                             <b>{stats.knowledge_verified}</b> / {stats.knowledge_planned} 个
                           </span>
@@ -232,7 +233,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                           >
                             <span>{name} ↗</span>
                             <strong>
-                              {n}
+                              <b>{n}</b>
                               <small>{unit}</small>
                             </strong>
                           </button>

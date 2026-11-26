@@ -8,6 +8,7 @@ from sqlmodel import select
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
 from bisheng.common.errcode.http_error import NotFoundError
 from bisheng.company_board.domain.models.ledger import BoardLedger
+from bisheng.company_board.domain.repositories.planning_departments import validate_plan_departments
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.core.database import get_async_db_session
@@ -173,7 +174,7 @@ async def save_ledger(
     ident = entry_id or new_id(tenant_id, data)
     async with get_async_db_session() as session:
         fields = data.model_dump(exclude={"revision"})
-        if data.department_id is not None:
+        if data.department_id is not None and data.kind != "scene":
             department = await session.exec(
                 select(Department.id).where(
                     Department.tenant_id == tenant_id,
@@ -214,6 +215,8 @@ async def save_ledger(
             raise BoardLedgerInvalidError(msg="已登记的资产不可替换")
         if latest and latest.revision != expected:
             raise BoardLedgerConflictError()
+        if data.kind == "scene" and data.department_id is not None and (not latest or latest.department_id != data.department_id):
+            await validate_plan_departments(session, tenant_id, {data.department_id})
         row = BoardLedger(id=ident, tenant_id=tenant_id, revision=expected + 1, operator_id=user_id, **fields)
         session.add(row)
         try:

@@ -14,6 +14,9 @@ from bisheng.common.errcode.company_board import BoardLedgerConflictError, Board
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories.ledger import new_id
+from bisheng.company_board.domain.repositories.planning_departments import (
+    department_options, direct_departments, validate_plan_departments,
+)
 from bisheng.company_board.domain.repositories.scene_links import SCENE_LINKS
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.company_board.domain.schemas.planning import Collection, Scene, Targets, Topic
@@ -67,6 +70,17 @@ def active(children, kind):
 
 def support_is_current(start, end, day):
     return start <= day and (not end or end >= day.isoformat())
+
+
+def retains_support_period(prior, requested):
+    if prior is None:
+        return False
+    saved = fields(prior)
+    return (
+        int(saved["department"]) == requested.department
+        and requested.start >= prior.business_date
+        and (not saved.get("end") or (requested.end or date.max).isoformat() <= saved["end"])
+    )
 
 
 def read_item(row, children):
@@ -181,11 +195,15 @@ async def read_plan(tenant, year):
         base = await heads(db, BoardLedger, tenant, year, ("goal", "topic", "scene"))
         details = await heads(db, BoardSupplement, tenant, year, CHILD_KINDS)
         categories = await category_items(db, tenant, year)
+        assigned = {r.department_id for r in base if r.kind == "scene" and r.department_id}
+        assigned.update(int(fields(r)["department"]) for r in active(details, "scene-team"))
+        departments = await department_options(db, tenant, assigned)
     by_parent = defaultdict(list)
     for detail in details:
         by_parent[detail.parent_id].append(detail)
     goals = [r for r in base if r.kind == "goal" and r.indicator in ("employee", "scene")]
     return {
+        **departments,
         "targets": {
             "employee": None,
             "scene": None,
@@ -263,25 +281,6 @@ def append_detail(db, tenant, operator, year, parent, kind, name, day, payload, 
     )
 
 
-async def departments_exist(db, tenant, ids):
-    if not ids:
-        return
-    found = set(
-        (
-            await db.exec(
-                select(Department.id).where(
-                    Department.tenant_id == tenant,
-                    Department.is_deleted == 0,
-                    Department.status == "active",
-                    Department.id.in_(ids),
-                )
-            )
-        ).all()
-    )
-    if found != ids:
-        raise BoardLedgerInvalidError(msg="请选择当前公司有效的承建或支持单位")
-
-
 async def write_item(db, tenant, operator, year, data, available_assets, inherited_assets):
     if not isinstance(data, Topic):
         for day in (data.planned_date, data.completed_date):
@@ -329,15 +328,15 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
     if not isinstance(data, Topic):
         ids = {data.department_id} if old is None or old.department_id != data.department_id else set()
         if isinstance(data, Scene):
-            former = {r.id: int(fields(r)["department"]) for r in active(children, "scene-team")}
+            former = {r.id: r for r in active(children, "scene-team")}
             if data.support_department_ids is None:
-                ids.update(s.department for s in data.supports if former.get(str(s.id)) != s.department)
+                ids.update(s.department for s in data.supports if not retains_support_period(former.get(str(s.id)), s))
             else:
                 day = max(date(year, 1, 1), plan_cutoff(year))
-                current = {former[r.id] for r in active(children, "scene-team")
+                current = {int(fields(r)["department"]) for r in former.values()
                            if support_is_current(r.business_date, fields(r).get("end"), day)}
                 ids.update(set(data.support_department_ids) - current)
-        await departments_exist(db, tenant, ids)
+        await validate_plan_departments(db, tenant, ids)
         base.update(department_id=data.department_id, parent_id=str(data.topic_id), effective_date=data.completed_date)
     append_base(db, tenant, operator, year, ident, old, **base)
     if isinstance(data, Topic):
@@ -372,6 +371,12 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
     if data.support_department_ids is not None:
         requested = set(data.support_department_ids)
         added = requested - current
+        # Clearing a legacy end date extends the assignment; only current direct units qualify.
+        renewals = {int(fields(r)["department"]) for r in former.values() if fields(r).get("end")} & requested & current
+        renewable = set()
+        if renewals:
+            eligible = await db.exec(direct_departments(tenant).where(Department.id.in_(renewals)))
+            renewable = {ident for ident, _ in eligible}
         for row in active(children, "scene-team"):
             value = fields(row)
             department = int(value["department"])
@@ -380,7 +385,7 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
             if department not in requested or row.business_date > day:
                 append_detail(db, tenant, operator, year, ident, "scene-team", row.name, row.business_date,
                               {**value, "_removed": "1"}, row)
-            elif value.get("end"):
+            elif value.get("end") and department in renewable:
                 # A date-free selection remains assigned until an administrator removes it.
                 append_detail(db, tenant, operator, year, ident, "scene-team", row.name, row.business_date,
                               {"department": str(department)}, row)

@@ -28,6 +28,7 @@ async function main() {
     const data=await read("planning/" + year);
     assert.equal(fixture, "http://127.0.0.1:17862");
     const [owner,...support]=data.departments;
+    assert.deepEqual(data.departments.map(d=>d.name),["验证部门","支持单位甲","支持单位乙"]);
     assert(support.length>=2,"Fixture needs one lead and two supporting departments");
     const page=await context.newPage();
     page.setDefaultTimeout(9000);
@@ -55,6 +56,13 @@ async function main() {
     await page.locator(".plan-topic").filter({has:page.getByRole("heading",{name:names.topic,exact:true})})
       .getByRole("button",{name:"新增场景计划"}).click();
     await page.locator("#plan-name").fill(names.scene);
+    for (const field of ["#plan-owner", "#plan-supports"]) {
+      await page.locator(field).click();
+      const options = page.locator(field + "-listbox").getByRole("option");
+      await options.first().waitFor();
+      assert.deepEqual(await options.allTextContents(), data.departments.map(d=>d.name));
+      await page.locator(field).press("Escape");
+    }
     await pick("#plan-owner",owner.name);
     await page.locator("#plan-date").fill("2026-05-31");
     await page.locator("#plan-actual").fill("2026-06-10");

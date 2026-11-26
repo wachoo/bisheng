@@ -14,7 +14,7 @@ async def plan_for(user, year):
     await require_access(user, "manage")
     tenant = tenant_for(user)
     plan = await read_plan(tenant, year)
-    departments, assets = await load_catalog(tenant)
+    _, assets = await load_catalog(tenant)
     cutoff = plan_cutoff(year)
     ledger = await list_ledger(tenant, year, cutoff)
     scenes = [r for r in plan["items"] if r["kind"] == "scene"]
@@ -40,7 +40,6 @@ async def plan_for(user, year):
     return {
         **plan,
         "built": len(built),
-        "departments": departments,
         "assets": [{k: a[k] for k in ("id", "kind", "name")} for a in assets],
         "knowledge_progress": await knowledge_progress(tenant, year, cutoff),
         "default_topic": options_from_rows(tenant, year, ledger)["default_topic"],

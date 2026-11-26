@@ -26,6 +26,7 @@ export interface PlanData {
   built: number;
   assets: { id: string; kind: string; name: string }[];
   departments: { id: number; name: string }[];
+  historical_departments?: { id: number; name: string }[];
   knowledge_progress: { id: string; completed: number }[];
   default_topic: string;
 }

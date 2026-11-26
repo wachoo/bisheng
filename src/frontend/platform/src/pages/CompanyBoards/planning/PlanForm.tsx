@@ -42,7 +42,8 @@ function PlanSheet({ year, kind }: Props) {
   const scenes = data.items.filter((row) => row.kind === "scene");
   const collections = data.items.filter((row) => row.kind === "collection");
   const department = (id?: number | null) =>
-    data.departments.find((d) => d.id === id)?.name ?? (id ? "#" + id : "—");
+    data.departments.find((d) => d.id === id)?.name ??
+    data.historical_departments?.find((d) => d.id === id)?.name ?? (id ? "#" + id : "—");
   const assetNames = new Map((data.assets ?? []).map(asset => [asset.id, asset.name]));
   const actuals = new Map(data.knowledge_progress.map(r => [r.id, r.completed]));
   const today = new Intl.DateTimeFormat("en-CA", {

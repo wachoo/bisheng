@@ -68,9 +68,12 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const start = year + "-01-01",
     end = year + "-12-31";
   const departments = data.departments.map((d) => ({ value: String(d.id), label: d.name }));
-  for (const id of [item?.department_id, ...supports]) {
-    if (id && !departments.some((d) => d.value === String(id)))
-      departments.push({ value: String(id), label: t("archivedUnit", { id }) });
+  function departmentOptions(selected: string[]) {
+    const historical = selected.filter(id => !departments.some(d => d.value === id));
+    return [...departments, ...historical.map(id => ({
+      value: id,
+      label: data.historical_departments?.find(d => String(d.id) === id)?.name ?? t("archivedUnit", { id }),
+    }))];
   }
   const catalogOptions = (data.assets ?? []).map(asset => ({
     value: asset.id,
@@ -245,7 +248,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                       id="plan-owner"
                       showSearch
                       value={owner ? String(owner) : null}
-                      options={departments}
+                      options={departmentOptions(owner ? [String(owner)] : [])}
                       onChange={(v) => {
                         setOwner(Number(v));
                         setSupports(ids => ids.filter(id => id !== String(v)));
@@ -284,7 +287,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                   <Select
                     {...labels} id="plan-supports" multiple showSearch allowClear
                     aria-label={t("supports")} value={supports}
-                    options={departments.filter(d => d.value !== String(owner))}
+                    options={departmentOptions(supports).filter(d => d.value !== String(owner))}
                     onChange={values => setSupports(values.map(String))}
                   />
                 </div>

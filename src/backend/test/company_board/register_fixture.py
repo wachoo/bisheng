@@ -76,8 +76,11 @@ async def lifespan(_app):
             await conn.run_sync(model.__table__.create)
     async with session() as db:
         db.add(Knowledge(id=1, name="验证知识库", user_id=9, tenant_id=1, type=0))
+        db.add(Department(id=80, dept_id="fixture-org", name="组织根节点", tenant_id=1))
+        db.add(Department(id=81, dept_id="fixture-company", name="葛洲坝供应链公司", tenant_id=1, parent_id=80))
+        db.add(Department(id=82, dept_id="fixture-leaf", name="部门下属业务组", tenant_id=1, parent_id=1))
         for idx, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1):
-            db.add(Department(id=idx, dept_id=f"fixture-{idx}", name=name, tenant_id=1))
+            db.add(Department(id=idx, dept_id=f"fixture-{idx}", name=name, tenant_id=1, parent_id=81))
         db.add(
             BoardRuntimeEvent(
                 id="sample",

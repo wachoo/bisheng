@@ -60,9 +60,18 @@ class Scene(PlannedItem):
     kind: Literal["scene"]
     supports: list[Support] = Field(default_factory=list, max_length=100)
     recognition: list[DateRange] = Field(default_factory=list, max_length=100)
+    support_department_ids: list[Annotated[int, Field(gt=0)]] | None = Field(default=None, max_length=100)
+    asset_keys: list[Annotated[str, Field(min_length=1, max_length=160)]] | None = None
 
     @model_validator(mode="after")
     def unique_periods(self):
+        if self.support_department_ids is not None:
+            if self.department_id in self.support_department_ids:
+                raise ValueError("承建单位无需重复列为支持单位")
+            if len(set(self.support_department_ids)) != len(self.support_department_ids):
+                raise ValueError("同一支持单位不能重复")
+        if self.asset_keys is not None and len(set(self.asset_keys)) != len(self.asset_keys):
+            raise ValueError("同一场景不能重复关联一个资产")
         for i, row in enumerate(self.supports):
             if row.department == self.department_id:
                 raise ValueError("承建单位无需重复列为支持单位")

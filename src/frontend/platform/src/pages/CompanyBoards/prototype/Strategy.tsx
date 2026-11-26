@@ -74,6 +74,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   const [tab, selectTab] = useState("");
   const [rank, setRank] = useState(false);
   const { t: caseText } = useTranslation("topicExample");
+  const { t: serviceText } = useTranslation("companyBoards", { keyPrefix: "sceneService" });
   const { topics, workers, depRanks, workerRanks } = strategyRows(data);
   const trend = useBoardTrends(data, board).data?.months.find((m) => m.month === data.month);
   const stats = data.strategy;
@@ -197,19 +198,22 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                             " / " + (stats.scene_target ?? missing) + " 个",
                           ],
                           [
-                            "active",
-                            "本年实际使用",
-                            data.scene_usage?.filter((r) => r.year > 0).length ?? missing,
-                            " 个",
+                            "uses",
+                            serviceText("uses"),
+                            data.scene_service?.uses ?? missing,
+                            serviceText("times"),
                           ],
+                          ["users", serviceText("users"), data.scene_service?.users ?? missing, serviceText("people")],
                         ].map(([key, name, n, unit]) => (
                           <button
                             key={key}
                             type="button"
                             className="capacity-scene-link"
-                            data-capacity={key === "active" ? "active-scenes" : key}
+                            data-capacity={key}
                             onClick={() =>
-                              detail(String(key), key === "active" ? "年度场景应用" : "年度场景建设台账")
+                              key === "construction"
+                                ? detail("construction", "年度场景建设台账")
+                                : detail("active", serviceText("detail"))
                             }
                           >
                             <span>{name} ↗</span>

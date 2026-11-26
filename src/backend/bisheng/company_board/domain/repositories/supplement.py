@@ -36,7 +36,7 @@ async def list_supplements(tenant, cutoff, kinds=None):
             included.add("asset-binding")
         latest = latest.where(Row.kind.in_(included))
     else:
-        latest = latest.where(Row.kind.notin_(("research-report", "research-subject", "publication-watch", "publication-legacy", "category-plan", "category-list")))
+        latest = latest.where(Row.kind.notin_(("research-report", "research-subject", "publication-watch", "publication-legacy", "category-plan", "category-list", "scene-links")))
     if cutoff is not None:
         # The annual contract plan includes instalments due later in the reporting year.
         # Other records only take effect on their business date.

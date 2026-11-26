@@ -1,14 +1,6 @@
 import request from "@/controllers/request";
 
 export type PlanKind = "topic" | "scene" | "collection";
-export interface PlanPeriod {
-  id?: string;
-  start: string;
-  end: string | null;
-}
-export interface SupportPeriod extends PlanPeriod {
-  department: number;
-}
 export interface PlanItem {
   kind: PlanKind;
   id: string;
@@ -19,8 +11,9 @@ export interface PlanItem {
   planned_date?: string | null;
   completed_date?: string | null;
   target?: number;
-  supports?: SupportPeriod[];
-  recognition?: PlanPeriod[];
+  support_department_ids?: number[];
+  supports?: { department: number }[];
+  asset_keys?: string[];
 }
 export interface Targets {
   employee: number | null;
@@ -31,6 +24,7 @@ export interface PlanData {
   targets: Targets;
   items: PlanItem[];
   built: number;
+  assets: { id: string; kind: string; name: string }[];
   departments: { id: number; name: string }[];
   knowledge_progress: { id: string; completed: number }[];
   default_topic: string;
@@ -49,7 +43,7 @@ interface PlannedInput extends ItemInput {
 export type PlanEdit =
   | (Targets & { kind: "targets" })
   | (ItemInput & { kind: "topic" })
-  | (PlannedInput & { kind: "scene"; supports: SupportPeriod[]; recognition: PlanPeriod[] })
+  | (PlannedInput & { kind: "scene"; support_department_ids: number[]; asset_keys: string[] })
   | (ItemInput & { kind: "collection"; target: number; planned_date: string });
 
 export function readCompanyPlan(year: number) {

@@ -60,6 +60,8 @@ export function sceneAssetIds(
   registers: PrototypeViewProps["registers"],
   scene: string,
 ) {
+  const managed = data.scene_asset_links?.[scene];
+  if (managed) return new Set(managed);
   const ids = new Set<string>(data.scene_usage?.find((s) => s.id === scene)?.asset_ids || []);
   for (const row of data.ledger) {
     if (

@@ -1,4 +1,17 @@
 {
+  "sceneService": {
+    "uses": "Uses this year",
+    "users": "Users served",
+    "times": " uses",
+    "people": " users",
+    "detail": "Service by employees linked to scenarios",
+    "employee": "Digital employee",
+    "scenes": "Linked scenarios",
+    "search": "Search employees or scenarios",
+    "noMatches": "No matching employees or scenarios",
+    "empty": "No linked employees",
+    "definition": "Counts successful services recorded this year for linked employees. Each run counts once across scenarios, and each user counts once across employees. A dash indicates no verifiable run records."
+  },
   "monitorView": {
     "successDefinition": "Successful runs / completed runs",
     "noMonitoring": "No monitoring records",

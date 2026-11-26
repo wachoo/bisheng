@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useState, type ReactNode } from "react";
+import { Fragment, useState, type ReactNode } from "react";
 import { isReportView, ResearchReportDetail } from "./ResearchReportDetail";
 import { CaseOutput } from "../CaseOutput";
 import type { PrototypeDetailProps } from "./types";
@@ -141,6 +141,7 @@ export function StrategyDetail(props: PrototypeDetailProps) {
   return <DetailBody key={props.target} {...props} />;
 }
 function DetailBody({ data, registers, target, period, open, board }: PrototypeDetailProps) {
+  const { t: serviceText } = useTranslation("companyBoards", { keyPrefix: "sceneService" });
   const { t: caseText } = useTranslation("topicExample");
   const [, route, arg] = target.split(":");
   const trend = useBoardTrends(data, board).data?.months.find((m) => m.month === data.month);
@@ -298,37 +299,30 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
     );
   }
   if (route === "active") {
-    const used = (data.scene_usage || []).filter((s) => s.year > 0);
-    const topicsUsed = new Map(used.map((s) => [s.topic, s.topic_name || top(s.topic)]));
+    const service = data.scene_service;
+    const sceneDetails = new Set([...scenes.map(s => s.id), ...(data.scene_usage ?? []).map(s => s.id)]);
+    const employees = (service?.employees ?? []).filter(row => match(row.name, ...row.scenes.map(s => s.name)));
     return (
       <>
+        <Stats rows={[
+          [serviceText("uses"), fmt(service?.uses) + serviceText("times")],
+          [serviceText("users"), fmt(service?.users) + serviceText("people")],
+        ]} />
         <div className="al-toolbar">
-          <Options
-            label="专题"
-            current={topic}
-            set={pickTopic}
-            options={[["all", "全部专题"], ...Array.from(topicsUsed)]}
-          />
-          {searchBox}
+          <input className="al-search" aria-label={serviceText("search")} placeholder={serviceText("search")}
+            value={q} onChange={e => search(e.target.value)} />
         </div>
-        <Panel name="本年度有实际生产使用的场景" caption={"含往年投产 · " + used.length + " 个"}>
-          <Table
-            heads={["场景名称", "所属专题", "AI 资产数", "本年应用"]}
-            rows={used
-              .filter(
-                (s) =>
-                  (topic === "all" || s.topic === topic) &&
-                  match(s.name, s.topic_name, dept(s.department_id)),
-              )
-              .map((s) => [
-                scLink(s.id, s.name),
-                s.topic_name || top(s.topic),
-                assetIds(s.id).length,
-                "已应用 · " + s.year + " 次",
-              ])}
-            none={data.scene_usage ? "所选期间没有符合条件的场景执行记录" : "尚未采集请求发生时的业务场景"}
+        <Panel name={serviceText("detail")}>
+          <Table heads={[serviceText("employee"), serviceText("scenes"), serviceText("uses"), serviceText("users")]}
+            rows={employees.map(row => [
+              asset(row.asset_id) ? link(constructionAssetTarget(row.asset_id), row.name) : row.name,
+              row.scenes.map((s, index) => <Fragment key={s.id}>{index > 0 && "、"}{sceneDetails.has(s.id) ? scLink(s.id, s.name) : s.name}</Fragment>),
+              row.monitored ? fmt(row.uses) : "—",
+              row.monitored ? fmt(row.users) : "—",
+            ])}
+            none={q.trim() ? serviceText("noMatches") : serviceText("empty")}
           />
-          <p className="al-chart-note">{sceneAttribution}</p>
+          <p className="al-chart-note">{serviceText("definition")}</p>
         </Panel>
       </>
     );
@@ -438,23 +432,13 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
           }
         >
           <Table
-            heads={["所属专题", "承建单位", "支持单位", "投产日期", "高价值场景认定"]}
+            heads={["所属专题", "承建单位", "支持单位", "投产日期"]}
             rows={[
               [
                 usage?.topic_name || top(s.parent_id),
                 dept(s.department_id),
                 support(s.id).map(dept).join("、") || "—",
                 s.effective_date || "待投产",
-                registers.some(
-                  (r) =>
-                    r.kind === "recognition" &&
-                    r.parent_id === arg &&
-                    r.date &&
-                    r.date <= data.cutoff &&
-                    (!r.fields.end || r.fields.end >= data.cutoff),
-                )
-                  ? "有效"
-                  : "暂无有效认定",
               ],
             ]}
           />

@@ -1,4 +1,17 @@
 {
+  "sceneService": {
+    "uses": "本年使用次数",
+    "users": "服务用户数",
+    "times": " 次",
+    "people": " 人",
+    "detail": "场景关联数字员工服务明细",
+    "employee": "数字员工",
+    "scenes": "关联场景",
+    "search": "搜索数字员工或场景",
+    "noMatches": "没有匹配的数字员工或场景",
+    "empty": "尚未关联数字员工",
+    "definition": "按场景所关联数字员工的年度成功服务记录统计。共享员工的同一次服务只计一次，同一用户跨员工只计一人。「—」表示该员工尚无可核实的运行记录。"
+  },
   "monitorView": {
     "successDefinition": "成功次数 / 已结束运行次数",
     "noMonitoring": "暂无监测记录",

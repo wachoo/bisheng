@@ -7,7 +7,7 @@ from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.feedback import feedback_snapshot
 from bisheng.company_board.domain.repositories.ledger import list_ledger, release_departments
 from bisheng.company_board.domain.repositories.monitoring import monthly_terminals, own_excerpts, run_receipt
-from bisheng.company_board.domain.repositories.supplement import list_supplements
+from bisheng.company_board.domain.repositories.scene_links import legacy_scene_links, managed_scene_assets
 from bisheng.company_board.domain.services.asset_context import attach_asset_topics
 from bisheng.company_board.domain.services.boards import reporting_period, require_access, tenant_for
 
@@ -20,20 +20,26 @@ def asset_key(kind, identifier):
     return f"{'assistant' if kind == 'employee' else kind}:{identifier}"
 
 
-def monthly_scope(assets, records, ownership, cutoff, topic, scene, department, kind, reused=()):
+def monthly_scope(assets, records, ownership, cutoff, topic, scene, department, kind, reused=(), managed=None):
     topics = {row["id"]: row["name"] for row in records if row["kind"] == "topic"}
     scenes = {row["id"]: row for row in records if row["kind"] == "scene" and row["parent_id"] in topics}
     connections = defaultdict(set)
+    managed = managed or {}
+    for scene_id, asset_keys in managed.items():
+        if scene_id in scenes:
+            for key in asset_keys:
+                connections[key].add(scene_id)
     for row in records:
         if (
             row["kind"] == "release"
             and row["parent_id"] in scenes
+            and row["parent_id"] not in managed
             and row["effective_date"]
             and row["effective_date"] <= cutoff
         ):
             connections[row["asset_key"]].add(row["parent_id"])
     for link in reused:
-        if link["parent_id"] in scenes and link["date"] <= cutoff:
+        if link["parent_id"] in scenes and link["parent_id"] not in managed and link["date"] <= cutoff:
             expiry = link["fields"].get("end")
             if not expiry or expiry >= cutoff.isoformat():
                 connections[link["fields"]["asset"]].add(link["parent_id"])
@@ -84,8 +90,9 @@ async def read_scope(tenant, year, cutoff, topic, scene, department, kind):
     _, catalog = await load_catalog(tenant)
     await attach_asset_topics(tenant, year, cutoff, catalog, records)
     ownership = await release_departments(tenant, cutoff)
-    reused = await list_supplements(tenant, cutoff, ["scene-asset"])
-    return monthly_scope(catalog, records, ownership, cutoff, topic, scene, department, kind, reused)
+    reused = await legacy_scene_links(tenant, cutoff)
+    managed = await managed_scene_assets(tenant, cutoff)
+    return monthly_scope(catalog, records, ownership, cutoff, topic, scene, department, kind, reused, managed)
 
 
 async def read_monitoring(user, board, year, month, topic, scene, department, kind):

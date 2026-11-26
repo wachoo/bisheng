@@ -2,37 +2,57 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
 from bisheng.company_board.domain.repositories.asset_context import first_binding_dates
-from bisheng.company_board.domain.repositories.catalog import load_catalog
-from bisheng.company_board.domain.repositories.scene_usage import scene_inputs
-from bisheng.company_board.domain.repositories.supplement import list_supplements
+from bisheng.company_board.domain.repositories.scene_links import legacy_scene_links
+from bisheng.company_board.domain.repositories.scene_usage import employee_service_counts, scene_inputs
 
 
 def feedback_rate(r, key):
     return 1 - r[key + "_negative"] / r[key] if r[key] and r[key + "_linked"] == r[key] else None
 
 
-def reconcile_scenes(entries, reused, events, year_start, month_start, trailing, cutoff, first_edits=None):
-    topics = {r.id: r.name for r in entries if r.kind == "topic"}
-    scenes = {r.id: r for r in entries if r.kind == "scene" and r.effective_date and r.effective_date <= cutoff}
+def scene_relationships(entries, reused, first_edits, managed, cutoff):
+    scenes = {r.id: r for r in entries if r.kind == "scene"}
     mappings = defaultdict(list)
+    assets = defaultdict(set)
     for row in entries:
-        if row.kind == "release" and row.parent_id in scenes and row.asset_key and row.effective_date:
-            transition = (first_edits or {}).get(row.asset_key)
+        if (
+            row.kind == "release"
+            and row.parent_id in scenes
+            and row.parent_id not in managed
+            and row.asset_key
+            and row.effective_date
+        ):
+            transition = first_edits.get(row.asset_key)
             if transition is None or row.effective_date < transition:
                 mappings[row.asset_key].append(
                     (row.parent_id, row.effective_date, transition - timedelta(days=1) if transition else None)
                 )
     for row in reused:
-        if row["parent_id"] in scenes and row["date"]:
+        if row["parent_id"] in scenes and row["parent_id"] not in managed and row["date"]:
             expiry = row["fields"].get("end")
-            mappings[row["fields"]["asset"]].append(
-                (row["parent_id"], row["date"], date.fromisoformat(expiry) if expiry else None)
-            )
-    assets = defaultdict(set)
+            end = date.fromisoformat(expiry) if expiry else None
+            key = row["fields"]["asset"]
+            if row.get("source") == "case":
+                # A legacy case identifies employees linked to a scene, but does
+                # not prove that any given historical request ran in that scene.
+                if row["date"] <= cutoff and (end is None or end >= cutoff):
+                    assets[row["parent_id"]].add(key)
+            else:
+                mappings[key].append((row["parent_id"], row["date"], end))
+    for sid, keys in managed.items():
+        if sid in scenes:
+            for key in keys:
+                mappings[key].append((sid, date(scenes[sid].year, 1, 1), None))
     for key, history in mappings.items():
         for sid, begin, expiry in history:
             if begin <= cutoff and (expiry is None or expiry >= cutoff):
                 assets[sid].add(key)
+    return mappings, assets
+
+
+def reconcile_scenes(entries, mappings, assets, events, year_start, month_start, trailing, cutoff):
+    topics = {r.id: r.name for r in entries if r.kind == "topic"}
+    scenes = {r.id: r for r in entries if r.kind == "scene" and r.effective_date and r.effective_date <= cutoff}
     totals = {}
     for day, asset, status, count, timed, seconds, linked, negative in events:
         day = date.fromisoformat(day) if isinstance(day, str) else day
@@ -40,8 +60,8 @@ def reconcile_scenes(entries, reused, events, year_start, month_start, trailing,
             day = day.date()
         candidates = {
             sid
-            for sid, begin, expiry in mappings["assistant:" + str(asset)]
-            if max(scenes[sid].effective_date, begin) <= day and (expiry is None or day <= expiry)
+            for sid, begin, expiry in mappings.get("assistant:" + str(asset), ())
+            if sid in scenes and max(scenes[sid].effective_date, begin) <= day and (expiry is None or day <= expiry)
         }
         # A published employee can serve several scenarios. A shared run without an explicit scene
         # is retained in company totals but cannot be counted as successful work for each scene.
@@ -88,20 +108,60 @@ def reconcile_scenes(entries, reused, events, year_start, month_start, trailing,
     return result
 
 
-async def read_scenes(tenant, month_start, end, monthly_only=False):
+def service_employees(entries, scene_assets, catalog):
+    names = {r.asset_key: r.name for r in entries if r.kind == "release" and r.asset_key}
+    names.update({a["id"]: a["name"] for a in catalog if a["kind"] == "employee"})
+    employees = {}
+    for scene in sorted((r for r in entries if r.kind == "scene"), key=lambda r: (r.name, r.id)):
+        for key in scene_assets.get(scene.id, ()):
+            if not key.startswith(("assistant:", "flow:", "app:")):
+                continue
+            employee = employees.setdefault(
+                key,
+                {
+                    "asset_id": key,
+                    "name": names.get(key) or key,
+                    "scenes": [],
+                    "uses": 0,
+                    "users": 0,
+                    "monitored": False,
+                },
+            )
+            employee["scenes"].append({"id": scene.id, "name": scene.name})
+    return employees
+
+
+async def annual_service(tenant, year, end, entries, scene_assets, catalog):
+    employees = service_employees(entries, scene_assets, catalog)
+    # Stored employee events currently originate only from the assistant entry point.
+    assistant_ids = [key.removeprefix("assistant:") for key in employees if key.startswith("assistant:")]
+    start = datetime.combine(year, time.min) - timedelta(hours=8)
+    counts = await employee_service_counts(tenant, start, end - timedelta(hours=8), assistant_ids)
+    uses = users = 0
+    for asset, times, people in counts:
+        if asset is None:
+            uses, users = times, people
+        else:
+            employees["assistant:" + asset].update(uses=times, users=people, monitored=True)
+    ordered = sorted(employees.values(), key=lambda row: (-row["uses"], row["name"], row["asset_id"]))
+    return {"uses": uses, "users": users, "employees": ordered}
+
+
+async def read_scene_report(tenant, month_start, end, managed, catalog, monthly_only=False):
     cutoff = (end - timedelta(microseconds=1)).date()
     year = date(month_start.year, 1, 1)
     trailing = cutoff - timedelta(days=89)
     start = month_start if monthly_only else datetime.combine(min(year, trailing), time.min)
     entries, events = await scene_inputs(tenant, start - timedelta(hours=8), end - timedelta(hours=8))
-    links = await list_supplements(tenant, cutoff, ["scene-asset"])
+    links = await legacy_scene_links(tenant, cutoff)
     first_edits = await first_binding_dates(tenant, cutoff)
     if any(key.startswith("toolset:") for key in first_edits):
-        _, catalog = await load_catalog(tenant)
         first_edits.update(
             {a["id"]: first_edits[a["context_key"]] for a in catalog if a.get("context_key") in first_edits}
         )
-    rows = reconcile_scenes(entries, links, events, year, month_start.date(), trailing, cutoff, first_edits)
+    mappings, assets = scene_relationships(entries, links, first_edits, managed, cutoff)
+    rows = reconcile_scenes(entries, mappings, assets, events, year, month_start.date(), trailing, cutoff)
+    current_links = {r.id: sorted(assets[r.id]) for r in entries if r.kind == "scene" and r.year <= year.year}
     if monthly_only:
         fields = {
             "id",
@@ -116,5 +176,5 @@ async def read_scenes(tenant, month_start, end, monthly_only=False):
             "month_positive_rate",
             "month_hours",
         }
-        return [{k: v for k, v in row.items() if k in fields} for row in rows]
-    return rows
+        return [{k: v for k, v in row.items() if k in fields} for row in rows], None, current_links
+    return rows, await annual_service(tenant, year, end, entries, current_links, catalog), current_links

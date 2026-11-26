@@ -330,6 +330,10 @@ function Asset(
         (!r.fields.end || r.fields.end >= data.cutoff),
     )
     .forEach((r) => scenes.add(r.parent_id));
+  for (const [scene, assets] of Object.entries(data.scene_asset_links ?? {})) {
+    if (assets.includes(id)) scenes.add(scene);
+    else scenes.delete(scene);
+  }
   const related = data.ledger.filter(
     (r) => r.kind === "scene" && scenes.has(r.id),
   );

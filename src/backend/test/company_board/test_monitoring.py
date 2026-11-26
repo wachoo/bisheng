@@ -27,12 +27,15 @@ class MonitoringTest(unittest.IsolatedAsyncioTestCase):
             for i in ["s", "s2"]
         ]
 
-        def scope(cutoff, scene):
-            return monthly_scope(assets, records, {"tool:1": 17}, cutoff, "t", scene, "17", "tool", links)[0]
+        def scope(cutoff, scene, managed=None):
+            return monthly_scope(assets, records, {"tool:1": 17}, cutoff, "t", scene, "17", "tool", links, managed)[0]
 
         self.assertEqual(scope(date(2026, 1, 20), "")[0]["scene_ids"], ["s", "s2"])
         self.assertEqual(scope(date(2026, 1, 21), "s2"), [])
         self.assertEqual(len(scope(date(2026, 1, 1), "s")), 1)
+        reassigned = {"s": [], "s2": ["tool:1"]}
+        self.assertEqual(scope(date(2026, 1, 20), "s", reassigned), [])
+        self.assertEqual(scope(date(2026, 1, 21), "s2", reassigned)[0]["scene_ids"], ["s2"])
 
     async def test_beijing_days_status_coverage_and_tenant(self):
         engine = create_async_engine("sqlite+aiosqlite://")

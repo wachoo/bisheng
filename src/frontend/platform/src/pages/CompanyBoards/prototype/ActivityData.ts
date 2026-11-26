@@ -17,12 +17,13 @@ export const kindColors = {
 
 export function sceneAssets(props: PrototypeViewProps, sceneIds: Set<string>) {
   const { data, registers } = props;
+  const inherited = new Set([...sceneIds].filter(id => !data.scene_asset_links?.[id]));
   const ids = new Set(
     data.ledger
       .filter(
         (r) =>
           r.kind === "release" &&
-          sceneIds.has(r.parent_id) &&
+          inherited.has(r.parent_id) &&
           r.effective_date &&
           r.effective_date <= data.cutoff &&
           r.asset_key,
@@ -32,12 +33,15 @@ export function sceneAssets(props: PrototypeViewProps, sceneIds: Set<string>) {
   for (const r of registers)
     if (
       r.kind === "scene-asset" &&
-      sceneIds.has(r.parent_id) &&
+      inherited.has(r.parent_id) &&
       r.date <= data.cutoff &&
       (!r.fields.end || r.fields.end >= data.cutoff) &&
       r.fields.asset
     )
       ids.add(r.fields.asset);
+  for (const scene of sceneIds) {
+    for (const key of data.scene_asset_links?.[scene] ?? []) ids.add(key);
+  }
   return ids;
 }
 export function useTopicMonitoring(props: PrototypeViewProps, enabled: boolean) {

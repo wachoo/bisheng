@@ -1,7 +1,7 @@
 // Run from the project workspace. All writes go exclusively to the disposable fixture.
 const assert = require("node:assert/strict");
 const path = require("node:path");
-const evidence = name => path.join(__dirname, "../screenshots/parity", name);
+const evidence = name => path.join(process.env.BOARD_EVIDENCE_DIR || path.join(__dirname, "../screenshots/parity"), name);
 const { chromium } = require(require.resolve("playwright", {paths:[process.cwd()]}));
 const base = "http://127.0.0.1:3001";
 const fixture = "http://127.0.0.1:17862";
@@ -58,20 +58,35 @@ async function main() {
     await pick("#plan-owner",owner.name);
     await page.locator("#plan-date").fill("2026-05-31");
     await page.locator("#plan-actual").fill("2026-06-10");
-    for (const unit of support.slice(0,2)) {
-      await dialog.getByRole("button",{name:"添加支持单位"}).click();
-      const row=dialog.locator(".plan-support").last();
-      const control = row.locator('[id^="support-"]').first();
-      await pick("#" + await control.getAttribute("id"), unit.name);
+    async function toggleOptions(id, names) {
+      const picker = dialog.locator(id);
+      await picker.click();
+      const list = page.locator(id+"-listbox");
+      for (const name of names) await list.getByRole("option",{name,exact:true}).click();
+      await picker.press("Escape");
     }
-    await dialog.getByRole("button",{name:"添加认定期间"}).click();
-    await dialog.locator(".plan-range").getByLabel("生效日期").fill("2026-06-11");
+    assert.equal(await dialog.getByText("高价值场景认定",{exact:true}).count(),0);
+    assert.equal(await dialog.locator('input[type="date"]').count(),2);
+    await toggleOptions("#plan-supports", support.slice(0,2).map(unit => unit.name));
+    await save();
+    const row=page.getByRole("row").filter({hasText:names.scene});
+    await row.getByRole("button",{name:"编辑"+names.scene}).click();
+    const linked = [data.assets.find(a => a.id==="assistant:1"),data.assets.find(a => a.id==="knowledge:1")];
+    assert(linked.every(Boolean),"Fixture needs a published employee and knowledge library");
+    const choices = [linked[0].name+" · 助手",linked[1].name+" · 知识库"];
+    await toggleOptions("#plan-assets",choices);
     await save();
     await page.reload();
-    const row=page.getByRole("row").filter({hasText:names.scene});
     await row.waitFor();
-    for (const org of [owner,...support.slice(0,2)]) assert((await row.innerText()).includes(org.name));
+    for (const entry of [owner,...support.slice(0,2),...linked]) assert((await row.innerText()).includes(entry.name));
     await page.screenshot({path:evidence("annual-plan-sample.png"), animations:"disabled"});
+    await row.getByRole("button",{name:"编辑"+names.scene}).click();
+    await toggleOptions("#plan-assets",[choices[1]]);
+    await save();
+    const afterEdit=await read("planning/"+year);
+    const edited=afterEdit.items.find(item => item.name===names.scene);
+    assert.deepEqual(edited.asset_keys,[linked[0].id]);
+    assert.deepEqual([...edited.support_department_ids].sort(),support.slice(0,2).map(d=>d.id).sort());
     const before=await read("overview?board=lead&year=2026&month=5");
     const later=await read("overview?board=lead&year=2026&month=6");
     assert.equal(later.strategy.scene_target,7);
@@ -81,7 +96,21 @@ async function main() {
     assert.equal(savedScene.department_id,owner.id);
     const regs=await read("registers?board=lead&year=2026&month=6");
     assert.equal(regs.filter(r=>r.kind==="scene-team" && r.parent_id===savedScene.id).length,2);
-    assert.equal(regs.filter(r=>r.kind==="recognition" && r.parent_id===savedScene.id).length,1);
+    assert.equal(regs.filter(r=>r.kind==="recognition" && r.parent_id===savedScene.id).length,0);
+
+    for (const [target,title] of [["uses","本年使用次数"],["users","服务用户数"]]) {
+      await page.goto(base+"/leadboard");
+      const metric = page.locator('[data-capacity="'+target+'"]');
+      await metric.waitFor();
+      assert((await metric.innerText()).includes(title));
+      assert.equal(await metric.locator("b").innerText(),"1");
+      await metric.click();
+      const detail = page.locator("#al-detail:visible");
+      await detail.getByText("场景关联数字员工服务明细",{exact:true}).first().waitFor();
+      const entry = detail.getByRole("row").filter({hasText:linked[0].name}).filter({hasText:names.scene});
+      await entry.waitFor();
+      assert.deepEqual((await entry.locator("td").allTextContents()).slice(-2),["1","1"]);
+    }
 
     await page.goto(base+"/board-ledger/knowledge?year="+year);
     await button("新增分类计划").click();

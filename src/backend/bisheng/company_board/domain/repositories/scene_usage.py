@@ -1,4 +1,4 @@
-from sqlalchemy import and_, case, func
+from sqlalchemy import and_, case, func, null
 from sqlmodel import select
 
 from bisheng.company_board.domain.models.feedback import BoardRating
@@ -6,6 +6,33 @@ from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent as Run
 from bisheng.company_board.domain.repositories.activity_trends import beijing_day
 from bisheng.core.database import get_async_db_session
+
+
+def employee_service_query(tenant, start, end, assistant_ids):
+    # Count the same successful request once across every linked scene. Only
+    # distinct counts leave the DB; the overview must not expose user IDs.
+    successful = Run.status == "success"
+    where = (
+        Run.tenant_id == tenant,
+        Run.kind == "employee",
+        Run.asset_id.in_(assistant_ids),
+        Run.occurred_at >= start,
+        Run.occurred_at < end,
+        Run.status.in_(("success", "failed", "cancelled")),
+    )
+    counts = (
+        func.count(case((successful, Run.id))).label("uses"),
+        func.count(func.distinct(case((successful, Run.user_id)))).label("users"),
+    )
+    employees = select(Run.asset_id, *counts).where(*where).group_by(Run.asset_id)
+    return employees.union_all(select(null(), *counts).where(*where))
+
+
+async def employee_service_counts(tenant, start, end, assistant_ids):
+    if not assistant_ids:
+        return []
+    async with get_async_db_session() as db:
+        return (await db.exec(employee_service_query(tenant, start, end, assistant_ids))).all()
 
 
 async def scene_inputs(tenant, start, end):

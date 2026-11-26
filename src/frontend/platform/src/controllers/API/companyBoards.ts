@@ -38,6 +38,14 @@ export type SceneUsage = {
   month_hours:number|null;month_linked:number;month_negative:number;last_used:string|null;
 };
 export type BoardOverview = {
+  scene_asset_links?: Record<string, string[]>;
+  scene_service?: {
+    uses: number; users: number;
+    employees: {
+      asset_id: string; name: string; scenes: { id: string; name: string }[];
+      uses: number; users: number; monitored: boolean;
+    }[];
+  } | null;
   scene_usage?: SceneUsage[];
   year: number; month: number | null; cutoff: string; catalog_as_of: string; assets: BoardAsset[]; departments: BoardDepartment[];
   ledger: LedgerRow[]; runtime: RuntimeMetrics;

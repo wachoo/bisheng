@@ -43,6 +43,7 @@ function PlanSheet({ year, kind }: Props) {
   const collections = data.items.filter((row) => row.kind === "collection");
   const department = (id?: number | null) =>
     data.departments.find((d) => d.id === id)?.name ?? (id ? "#" + id : "—");
+  const assetNames = new Map((data.assets ?? []).map(asset => [asset.id, asset.name]));
   const actuals = new Map(data.knowledge_progress.map(r => [r.id, r.completed]));
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
@@ -64,7 +65,7 @@ function PlanSheet({ year, kind }: Props) {
             <tr>
               {annual ? <>
                 <th>{t("scene")}</th><th>{t("owner")}</th><th>{t("supports")}</th>
-                <th>{t("planned")}</th><th>{t("launch")}</th><th>{t("status")}</th>
+                <th>{t("linkedAssets")}</th><th>{t("planned")}</th><th>{t("launch")}</th><th>{t("status")}</th>
               </> : <>
                 <th>{t("category")}</th><th>{t("quantity")}</th>
                 <th>{t("accessCount")}</th><th>{t("planned")}</th>
@@ -78,7 +79,8 @@ function PlanSheet({ year, kind }: Props) {
                 <th scope="row">{row.name}</th>
                 {annual ? <>
                   <td>{department(row.department_id)}</td>
-                  <td>{[...new Set((row.supports || []).map(s => department(s.department)))].join(" / ") || "—"}</td>
+                  <td>{[...new Set(row.support_department_ids ?? (row.supports ?? []).map(s => s.department))].map(department).join(" / ") || "—"}</td>
+                  <td>{(row.asset_keys ?? []).map(key => assetNames.get(key) ?? t("unlistedAsset", { id: key })).join(" / ") || "—"}</td>
                   <td>{row.planned_date || "—"}</td>
                   <td>{row.completed_date || "—"}</td>
                   <td>{t(completed(row) ? "launched" : row.planned_date && row.planned_date < today ? "overdue" : "pending")}</td>

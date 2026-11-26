@@ -5,6 +5,7 @@ import json
 from collections import defaultdict
 from datetime import UTC, date, datetime
 from uuid import NAMESPACE_URL, uuid4, uuid5
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
@@ -13,12 +14,17 @@ from bisheng.common.errcode.company_board import BoardLedgerConflictError, Board
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories.ledger import new_id
+from bisheng.company_board.domain.repositories.scene_links import SCENE_LINKS
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.company_board.domain.schemas.planning import Collection, Scene, Targets, Topic
 from bisheng.core.database import get_async_db_session
 from bisheng.database.models.department import Department
 
-CHILD_KINDS = ("scene-team", "recognition", "collection-meta", "plan-date")
+CHILD_KINDS = ("scene-team", "recognition", "collection-meta", "plan-date", SCENE_LINKS)
+
+
+def plan_cutoff(year):
+    return min(date(year, 12, 31), datetime.now(ZoneInfo("Asia/Shanghai")).date())
 
 
 def fields(row):
@@ -59,6 +65,10 @@ def active(children, kind):
     )
 
 
+def support_is_current(start, end, day):
+    return start <= day and (not end or end >= day.isoformat())
+
+
 def read_item(row, children):
     result = {"id": row.id, "name": row.name, "kind": row.kind, "version": version([row, *children])}
     if row.kind == "topic":
@@ -82,6 +92,9 @@ def read_item(row, children):
     result["recognition"] = [
         {"id": c.id, "start": c.business_date, "end": fields(c).get("end")} for c in active(children, "recognition")
     ]
+    links = active(children, SCENE_LINKS)
+    if links:
+        result["asset_keys"] = fields(links[0])["assets"]
     return result
 
 
@@ -269,7 +282,7 @@ async def departments_exist(db, tenant, ids):
         raise BoardLedgerInvalidError(msg="请选择当前公司有效的承建或支持单位")
 
 
-async def write_item(db, tenant, operator, year, data):
+async def write_item(db, tenant, operator, year, data, available_assets, inherited_assets):
     if not isinstance(data, Topic):
         for day in (data.planned_date, data.completed_date):
             if day and day.year != year:
@@ -317,7 +330,13 @@ async def write_item(db, tenant, operator, year, data):
         ids = {data.department_id} if old is None or old.department_id != data.department_id else set()
         if isinstance(data, Scene):
             former = {r.id: int(fields(r)["department"]) for r in active(children, "scene-team")}
-            ids.update(s.department for s in data.supports if former.get(str(s.id)) != s.department)
+            if data.support_department_ids is None:
+                ids.update(s.department for s in data.supports if former.get(str(s.id)) != s.department)
+            else:
+                day = max(date(year, 1, 1), plan_cutoff(year))
+                current = {former[r.id] for r in active(children, "scene-team")
+                           if support_is_current(r.business_date, fields(r).get("end"), day)}
+                ids.update(set(data.support_department_ids) - current)
         await departments_exist(db, tenant, ids)
         base.update(department_id=data.department_id, parent_id=str(data.topic_id), effective_date=data.completed_date)
     append_base(db, tenant, operator, year, ident, old, **base)
@@ -338,7 +357,41 @@ async def write_item(db, tenant, operator, year, data):
             {"planned": data.planned_date.isoformat() if data.planned_date else None},
             dates[-1] if dates else None,
         )
-    for kind, slots in (("scene-team", data.supports), ("recognition", data.recognition)):
+    if data.asset_keys is not None:
+        managed = active(children, SCENE_LINKS)
+        prior = managed[0] if managed else None
+        previous_keys = set(fields(prior)["assets"]) if prior else set(inherited_assets)
+        selected = set(data.asset_keys)
+        if selected - previous_keys - available_assets:
+            raise BoardLedgerInvalidError(msg="请选择当前公司资产目录中的 AI 资产")
+        if selected != previous_keys:
+            append_detail(db, tenant, operator, year, ident, SCENE_LINKS, data.name, jan,
+                          {"assets": sorted(selected)}, prior)
+
+    slots_by_kind = {}
+    if data.support_department_ids is not None:
+        requested = set(data.support_department_ids)
+        added = requested - current
+        for row in active(children, "scene-team"):
+            value = fields(row)
+            department = int(value["department"])
+            if value.get("end") and value["end"] < day.isoformat():
+                continue
+            if department not in requested or row.business_date > day:
+                append_detail(db, tenant, operator, year, ident, "scene-team", row.name, row.business_date,
+                              {**value, "_removed": "1"}, row)
+            elif value.get("end"):
+                # A date-free selection remains assigned until an administrator removes it.
+                append_detail(db, tenant, operator, year, ident, "scene-team", row.name, row.business_date,
+                              {"department": str(department)}, row)
+        for department in sorted(added):
+            append_detail(db, tenant, operator, year, ident, "scene-team", data.name, jan,
+                          {"department": str(department)})
+    elif "supports" in data.model_fields_set:
+        slots_by_kind["scene-team"] = data.supports
+    if "recognition" in data.model_fields_set:
+        slots_by_kind["recognition"] = data.recognition
+    for kind, slots in slots_by_kind.items():
         remaining = {r.id: r for r in active(children, kind)}
         for slot in slots:
             if slot.start.year != year:
@@ -367,7 +420,7 @@ async def write_item(db, tenant, operator, year, data):
             )
 
 
-async def save_plan(tenant, operator, year, data):
+async def save_plan(tenant, operator, year, data, *, available_assets=frozenset(), inherited_assets=()):
     async with get_async_db_session() as db:
         try:
             if isinstance(data, Targets):
@@ -375,7 +428,7 @@ async def save_plan(tenant, operator, year, data):
             elif isinstance(data, Collection):
                 await save_category(db, tenant, operator, year, data)
             else:
-                await write_item(db, tenant, operator, year, data)
+                await write_item(db, tenant, operator, year, data, available_assets, inherited_assets)
             await db.commit()
         except IntegrityError as exc:
             await db.rollback()

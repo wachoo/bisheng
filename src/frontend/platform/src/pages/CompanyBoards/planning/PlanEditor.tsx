@@ -1,4 +1,3 @@
-import { createUuid } from "@/util/uuid";
 import { Button, Input, Modal, Select } from "@bisheng/ui";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, type FormEvent } from "react";
@@ -9,8 +8,6 @@ import {
   type PlanData,
   type PlanEdit,
   type PlanItem,
-  type PlanPeriod,
-  type SupportPeriod,
 } from "@/controllers/API/companyPlans";
 import { showApiError } from "@/controllers/request";
 
@@ -40,17 +37,21 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const [planned, setPlanned] = useState(item?.planned_date || "");
   const [completed, setCompleted] = useState(item?.completed_date || "");
   const [target, setTarget] = useState(item?.target?.toString() ?? "");
-  const [supports, setSupports] = useState<(SupportPeriod & { key: string })[]>(() =>
-    (item?.supports || []).map((s) => ({ ...s, key: s.id! })),
+  const [supports, setSupports] = useState<string[]>(() =>
+    Array.from(new Set(item?.support_department_ids ?? (item?.supports ?? []).map(s => s.department)), String),
   );
-  const [recognition, setRecognition] = useState<(PlanPeriod & { key: string })[]>(() =>
-    (item?.recognition || []).map((s) => ({ ...s, key: s.id! })),
-  );
+  const [assetKeys, setAssetKeys] = useState<string[]>(item?.asset_keys ?? []);
   const [error, setError] = useState("");
   const mutation = useMutation({
     mutationFn: (input: PlanEdit) => saveCompanyPlan(year, input),
     onSuccess: async () => {
       await cache.invalidateQueries({ queryKey: ["company-boards"] });
+      if (kind === "scene") {
+        await Promise.all([
+          cache.invalidateQueries({ queryKey: ["company-board-monitoring"] }),
+          cache.invalidateQueries({ queryKey: ["monitor-issues"] }),
+        ]);
+      }
       onClose();
     },
     onError: (err: unknown) => {
@@ -67,9 +68,23 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const start = year + "-01-01",
     end = year + "-12-31";
   const departments = data.departments.map((d) => ({ value: String(d.id), label: d.name }));
-  for (const id of [item?.department_id, ...(item?.supports || []).map((s) => s.department)]) {
+  for (const id of [item?.department_id, ...supports]) {
     if (id && !departments.some((d) => d.value === String(id)))
       departments.push({ value: String(id), label: t("archivedUnit", { id }) });
+  }
+  const catalogOptions = (data.assets ?? []).map(asset => ({
+    value: asset.id,
+    label: asset.name + " · " + t("assetType." + asset.id.split(":")[0]),
+  }));
+  const optionCounts = new Map<string, number>();
+  for (const { label } of catalogOptions) optionCounts.set(label, (optionCounts.get(label) ?? 0) + 1);
+  const assetOptions = catalogOptions.map(option => optionCounts.get(option.label)! > 1
+    ? { ...option, label: option.label + " · " + option.value }
+    : option);
+  for (const key of assetKeys) {
+    if (!assetOptions.some(option => option.value === key)) {
+      assetOptions.push({ value: key, label: t("unlistedAsset", { id: key }) });
+    }
   }
   function save(e: FormEvent) {
     e.preventDefault();
@@ -120,29 +135,11 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
       planned_date: planned || null,
       completed_date: completed || null,
     };
-    if (supports.some((s) => !s.department || s.department === owner || !s.start)) {
-      setError(t("supportRequired"));
-      return;
-    }
-    if (
-      supports.some((s, i) =>
-        supports
-          .slice(0, i)
-          .some(
-            (p) =>
-              p.department === s.department && (!s.end || p.start <= s.end) && (!p.end || s.start <= p.end),
-          ),
-      )
-    ) {
-      setError(t("supportOverlap"));
-      return;
-    }
-    const range = (v: PlanPeriod) => ({ id: v.id, start: v.start, end: v.end || null });
     mutation.mutate({
       ...common,
       kind,
-      supports: supports.map((s) => ({ ...range(s), department: s.department })),
-      recognition: recognition.map(range),
+      support_department_ids: supports.map(Number),
+      asset_keys: assetKeys,
     });
   }
   return (
@@ -249,7 +246,10 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                       showSearch
                       value={owner ? String(owner) : null}
                       options={departments}
-                      onChange={(v) => setOwner(Number(v))}
+                      onChange={(v) => {
+                        setOwner(Number(v));
+                        setSupports(ids => ids.filter(id => id !== String(v)));
+                      }}
                     />
                   </div>
                 </div>
@@ -279,135 +279,24 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                     />
                   </label>
                 </div>
-                <fieldset>
-                  <legend>{t("supports")}</legend>
-                  {supports.map((s, i) => (
-                    <div className="plan-support" key={s.key}>
-                      <div>
-                        <label htmlFor={"support-" + s.key}>{t("supportOrg")}</label>
-                        <Select
-                          id={"support-" + s.key}
-                          {...labels}
-                          showSearch
-                          options={departments.filter((d) => d.value !== String(owner))}
-                          value={s.department ? String(s.department) : null}
-                          onChange={(v) =>
-                            setSupports(
-                              supports.map((r, j) => (j === i ? { ...r, department: Number(v) } : r)),
-                            )
-                          }
-                        />
-                      </div>
-                      <label>
-                        {t("from")}
-                        <Input
-                          type="date"
-                          min={start}
-                          max={end}
-                          required
-                          value={s.start}
-                          onChange={(e) =>
-                            setSupports(
-                              supports.map((r, j) => (j === i ? { ...r, start: e.target.value } : r)),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        {t("until")}
-                        <Input
-                          type="date"
-                          min={s.start || start}
-                          value={s.end || ""}
-                          onChange={(e) =>
-                            setSupports(
-                              supports.map((r, j) =>
-                                j === i ? { ...r, end: e.target.value || null } : r,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                      <Button
-                        type="button"
-                        variant="text"
-                        onClick={() => setSupports(supports.filter((r) => r.key !== s.key))}
-                      >
-                        {t("remove")}
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      setSupports([
-                        ...supports,
-                        { key: createUuid(), department: 0, start, end: null },
-                      ])
-                    }
-                  >
-                    {t("addSupport")}
-                  </Button>
-                </fieldset>
-                <fieldset>
-                  <legend>{t("recognition")}</legend>
-                  {recognition.map((r, i) => (
-                    <div className="plan-range" key={r.key}>
-                      <label>
-                        {t("from")}
-                        <Input
-                          type="date"
-                          min={start}
-                          max={end}
-                          required
-                          value={r.start}
-                          onChange={(e) =>
-                            setRecognition(
-                              recognition.map((v, j) => (j === i ? { ...v, start: e.target.value } : v)),
-                            )
-                          }
-                        />
-                      </label>
-                      <label>
-                        {t("until")}
-                        <Input
-                          type="date"
-                          min={r.start || start}
-                          value={r.end || ""}
-                          onChange={(e) =>
-                            setRecognition(
-                              recognition.map((v, j) =>
-                                j === i ? { ...v, end: e.target.value || null } : v,
-                              ),
-                            )
-                          }
-                        />
-                      </label>
-                      <Button
-                        type="button"
-                        variant="text"
-                        onClick={() => setRecognition(recognition.filter((v) => v.key !== r.key))}
-                      >
-                        {t("remove")}
-                      </Button>
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      setRecognition([
-                        ...recognition,
-                        {
-                          key: createUuid(),
-                          start: today >= start && today <= end ? today : start,
-                          end: null,
-                        },
-                      ])
-                    }
-                  >
-                    {t("addRecognition")}
-                  </Button>
-                </fieldset>
+                <div>
+                  <label htmlFor="plan-supports">{t("supports")}</label>
+                  <Select
+                    {...labels} id="plan-supports" multiple showSearch allowClear
+                    aria-label={t("supports")} value={supports}
+                    options={departments.filter(d => d.value !== String(owner))}
+                    onChange={values => setSupports(values.map(String))}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="plan-assets">{t("linkedAssets")}</label>
+                  <Select
+                    {...labels} id="plan-assets" multiple showSearch allowClear
+                    aria-label={t("linkedAssets")} value={assetKeys} options={assetOptions}
+                    placeholder={t("chooseAssets")}
+                    onChange={values => setAssetKeys(values.map(String))}
+                  />
+                </div>
               </>
             )}
           </>

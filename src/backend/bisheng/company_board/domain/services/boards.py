@@ -76,9 +76,10 @@ def strategic_totals(rows: list[dict], year: int, cutoff: date, knowledge=()) ->
 
 
 async def overview(user: UserPayload, board: BoardKind, year: int, month: int | None) -> dict:
+    from bisheng.company_board.domain.repositories.scene_links import managed_scene_assets
     from bisheng.company_board.domain.services.knowledge_progress import knowledge_progress
     from bisheng.company_board.domain.services.runtime import read_runtime
-    from bisheng.company_board.domain.services.scene_usage import read_scenes
+    from bisheng.company_board.domain.services.scene_usage import read_scene_report
 
     access = await require_access(user, board)
     tenant_id = tenant_for(user)
@@ -106,9 +107,15 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
     runtime["detail_access"] = access["resolve"] or access["manage"]
     if not runtime["detail_access"]:
         runtime["recent_runs"] = []
+    scene_links = await managed_scene_assets(tenant_id, cutoff)
+    scene_usage, scene_service, effective_links = await read_scene_report(
+        tenant_id, start, end, scene_links, assets, monthly_only=board == "monitor"
+    )
     return {
         "year": year,
-        "scene_usage": await read_scenes(tenant_id, start, end, monthly_only=board == "monitor"),
+        "scene_usage": scene_usage,
+        "scene_service": scene_service,
+        **({"scene_asset_links": effective_links} if board == "lead" or access["manage"] else {}),
         "month": month,
         "cutoff": cutoff,
         "catalog_as_of": now.date(),

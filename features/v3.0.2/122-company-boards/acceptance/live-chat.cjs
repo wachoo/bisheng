@@ -2,6 +2,7 @@
 // BOARD_SESSION and BOARD_ADMIN_SESSION are Playwright storageState files kept outside Git.
 const fs = require('node:fs');
 const { randomUUID } = require('node:crypto');
+const fixture = require('./live-business-sample.cjs');
 const { chromium, request } = require(require.resolve('playwright', {paths: [process.cwd()]}));
 const baseURL = 'http://127.0.0.1:3001';
 const prefix = '/api/v1/company-boards/';
@@ -33,7 +34,7 @@ async function snapshot(admin, period) {
 
 async function daily(user, model) {
   const req = await user.post('/api/v1/workstation/chat/completions', {timeout:140000,
-    data:{clientTimestamp:new Date().toISOString(), model, text:'采集验收1126：请只回复“工作台对话完成”。'}});
+    data:{clientTimestamp:new Date().toISOString(), model, text:'已收到本周采购询价安排。请只回复“已收到采购安排”。'}});
   if (!req.ok()) throw new Error('Daily chat HTTP ' + req.status());
   const packets = (await req.text()).split(/\r?\n/).filter(s=>s.startsWith('data:')).map(s=>JSON.parse(s.slice(5)));
   const last = packets.find(p=>p.final);
@@ -105,8 +106,9 @@ async function replay() {
       expected = {success:1, scene_uses:1};
       if (sample==='tools' || sample==='reject') Object.assign(expected,{skill:1, knowledge:1, [sample==='reject'?'mcp_failure':'mcp']:1});
       const prompt = sample==='tools' || sample==='reject'
-        ? '采集验收1126 BOARD-TOOLS ' + (sample==='reject'?'BOARD-REJECT ':'') + '验收采购报价的复核规则是什么？请应用指定技能，检索知识库，并核对甲的报价。'
-        : '采集验收1126：请只回复“业务检查完成”。';
+        ? fixture.question + '请应用报价复核规范，检索定价指引，并查询供应商甲的报价。' +
+          (sample==='reject'?'供应商已撤回原报价，请核对该单是否仍可用。':'')
+        : '请确认本周关键合同履约核查安排，回复“已收到履约核查安排”。';
       receipt = await assistant(process.env.BOARD_SESSION,target,prompt);
     } else if (action==='rate') {
       const liked = Number(sample);
@@ -114,7 +116,7 @@ async function replay() {
       expected = liked===2 ? {negative:1,pending:1,closed:0} : {negative:0,pending:0};
       await business(user,'POST','/api/v1/session/chat/message/telemetry',{message_id:Number(target),operation_type:liked===1?'like':'dislike'});
       await business(user,'POST','/api/v1/liked',{message_id:Number(target),liked});
-      if (liked===2) await business(user,'POST','/api/v1/chat/comment',{message_id:Number(target),comment:'采集验收1126：报价异常样本，请核对。'});
+      if (liked===2) await business(user,'POST','/api/v1/chat/comment',{message_id:Number(target),comment:'原报价已撤回，请确认是否需要重新向供应商询价。'});
       const rows=await business(user,'GET',`/api/v1/chat/history?flow_id=${asset}&chat_id=${chat}&page_size=40`);
       receipt={message:Number(target), liked, savedRating:rows.find(r=>Number(r.id)===Number(target))?.liked};
     } else if (action==='verify-resolution') {
@@ -122,7 +124,7 @@ async function replay() {
       receipt={run:target};
     } else if (action==='resolve') {
       expected={negative:0,pending:-1,closed:1};
-      await business(user,'PUT',prefix+'feedback/'+target+'/resolution',{measure:'采集验收1126：已核对报价样本及工具凭据，完成处置。'});
+      await business(user,'PUT',prefix+'feedback/'+target+'/resolution',{measure:'已核对报价回执，确认原报价撤回，已通知采购岗重新询价。'});
       receipt={run:target};
     } else throw new Error('Expected daily, assistant, rate, or resolve');
     let after = await snapshot(admin,period);
@@ -138,15 +140,15 @@ async function replay() {
     }
     const delta = Object.fromEntries(Object.keys(before.totals).map(k=>[k,Number(after.totals[k])-Number(before.totals[k])]));
     const checks = {counts:Object.keys(expected).every(k=>delta[k]===expected[k])};
-    if(action==='daily') checks.savedAnswer=receipt.answer?.includes('工作台对话完成')===true;
+    if(action==='daily') checks.savedAnswer=receipt.answer?.includes('已收到采购安排')===true;
     if(action==='assistant'){
       if(receipt.message && ['tools','reject'].includes(sample)){
         const rows = await business(user,'GET',`/api/v1/chat/history?flow_id=${target}&chat_id=${receipt.chat}&page_size=40`);
         const traces = rows.filter(row=>['tool_result','tool','knowledge'].includes(row.category))
           .map(row=>JSON.stringify(row));
-        receipt.knowledgeHit = traces.some(text=>text.includes('K-1126'));
+        receipt.knowledgeHit = traces.some(text=>text.includes(fixture.answer) || text.includes('K-1126'));
         receipt.mcpQuote = traces.some(text=>text.includes('Q-1126'));
-        receipt.knowledgeQuestion = traces.some(text=>text.includes('验收采购报价的复核规则是什么？'));
+        receipt.knowledgeQuestion = traces.some(text=>text.includes(fixture.question) || text.includes('验收采购报价的复核规则是什么？'));
         receipt.mcpRejected = traces.some(text=>text.includes('供应商报价服务拒绝请求'));
         checks.knowledgeAnswer = receipt.knowledgeHit;
         checks.mcpResponse = sample==='tools' ? receipt.mcpQuote : receipt.mcpRejected && !receipt.mcpQuote;
@@ -165,7 +167,9 @@ async function replay() {
       const issue=after.issues.find(i=>i.run_id===target);
       receipt.resolvedAt=issue?.resolved_at;
       receipt.measure=issue?.measure;
-      checks.closedIssue=!!issue?.resolved_at && !!issue.measure?.includes('采集验收1126');
+      checks.closedIssue=!!issue?.resolved_at && (action==='resolve'
+        ? issue.measure==='已核对报价回执，确认原报价撤回，已通知采购岗重新询价。'
+        : !!issue.measure?.trim());
     }
     if(action==='rate' && Number(sample)===2) receipt.newIssues=after.issues.filter(i=>!before.issues.some(x=>x.run_id===i.run_id)).map(i=>i.run_id);
     const matched = Object.values(checks).every(Boolean);

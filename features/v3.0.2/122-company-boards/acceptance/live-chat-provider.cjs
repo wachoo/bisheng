@@ -1,24 +1,25 @@
 // Register a separate test model through the same API as model management.
 // Start live-chat-model.py as board1126-test-model:8000 on the local Compose network first.
 const { request } = require(require.resolve('playwright', {paths:[process.cwd()]}));
+const { modelServices, named } = require('./live-business-sample.cjs');
 
 async function main() {
   const admin = await request.newContext({baseURL:'http://127.0.0.1:3001',
     storageState:process.env.BOARD_ADMIN_SESSION});
   try {
-    const name = '采集验收1126·工具回放模型';
+    const name = modelServices.chat[0];
     const modelName = 'board-live-chat';
     async function find() {
       const list = await (await admin.get('/api/v1/llm')).json();
       if (list.status_code !== 200) throw new Error('Cannot read model catalog: ' + list.status_code);
-      return list.data.find(s=>s.name === name);
+      return named(list.data,modelServices.chat);
     }
     let server = await find();
     if (!server) {
       const response=await admin.post('/api/v1/llm', {data:{
-        name,type:'openai_compatible',description:'本地合成数据，生成固定工具指令供采集链路验收。',
+        name,type:'openai_compatible',description:'本地采购协同演练使用的工具调用模型。',
         share_to_children:false,config:{openai_api_base:'http://board1126-test-model:8000/v1',openai_api_key:'local-test'},
-        models:[{name:'采集验收1126·工具回放',model_name:modelName,model_type:'llm',online:true,config:{}}],
+        models:[{name:'采购协同推演',model_name:modelName,model_type:'llm',online:true,config:{}}],
       }});
       const result=await response.json();
       if(result.status_code !== 200) throw new Error('Cannot register model: ' + result.status_code);

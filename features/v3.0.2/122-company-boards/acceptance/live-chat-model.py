@@ -1,7 +1,7 @@
 """Local deterministic model for exercising BiSheng's real tool clients and callbacks.
 
 Run inside the local Compose network. This fixture has no database access.
-Only prompts bearing the test markers request tools. Tool results must come
+The procurement reconciliation prompt requests tools. Tool results must come
 back in the conversation before the model will finish the tool scenario.
 """
 
@@ -15,7 +15,7 @@ def requested_calls(data):
     messages = data.get("messages", [])
     user_at = max((i for i, m in enumerate(messages) if m["role"] == "user"), default=-1)
     prompt = str(messages[user_at].get("content", "")) if user_at >= 0 else ""
-    if "BOARD-TOOLS" not in prompt:
+    if "请应用报价复核规范" not in prompt and "BOARD-TOOLS" not in prompt:
         return []
     done = {
         c["function"]["name"]
@@ -31,9 +31,9 @@ def requested_calls(data):
             args = {"name": "board1126-quote-check"}
         elif name.startswith("knowledge_") and name[10:].isdigit():
             fields = fn.get("parameters", {}).get("required", [])
-            args = {key: "采购报价的交期与付款条件" for key in fields}
+            args = {key: "采购报价应如何统一比价口径？" for key in fields}
         elif "board1126_quote" in name.lower():
-            args = {"supplier": "甲", "reject": "BOARD-REJECT" in prompt}
+            args = {"supplier": "甲", "reject": "供应商已撤回原报价" in prompt or "BOARD-REJECT" in prompt}
         else:
             continue
         return [{"id": "call_" + uuid4().hex, "type": "function",
@@ -66,8 +66,12 @@ class Handler(BaseHTTPRequestHandler):
             message["tool_calls"] = calls
         else:
             replies = [str(m.get("content", "")) for m in data.get("messages", []) if m["role"] == "tool"]
-            markers = [m for m in ("K-1126", "Q-1126") if any(m in reply for reply in replies)]
-            message["content"] = "采集验收模型已完成本轮。" + " ".join(markers)
+            if any("供应商报价服务拒绝请求" in reply for reply in replies):
+                message["content"] = "供应商原报价已撤回，建议重新询价后再作比较。"
+            elif any("Q-1126" in reply for reply in replies):
+                message["content"] = "已取得供应商甲的报价单 Q-1126，可按统一的含税到货口径复核。"
+            else:
+                message["content"] = "已收到您的工作安排。"
         finish = "tool_calls" if calls else "stop"
         meta = {"id": "board-" + uuid4().hex, "created": int(time.time()), "model": "board-live-chat"}
         usage = {"prompt_tokens": 12, "completion_tokens": 6, "total_tokens": 18}

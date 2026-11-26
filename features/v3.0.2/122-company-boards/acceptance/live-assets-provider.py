@@ -11,18 +11,19 @@ import math
 import struct
 
 from mcp.server.fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 from starlette.responses import JSONResponse
 
 
 mcp = FastMCP("board1126-local", host="0.0.0.0", port=8126, stateless_http=True, json_response=True)
 
 
-@mcp.tool()
+@mcp.tool(title="物资询价查询", annotations=ToolAnnotations(title="物资询价查询"))
 def board1126_quote(supplier: str = "甲", reject: bool = False) -> str:
-    """查询验收供应商报价，reject=true 时模拟供应商接口拒绝服务。"""
+    """按供应商查询物资含税报价。reject 表示报价单已撤回。"""
     if reject:
-        raise ValueError("验收模拟：供应商报价服务拒绝请求")
-    return f"验收报价单 Q-1126：供应商{supplier}，含税总价 18.6 万元。"
+        raise ValueError("供应商报价服务拒绝请求：原报价单已撤回，请重新询价。")
+    return f"报价单 Q-1126：供应商{supplier}，含税总价 18.6 万元。"
 
 
 @mcp.custom_route("/v1/embeddings", methods=["POST"])

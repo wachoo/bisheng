@@ -17,12 +17,14 @@ async def inspect(args):
     try:
         with tenant_execution_scope(args.tenant):
             kb = await KnowledgeDao.aquery_by_id(args.knowledge)
-            if not kb or kb.name != "采集验收1126·采购规则问答库" or kb.type != 1:
+            if not kb or kb.name not in {"物资采购定价指引", "采集验收1126·采购规则问答库"} or kb.type != 1:
                 raise ValueError("The specified ID is not the acceptance QA library.")
             milvus = await KnowledgeRag.init_knowledge_milvus_vectorstore(args.user, kb)
             es = await KnowledgeRag.init_knowledge_es_vectorstore(kb)
             results = []
-            for query in ("验收采购报价的复核规则是什么？", "采购比价时怎样核对含税报价？"):
+            original = kb.name == "采集验收1126·采购规则问答库"
+            exact = "验收采购报价的复核规则是什么？" if original else "采购报价应如何统一比价口径？"
+            for query in (exact, "采购比价时怎样核对含税报价？"):
                 for backend, store in (("Milvus", milvus), ("Elasticsearch", es)):
                     documents = await store.as_retriever().ainvoke(query)
                     rows = []

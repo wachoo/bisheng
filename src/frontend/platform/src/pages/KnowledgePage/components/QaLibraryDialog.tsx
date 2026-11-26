@@ -183,11 +183,11 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
                     <div className="">
                         <label htmlFor="name" className="bisheng-label">{t('system.libraryName', { ns: 'bs' })}</label>
                         <span className="text-red-500">*</span>
-                        <Input name="name" ref={nameRef} placeholder={t('lib.enterLibraryName', { ns: 'bs' })} className={"col-span-3"} />
+                        <Input name="name" ref={nameRef} defaultValue={mode === "edit" ? currentLib?.name : ""} placeholder={t('lib.enterLibraryName', { ns: 'bs' })} className={"col-span-3"} />
                     </div>
                     <div className="">
                         <label htmlFor="desc" className="bisheng-label">{t('knowledgeDesc')}</label>
-                        <Textarea id="desc" ref={descRef} placeholder={t('pleaseEnterDesc')} rows={8} textareaClassName={"col-span-3"} />
+                        <Textarea id="desc" ref={descRef} defaultValue={mode === "edit" ? currentLib?.description : ""} placeholder={t('pleaseEnterDesc')} rows={8} textareaClassName={"col-span-3"} />
                     </div>
                     <div className="">
                         <label htmlFor="model" className="bisheng-label">{t('embeddingModel')}</label>

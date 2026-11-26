@@ -328,6 +328,8 @@ services:
       - "127.0.0.1:3001:3001"
     environment:
       TZ: Asia/Shanghai
+    security_opt:
+      - seccomp=unconfined
     volumes:
       - ${DOCKER_VOLUME_DIRECTORY:-.}/nginx/nginx.conf:/etc/nginx/nginx.conf
       - ${BISHENG_NGINX_CONF_DIR:-./nginx/conf.d}:/etc/nginx/conf.d

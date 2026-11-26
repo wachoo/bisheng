@@ -1,4 +1,5 @@
-import { Alert, Button, Pagination, Tag, toast } from '@bisheng/ui';
+import { Alert, Button, Pagination, Switch, Tag, toast, Tooltip } from '@bisheng/ui';
+import { Outlined } from 'bisheng-icons';
 
 
 import {
@@ -64,6 +65,9 @@ export default function OrgSync() {
   const [configs, setConfigs] = useState<OrgSyncConfig[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingConfig, setEditingConfig] = useState<OrgSyncConfig | null>(null)
+  // Row whose enable switch is waiting on the server; the switch stays where the
+  // user put it and flips back only if the request fails (§4 失败要回弹).
+  const [togglingId, setTogglingId] = useState<OrgSyncConfig["id"] | null>(null)
   const wecomConfigs = useMemo(
     () => configs.filter((item) => item.provider === "wecom"),
     [configs],
@@ -136,10 +140,24 @@ export default function OrgSync() {
   }, [activeConfig, isRunning, submitting, t, fetchConfigs])
 
   // Keep at most one active WeCom config: the login entry is hidden when two
-  // are active (19331), so activating one retires the others first.
+  // are active (19331), so activating one retires the others first. The switch
+  // flips optimistically and restores the previous list if the request fails.
   const handleToggleStatus = useCallback(
     async (config: OrgSyncConfig) => {
       const enabling = config.status !== "active"
+      const snapshot = configs
+      setTogglingId(config.id)
+      setConfigs((prev) =>
+        prev.map((item) => {
+          if (item.id === config.id) {
+            return { ...item, status: enabling ? "active" : "disabled" }
+          }
+          if (enabling && item.status === "active") {
+            return { ...item, status: "disabled" }
+          }
+          return item
+        }),
+      )
       try {
         if (enabling) {
           const others = wecomConfigs.filter(
@@ -155,10 +173,13 @@ export default function OrgSync() {
         toast.show({ type: "success", message: t("configs.statusUpdated") })
         void fetchConfigs()
       } catch (error) {
+        setConfigs(snapshot)
         showApiError(error)
+      } finally {
+        setTogglingId(null)
       }
     },
-    [fetchConfigs, t, wecomConfigs],
+    [configs, fetchConfigs, t, wecomConfigs],
   )
 
   const openCreateDialog = useCallback(() => {
@@ -208,40 +229,38 @@ export default function OrgSync() {
                 <TableRow key={config.id}>
                   <TableCell>{config.config_name}</TableCell>
                   <TableCell>
-                    <Tag
-                      size="small"
-                      dot
-                      color={config.status === "active" ? "success" : "default"}
-                    >
-                      {config.status === "active"
-                        ? t("configs.statusActive")
-                        : t("configs.statusDisabled")}
-                    </Tag>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        size="small"
+                        checked={config.status === "active"}
+                        loading={togglingId === config.id}
+                        disabled={togglingId !== null && togglingId !== config.id}
+                        aria-label={config.config_name}
+                        onCheckedChange={() => void handleToggleStatus(config)}
+                      />
+                      <span className="text-body-sm text-text-2">
+                        {config.status === "active"
+                          ? t("configs.statusActive")
+                          : t("configs.statusDisabled")}
+                      </span>
+                    </div>
                   </TableCell>
                   <TableCell className="whitespace-nowrap font-mono text-xs">
                     {formatIsoDateTime(config.update_time)}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    <Tooltip content={t("actions.edit")}>
                       <Button
                         size="small"
-                        variant="outlined"
+                        variant="text"
                         color="default"
+                        iconOnly
+                        aria-label={t("actions.edit")}
                         onClick={() => openEditDialog(config)}
                       >
-                        {t("actions.edit")}
+                        <Outlined.Edit size={14} />
                       </Button>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        color={config.status === "active" ? "danger" : "default"}
-                        onClick={() => void handleToggleStatus(config)}
-                      >
-                        {config.status === "active"
-                          ? t("configs.disable")
-                          : t("configs.enable")}
-                      </Button>
-                    </div>
+                    </Tooltip>
                   </TableCell>
                 </TableRow>
               ))

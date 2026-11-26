@@ -26,7 +26,6 @@ import InputForm from "./components/InputForm";
 import InputFormSkill from "./components/InputFormSkill";
 import { bishengConfState, currentChatState, currentRunningState } from "./store/atoms";
 import { useMessage } from "./useMessages";
-import { useAppChatCitations } from "./useAppChatCitations";
 
 // F028: only question + answer category rows are selectable. Intermediate
 // rows (tool, flow, knowledge, node_run, system, ...) stay out of the
@@ -57,11 +56,10 @@ export default function ChatMessages({
   selectionActive = false,
 }: ChatMessagesProps) {
   const { messageScrollRef, messages, chatId } = useMessage(readOnly);
-  const { inputForm, guideWord, inputDisabled, running, error } = useRecoilValue(currentRunningState);
+  const { inputForm, guideWord, inputDisabled, error } = useRecoilValue(currentRunningState);
   const chatState = useRecoilValue(currentChatState);
   const config = useRecoilValue(bishengConfState);
   const latexParsing = useRecoilValue(appStore.LaTeXParsing);
-  const showThinking = useRecoilValue(appStore.showThinking);
   const localize = useLocalize();
   const { user } = useAuthContext();
 
@@ -78,45 +76,32 @@ export default function ChatMessages({
       }));
   }, [messages]);
 
-  const isAssistant = chatState?.flow?.flow_type !== 10;
+  console.log("messages :>> ", chatState, messages, guideWord);
 
   const remark = chatState?.flow?.guide_word;
-  const normalized = useMemo(() => messagesForPresentation(
-    remark ? [{ category: "guide_word", message: remark, chat_ui_key: `${chatId}:greeting` }, ...messages] : messages,
-    { mode: isAssistant ? "assistant" : "workflow", sessionKey: chatId ?? "" },
-  ), [messages, remark, chatId, isAssistant]);
-  const transcript = useAppChatCitations(normalized, isAssistant);
 
   return (
     <div
       id="messageScrollPanne"
       ref={messageScrollRef}
-      className="h-full overflow-y-auto scrollbar-hide pt-2 pb-4"
+      className="h-full overflow-y-auto scrollbar-hide pt-2 pb-44 px-4"
     >
-      <div className="bisheng-chat-reading">
       <SelectionMessagesProvider messages={selectableMessages}>
         {selectionActive && messages.length > 0 && <SelectAllBelowBanner scrollRef={messageScrollRef} />}
         <ConversationMessages
-          messages={transcript}
+          messages={messagesForPresentation(
+            remark
+              ? [{ category: "guide_word", message: remark, chat_ui_key: `${chatId}:greeting` }, ...messages]
+              : messages,
+            { mode: chatState?.flow.flow_type === 10 ? "workflow" : "assistant", sessionKey: chatId ?? "" },
+          )}
           canExecute={!readOnly}
-          assistantTimeline={isAssistant}
-          running={Boolean(running)}
-          initiallyShowReasoning={showThinking}
           labels={{
             confirm: localize("com_bschoose_confirm"),
             confirmed: localize("com_bschoose_confirmed"),
             thinking: localize("com_bs_reasoning_thinking"),
             completed: localize("com_bs_reasoning_done"),
-            deepThinking: localize("shared:app_chat.timeline.deepThinking"),
-            deepThought: localize("shared:app_chat.timeline.deepThought"),
-            reasoningContent: localize("shared:app_chat.timeline.reasoningContent"),
-            toolInput: localize("shared:app_chat.timeline.toolInput"),
-            knowledge: localize("shared:app_chat.timeline.knowledge"),
-            knowledgeResults: count => localize("shared:app_chat.timeline.knowledgeResults", { count }),
-            toolResult: localize("shared:app_chat.timeline.toolResult"),
-            toolError: localize("shared:app_chat.timeline.toolError"),
-            tool: localize("shared:app_chat.timeline.tool"),
-            stopped: localize("shared:app_chat.timeline.stopped"),
+            stopped: localize("appChat.stopped"),
           }}
           onChoice={(message, value) => {
             const payload = asRecord(message.payload);
@@ -172,12 +157,14 @@ export default function ChatMessages({
               ) : undefined,
             footer: (message, contentRef) =>
               message.kind === "user" ? (
-                <ClientUserActions
-                  createTime={displayText(message.raw.create_time)}
-                  text={message.text}
-                  canResend={!readOnly && !error?.code && !inputDisabled && chatState?.flow.flow_type !== 10}
-                  searchUrl={!readOnly && !disabledSearch ? config?.dialog_quick_search : undefined}
-                />
+                !readOnly && (
+                  <ClientUserActions
+                    createTime={displayText(message.raw.create_time)}
+                    text={message.text}
+                    canResend={!error?.code && !inputDisabled && chatState?.flow.flow_type !== 10}
+                    searchUrl={!disabledSearch ? config?.dialog_quick_search : undefined}
+                  />
+                )
               ) : (
                 <ClientMessageFooter
                   message={message}
@@ -205,7 +192,6 @@ export default function ChatMessages({
             <InputFormSkill flow={chatState.flow} logo={logo} />
           ))}
       </SelectionMessagesProvider>
-      </div>
     </div>
   );
 }

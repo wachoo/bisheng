@@ -1089,7 +1089,6 @@
     "create": "作成",
     "assistant": "アシスタント",
     "workflow": "ワークフロー",
-    "skillLoadFailed": "スキルを読み込めませんでした",
     "skill": "スキル",
     "tools": "ツールとスキル",
     "tagLibrary": "タグライブラリ",

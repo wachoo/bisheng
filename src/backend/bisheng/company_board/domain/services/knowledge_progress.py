@@ -3,7 +3,7 @@
 import json
 from collections import Counter
 
-from sqlalchemy import String, and_, cast, func, literal
+from sqlalchemy import and_, func
 from sqlmodel import select
 
 from bisheng.company_board.domain.models.ledger import BoardLedger
@@ -26,8 +26,27 @@ def category_counts(history, year):
     return Counter(category for key, category in current.items() if category and first_year.get(key) == year)
 
 
-def library_asset_key():
-    return literal("knowledge:") + cast(Knowledge.id, String)
+async def existing_libraries(db, tenant, keys):
+    # Resolve typed asset keys against the integer primary key. String joins to
+    # CONCAT/CAST inherit the SQL session collation on MySQL installations.
+    ids = set()
+    for key in keys:
+        if key and key.startswith("knowledge:"):
+            suffix = key.removeprefix("knowledge:")
+            if suffix.isascii() and suffix.isdecimal() and len(suffix) <= 19:
+                ident = int(suffix)
+                if 0 < ident <= 2**63 - 1 and str(ident) == suffix:
+                    ids.add(ident)
+    found = set()
+    ordered = sorted(ids)
+    for start in range(0, len(ordered), 500):
+        query = select(Knowledge.id).where(
+            Knowledge.tenant_id == tenant,
+            Knowledge.type.in_([KnowledgeTypeEnum.NORMAL.value, KnowledgeTypeEnum.QA.value]),
+            Knowledge.id.in_(ordered[start:start + 500]),
+        )
+        found.update(f"knowledge:{ident}" for ident in (await db.exec(query)).all())
+    return found
 
 
 async def legacy_connections(db, tenant, cutoff, asset_key=None):
@@ -38,14 +57,14 @@ async def legacy_connections(db, tenant, cutoff, asset_key=None):
                 .group_by(BoardLedger.id).subquery())
     query = (select(BoardLedger.id, BoardLedger.asset_key, BoardLedger.effective_date)
              .join(versions, and_(versions.c.id == BoardLedger.id, versions.c.rev == BoardLedger.revision))
-             .join(Knowledge, BoardLedger.asset_key == library_asset_key())
-             .where(BoardLedger.tenant_id == tenant, Knowledge.tenant_id == tenant,
-                    Knowledge.type.in_([KnowledgeTypeEnum.NORMAL.value, KnowledgeTypeEnum.QA.value]),
+             .where(BoardLedger.tenant_id == tenant,
                     BoardLedger.effective_date <= cutoff)
              .order_by(BoardLedger.effective_date, BoardLedger.id))
     if asset_key:
         query = query.where(BoardLedger.asset_key == asset_key)
     rows = (await db.exec(query)).all()
+    valid = await existing_libraries(db, tenant, (row[1] for row in rows))
+    rows = [row for row in rows if row[1] in valid]
     if not rows:
         return []
     metadata = (select(BoardSupplement.parent_id, BoardSupplement.payload)
@@ -63,13 +82,11 @@ async def knowledge_progress(tenant, year, cutoff, catalog=()):
     # Expose aggregate counts only. The library itself can have restricted access.
     query = (
         select(BoardSupplement.parent_id, BoardSupplement.business_date, BoardSupplement.payload)
-        .join(Knowledge, BoardSupplement.parent_id == library_asset_key())
         .where(
             BoardSupplement.kind == KIND,
+            BoardSupplement.parent_id.like("knowledge:%"),
             BoardSupplement.tenant_id == tenant,
             BoardSupplement.business_date <= cutoff,
-            Knowledge.tenant_id == tenant,
-            Knowledge.type.in_([KnowledgeTypeEnum.NORMAL.value, KnowledgeTypeEnum.QA.value]),
         )
         .order_by(BoardSupplement.business_date, BoardSupplement.revision)
     )
@@ -77,7 +94,11 @@ async def knowledge_progress(tenant, year, cutoff, catalog=()):
         legacy = await legacy_connections(db, tenant, cutoff)
         observations = [(key, day, category_key(tenant, name)) for key, day, name in legacy]
         names = {category_key(tenant, name): name for _, _, name in legacy}
-        for key, day, raw in (await db.exec(query)).all():
+        rows = (await db.exec(query)).all()
+        valid = await existing_libraries(db, tenant, (row[0] for row in rows))
+        for key, day, raw in rows:
+            if key not in valid:
+                continue
             payload = json.loads(raw)
             if "knowledge_category_id" in payload:
                 category = payload["knowledge_category_id"]

@@ -43,7 +43,7 @@ class KnowledgeProgressTest(unittest.IsolatedAsyncioTestCase):
             db.add(BoardSupplement(tenant_id=1, id="old-meta", revision=1, kind="collection-meta", year=2025,
                 name="", parent_id="old", business_date=date(2025,1,1), operator_id=1,
                 payload=json.dumps({"category":"采购"}), recorded_at=datetime.now()))
-            for asset in (1,2,3,4):
+            for asset in (1,2,3,4,"02","9999999999999999999","unavailable"):
                 db.add(binding(asset, 1, date(2026,1,2), first))
             db.add(binding(5, 1, date(2026,1,5), first))
             db.add(binding(2, 2, date(2026,2,1), second))

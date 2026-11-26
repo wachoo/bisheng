@@ -96,6 +96,35 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(BoardLedgerConflictError):
             await service.save_asset_context(self.user, 3, self.key, self.form())
 
+    async def test_deleted_topic_hides_from_pickers_and_preserves_asset_and_history(self):
+        from bisheng.company_board.domain.repositories import planning
+        from bisheng.company_board.domain.schemas.planning import Topic
+
+        tenant, year = 3, self.day.year
+        key = repo.topic_id(tenant, year, "重点建设")
+        with patch.object(planning, "get_async_db_session", self.session):
+            await planning.save_plan(tenant, 17, year, Topic(kind="topic", name="重点建设", is_featured=True))
+            rows = await ledger.list_ledger(tenant, year)
+            self.assertTrue(next(r for r in rows if r["id"] == key)["is_featured"])
+            await service.save_asset_context(self.user, tenant, self.key, self.form(topic=key))
+            async with self.session() as db:
+                base = await planning.heads(db, BoardLedger, tenant, year, ("topic",))
+                related = await planning.heads(db, BoardSupplement, tenant, year, planning.CHILD_KINDS, parent=key)
+            current = planning.version([r for r in base if r.id == key] + related)
+            await planning.save_plan(tenant, 17, year, Topic(kind="topic", id=key, name="重点建设",
+                                     version=current, delete=True))
+        opts = await service.read_asset_context(self.user, tenant, self.key, year)
+        self.assertEqual(opts["topic"], opts["default_topic"])
+        self.assertNotIn(key, {t["id"] for t in opts["topics"]})
+        with self.assertRaises(BoardLedgerInvalidError):
+            await service.save_asset_context(self.user, tenant, self.key, self.form(topic=key, revision=1))
+        prior = await ledger.list_ledger(tenant, year, self.day - timedelta(days=1))
+        self.assertIn(key, {r["id"] for r in prior})
+        rows = await ledger.list_ledger(tenant, year)
+        await service.attach_asset_topics(tenant, year, self.day, self.published, rows)
+        self.assertNotIn(key, {r["id"] for r in rows})
+        self.assertEqual(self.published[0]["topic_id"], opts["default_topic"])
+
     async def test_knowledge_category_options_validation_and_history(self):
         key = "knowledge:42"
         original = {"topic": self.topic, "topic_name": "供应链", "scenes": [self.scene],

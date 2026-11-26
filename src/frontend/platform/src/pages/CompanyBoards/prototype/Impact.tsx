@@ -44,32 +44,34 @@ function associatedAssets(props: PrototypeViewProps, topic: string) {
 const colors = ["var(--al-blue)", "var(--al-teal)", "var(--al-slate)", "var(--al-amber)"];
 
 type Dot = { x: number; y: number; r: number };
-/** Pack largest first. Radius is proportional to the square root of observed use. */
+/** Areas are normalized to the busiest visible employee, independent of the number of employees. */
 function bubblePositions(values: number[], width: number, height: number): Dot[] {
-  if (!values.length || !width || !height) return [];
-  const total = values.reduce((a, b) => a + b, 0);
-  for (let density = 0.46; density > 0.005; density *= 0.8) {
-    const placed: Dot[] = [];
-    for (let i = 0; i < values.length; i++) {
-      const radius = Math.sqrt((values[i] * width * height * density) / (total * Math.PI));
-      let spot: Dot | null = null;
-      for (let j = 0; j < 4200; j++) {
-        const ring = (Math.sqrt(j) * Math.min(width, height)) / 38,
-          angle = j * 2.399963 + i;
-        const x = width / 2 + ring * Math.cos(angle) * Math.sqrt(width / height);
-        const y = height / 2 + ring * Math.sin(angle) * Math.sqrt(height / width);
-        if (x - radius < 2 || y - radius < 2 || x + radius > width - 2 || y + radius > height - 2) continue;
-        if (placed.every((p) => (p.x - x) ** 2 + (p.y - y) ** 2 >= (radius + p.r + 2) ** 2)) {
-          spot = { x, y, r: radius };
-          break;
-        }
-      }
-      if (!spot) break;
-      placed.push(spot);
+  if (!values.length || width < 24 || height < 24) return [];
+  const gap = 10;
+  const maxRadius = Math.min(84, width * 0.36, height * 0.42);
+  const maxUses = values[0]; // Callers order employees by descending usage.
+  const rows: { dots: Dot[]; width: number; height: number }[] = [];
+  let row = { dots: [] as Dot[], width: 0, height: 0 };
+  for (const uses of values) {
+    const r = Math.max(5, maxRadius * Math.sqrt(uses / maxUses));
+    if (row.dots.length && row.width + gap + 2 * r > width - 2 * gap) {
+      rows.push(row);
+      row = { dots: [], width: 0, height: 0 };
     }
-    if (placed.length === values.length) return placed;
+    const left = row.width + (row.dots.length ? gap : 0);
+    row.dots.push({ x: left + r, y: 0, r });
+    row.width = left + r * 2;
+    row.height = Math.max(row.height, 2 * r);
   }
-  return [];
+  rows.push(row);
+  const usedHeight = rows.reduce((sum, line) => sum + line.height + gap, -gap);
+  let top = Math.max(gap, (height - usedHeight) / 2);
+  return rows.flatMap(line => {
+    const left = (width - line.width) / 2;
+    const dots = line.dots.map(dot => ({ ...dot, x: left + dot.x, y: top + line.height / 2 }));
+    top += line.height + gap;
+    return dots;
+  });
 }
 
 function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPeriod }) {
@@ -78,6 +80,7 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
     [hover, setHover] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
+  const [scrollTop, setScrollTop] = useState(0);
   useEffect(() => {
     const el = box.current;
     if (!el) return;
@@ -102,6 +105,7 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
   const activeIndex = data.findIndex((r) => r.asset.id === hover);
   const active = data[activeIndex];
   const activeDot = dots[activeIndex];
+  const visibleY = (activeDot?.y ?? 0) - scrollTop;
   const name = (asset: BoardAsset) =>
     topics
       .filter((r) => associations.get(r.id)?.has(asset.id))
@@ -128,7 +132,8 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
         </span>
       </div>
       <div className="al-cloud-wrap">
-        <div className="al-cloud" ref={box} data-ready="true" role="group" aria-label={t("数字员工使用气泡云")}>
+        <div className="al-cloud" ref={box} onScroll={event => setScrollTop(event.currentTarget.scrollTop)}
+          data-ready="true" role="group" aria-label={t("数字员工使用气泡云")}>
           {!data.length && (
             <StateView
               size="panel"
@@ -141,7 +146,7 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
             const { asset, metrics } = data[i];
             const color = topics.findIndex((topic) => associations.get(topic.id)?.has(asset.id));
             const title = asset.name + " · " + fmt(metrics.success) + " " + t("次");
-            const fullLabel = p.r >= 48 && Array.from(asset.name).length <= 12;
+            const fullLabel = p.r >= 38;
             return (
               <button
                 key={asset.id}
@@ -169,7 +174,7 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
                 {p.r >= 9 && (
                   <span className="al-bubble-name">{fullLabel ? asset.name : Array.from(asset.name)[0]}</span>
                 )}
-                {fullLabel && p.r >= 58 && <span className="lv-bubble-count">{fmt(metrics.success)} {t("次")}</span>}
+                {fullLabel && p.r >= 46 && <span className="lv-bubble-count">{fmt(metrics.success)} {t("次")}</span>}
               </button>
             );
           })}
@@ -177,9 +182,9 @@ function Cloud({ props, point }: { props: PrototypeViewProps; point?: TrendPerio
         {active && activeDot && (
           <div className="al-bubble-tooltip" role="status" style={{
             left: Math.max(4, Math.min(size.width - 216, activeDot.x - 104)),
-            top: activeDot.y + activeDot.r + 78 <= size.height
-              ? activeDot.y + activeDot.r + 4
-              : Math.max(4, activeDot.y - activeDot.r - 70),
+            top: visibleY + activeDot.r + 78 <= size.height
+              ? visibleY + activeDot.r + 4
+              : Math.max(4, visibleY - activeDot.r - 70),
           }}>
             <b>{active.asset.name}</b>
             <span>

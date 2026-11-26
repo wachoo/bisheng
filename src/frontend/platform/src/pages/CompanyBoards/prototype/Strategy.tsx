@@ -64,7 +64,6 @@ function Card({
   );
 }
 export default function Strategy({ data, period, open, registers, board }: PrototypeViewProps) {
-  const { t } = useTranslation("boardPlans");
   const frame = useRef<HTMLDivElement>(null);
   const [root, setRoot] = useState<ShadowRoot | null>(null);
   useLayoutEffect(() => {
@@ -83,14 +82,19 @@ export default function Strategy({ data, period, open, registers, board }: Proto
     { length: Number(period.slice(5, 7)) },
     (_, i) => workers.filter((w) => Number(w.effective_date?.slice(5, 7)) === i + 1).length,
   );
-  const topic = topics.find((t) => t.id === tab) || topics[0];
-  const tabs = topics.map((t) => ({ id: t.id, name: t.name }));
+  const featured = topics.filter((item) => item.is_featured);
+  const position = Math.max(0, featured.findIndex((item) => item.id === tab));
+  const topic = featured[position];
   const selected = topic?.id;
   const ranks = rank ? workerRanks : depRanks;
   const detail = (key: string, title: string) => open("strategy:" + key, title);
   const topicTitle = topic?.name || "尚未登记专题";
   const launchTopic = () => detail("topic:" + selected, topicTitle + " · 专题资产明细");
-  const categories = stats.knowledge_categories ?? [];
+  const categories = (stats.knowledge_categories ?? [])
+    .filter((group) => group.target > 0)
+    .sort((a, b) => b.completed / b.target - a.completed / a.target ||
+      b.completed - a.completed || a.name.localeCompare(b.name, "zh-CN"))
+    .slice(0, 4);
   const caseRow = registers
     .filter((r) => r.kind === "case" && r.parent_id === topic?.id && r.date <= data.cutoff)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))[0];
@@ -160,28 +164,28 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                           go={() => detail("knowledge", "年度重点知识接入清单")}
                         >
                           <strong className="knowledge-label" id="knowledge-summary">
-                            业务知识集接入
+                            {caseText("knowledgeIntake")}
                           </strong>
                           <small>已接入 / 年度计划</small>
                           <span className="knowledge-total">
                             <b>{stats.knowledge_verified}</b> / {stats.knowledge_planned} 个
                           </span>
                         </Hit>
-                        {!categories.length && <p className="knowledge-empty">{t("emptyCollections")}</p>}
+                        {!categories.length && <p className="knowledge-empty">{caseText("noCompletionRate")}</p>}
                         <dl className="knowledge-details">
                           {categories.map((group) => {
-                            const segments = Math.min(36, Math.max(1, group.target));
-                            const filled = Math.ceil(segments * group.completed / Math.max(1, group.target));
+                            const percent = (group.completed / group.target) * 100;
                             return (
                             <div className="knowledge-row" key={group.id}>
                               <dt>{group.name}</dt>
                               <dd>
-                                <span className="knowledge-segments" aria-hidden="true">
-                                  {Array.from({ length: segments }, (_, i) => (
-                                    <i key={i} className={i < filled ? "connected" : ""} />
-                                  ))}
+                                <span className="knowledge-track" aria-hidden="true">
+                                  <i style={{ width: Math.min(100, percent) + "%" }} />
                                 </span>
-                                <span className="knowledge-number">{group.completed} / {group.target} 个</span>
+                                <span className="knowledge-count">{group.completed} / {group.target}</span>
+                                <span className="knowledge-number" aria-label={"完成率 " + Math.round(percent) + "%"}>
+                                  {Math.round(percent)}%
+                                </span>
                               </dd>
                             </div>
                             );
@@ -257,48 +261,45 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                       ))}
                     </div>
                   </section>
-                  <Card cls="feature" title="重点建设专题" period={topics.length + " 个已登记专题"}>
-                    <div className="topic-tablist" id="topic-tabs">
-                      {!tabs.length && <span className="period">尚未登记专题</span>}
-                      {tabs.map((t) => (
-                        <button
-                          key={t.id}
-                          type="button"
-                          aria-pressed={selected === t.id}
-                          className={"topic-tab" + (selected === t.id ? " active" : "")}
-                          onClick={() => selectTab(t.id)}
-                        >
-                          {t.name}
+                  <Card cls="feature" title="重点建设专题" period={featured.length > 1 && (
+                    <div className="topic-pager">
+                      <button type="button" aria-label={caseText("previousFeatured")} disabled={position === 0}
+                        onClick={() => selectTab(featured[position - 1].id)}>‹</button>
+                      <span>{position + 1} / {featured.length}</span>
+                      <button type="button" aria-label={caseText("nextFeatured")} disabled={position === featured.length - 1}
+                        onClick={() => selectTab(featured[position + 1].id)}>›</button>
+                    </div>
+                  )}>
+                    {topic ? <>
+                      <h3 className="focus-topic-name" aria-live="polite">{topic.name}</h3>
+                      <div className="topic-stats">
+                        <button className="text-btn" disabled={!topic} onClick={launchTopic}>
+                          贡献部门 <strong>{caseDepts.size}</strong> 个
                         </button>
-                      ))}
-                    </div>
-                    <div className="topic-stats">
-                      <button className="text-btn" disabled={!topic} onClick={launchTopic}>
-                        贡献部门 <strong>{caseDepts.size}</strong> 个
-                      </button>
-                      <button className="text-btn" disabled={!topic} onClick={launchTopic}>
-                        已发布资产 <strong>{topicAssets.length}</strong> 项
-                      </button>
-                      <button className="text-btn" disabled={!topic} onClick={launchTopic}>
-                        专题资产明细 ↗
-                      </button>
-                    </div>
-                    <div className="brief" style={hasSample ? undefined : { gridTemplateColumns: "1fr" }}>
-                      <div className="brief-copy">
-                        <h3>{representative?.name || caseText("case")}</h3>
-                        {representative ? <>
-                          <p>{caseRow?.fields.summary || representative.description}</p>
-                          <button className="btn btn-primary case-link" type="button"
-                            onClick={() => open("asset:" + representative.id, representative.name)}>
-                            {caseText("viewEmployee")} ↗
-                          </button>
-                        </> : <p>{caseText("empty")}</p>}
+                        <button className="text-btn" disabled={!topic} onClick={launchTopic}>
+                          已发布资产 <strong>{topicAssets.length}</strong> 项
+                        </button>
+                        <button className="text-btn" disabled={!topic} onClick={launchTopic}>
+                          专题资产明细 ↗
+                        </button>
                       </div>
-                      {hasSample && <div className="sample">
-                        <div className="sample-head"><h4>{caseRow?.fields.sampleTitle || "案例输出"}</h4></div>
-                        <CaseOutput fields={caseRow?.fields} empty="" />
-                      </div>}
-                    </div>
+                      <div className="brief" style={hasSample ? undefined : { gridTemplateColumns: "1fr" }}>
+                        <div className="brief-copy">
+                          <h3>{representative?.name || caseText("case")}</h3>
+                          {representative ? <>
+                            <p>{caseRow?.fields.summary || representative.description}</p>
+                            <button className="btn btn-primary case-link" type="button"
+                              onClick={() => open("asset:" + representative.id, representative.name)}>
+                              {caseText("viewEmployee")} ↗
+                            </button>
+                          </> : <p>{caseText("empty")}</p>}
+                        </div>
+                        {hasSample && <div className="sample">
+                          <div className="sample-head"><h4>{caseRow?.fields.sampleTitle || "案例输出"}</h4></div>
+                          <CaseOutput fields={caseRow?.fields} empty="" />
+                        </div>}
+                      </div>
+                    </> : <p className="focus-empty">{caseText("noFeatured")}</p>}
                   </Card>
                   <Card
                     cls="rank"
@@ -334,30 +335,20 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                     </div>
                     <div id="top-rows">
                       {rank ? (
-                        <table className="wr-table">
-                          <thead>
-                            <tr>
-                              {["排名", "数字员工", "使用次数", "好评率", "健康程度"].map((h) => (
-                                <th key={h}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {workerRanks.slice(0, 3).map((r, i) => (
-                              <tr key={r.id}>
-                                <td>{workerRanks.findIndex((w) => w.count === r.count) + 1}</td>
-                                <td>
-                                  <button className="text-btn" onClick={() => open("asset:" + r.id, r.name)}>
-                                    {r.name}
-                                  </button>
-                                </td>
-                                <td>{workerRanks[i].count}</td>
-                                <td>{percentage(aggregation(trend, r.id).rating)}</td>
-                                <td>{aggregation(trend, r.id).health}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        workerRanks.slice(0, 3).map((r) => {
+                          const { rating, health } = aggregation(trend, r.id);
+                          return <button key={r.id} className="employee-rank" onClick={() => open("asset:" + r.id, r.name)}>
+                            <span className="rank-index">{String(workerRanks.findIndex(w => w.count === r.count) + 1).padStart(2, "0")}</span>
+                            <span className="rank-employee">
+                              <strong>{r.name}</strong>
+                              <span className="employee-detail">
+                                <span>好评率 {percentage(rating)}</span>
+                                <span className="employee-health" data-health={health}>{health}</span>
+                              </span>
+                            </span>
+                            <span className="employee-count">{r.count}<small>次</small></span>
+                          </button>;
+                        })
                       ) : (
                         depRanks.slice(0, 3).map((r) => (
                           <button

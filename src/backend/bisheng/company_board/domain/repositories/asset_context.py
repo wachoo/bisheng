@@ -8,7 +8,9 @@ from sqlalchemy import and_, func
 from sqlalchemy.exc import IntegrityError
 from sqlmodel import select
 
-from bisheng.common.errcode.company_board import BoardLedgerConflictError
+from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
+from bisheng.company_board.domain.models.ledger import BoardLedger
+from bisheng.company_board.domain.repositories.topic_state import topic_states
 from bisheng.company_board.domain.models.supplement import BoardSupplement as Row
 from bisheng.core.database import get_async_db_session
 
@@ -45,6 +47,11 @@ async def write_binding(tenant, key, actor, expected, day, payload):
     ident = binding_id(tenant, key)
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     async with get_async_db_session() as db:
+        topic = payload["topic"]
+        await db.exec(select(BoardLedger.id).where(BoardLedger.tenant_id == tenant, BoardLedger.id == topic)
+                      .order_by(BoardLedger.revision.desc()).limit(1).with_for_update())
+        if (await topic_states(db, tenant, topic=topic)).get(topic, {}).get("deleted"):
+            raise BoardLedgerInvalidError(msg="该专题已删除，请重新选择")
         query = select(Row).where(Row.tenant_id == tenant, Row.id == ident).order_by(Row.revision.desc()).limit(1)
         old = (await db.exec(query.with_for_update())).first()
         if old and old.payload == serialized:
@@ -91,15 +98,27 @@ def options_from_rows(tenant, year, rows):
     }
 
 
+async def binding_options(tenant, year, rows, cutoff=None):
+    options = options_from_rows(tenant, year, rows)
+    async with get_async_db_session() as db:
+        states = await topic_states(db, tenant, cutoff=cutoff)
+    options["deleted"] = {key for key, state in states.items() if state.get("deleted")}
+    return options
+
+
 def effective_topic(binding, options):
     if not binding:
         return options["default_topic"], DEFAULT_TOPIC
     meta = json.loads(binding.payload)
+    if meta["topic"] in options.get("deleted", ()):
+        return options["default_topic"], DEFAULT_TOPIC
     current = next((t for t in options["topics"] if t["id"] == meta["topic"]), None)
     if not current:
         current = next((t for t in options["topics"] if t["name"] == meta["topic_name"]), None)
     if not current and "".join(meta["topic_name"].split()) == DEFAULT_TOPIC:
         current = next((t for t in options["topics"] if t["id"] == options["default_topic"]), None)
+    if not current and topic_id(binding.tenant_id, options["year"], meta["topic_name"]) in options.get("deleted", ()):
+        return options["default_topic"], DEFAULT_TOPIC
     return (
         (current["id"], current["name"])
         if current

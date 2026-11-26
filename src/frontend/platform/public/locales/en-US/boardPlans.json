@@ -1,4 +1,11 @@
 {
+  "defaultHint": "The default topic is required for assets without an assigned topic.",
+  "feature": "Feature {{name}}",
+  "unfeature": "Unfeature {{name}}",
+  "removeTopic": "Delete topic",
+  "removeNamed": "Delete {{name}}",
+  "moveScenesFirst": "Edit these scenarios and move them to another topic first.",
+  "removeHint": "The topic will be hidden from the register and boards. Its assets will remain available under the default topic.",
   "loadFailed": "Could not load the plan.",
   "retry": "Retry",
   "loading": "Loading annual plan…",

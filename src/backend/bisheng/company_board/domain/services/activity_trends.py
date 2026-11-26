@@ -37,6 +37,10 @@ async def read_trends(user, board, year, month):
         prefix = "assistant" if row["kind"] in {"employee", "file", "version", "model"} else row["kind"]
         asset_id = f"{prefix}:{row['asset_id']}"
         row["asset_id"] = asset_id if asset_id in visible else None
+        # MySQL returns SUM(CASE ...) as DECIMAL and the JSON encoder emits it
+        # as a string. All counters are integers in the public trends contract.
+        for counter in ("successful", "failed", "cancelled", "entered", "timed", "linked", "rounds", "negative"):
+            row[counter] = int(row[counter])
         row["active_seconds"] = float(row["active_seconds"] or 0)
         row["tokens"] = int(row["tokens"]) if row["tokens"] is not None else None
         row["output_day"] = str(row["output_day"]) if row["output_day"] else None

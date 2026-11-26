@@ -12,5 +12,10 @@
   "empty": "No representative employee selected for this initiative.",
   "case": "Representative case",
   "employee": "Digital employee",
-  "initiativeCase": "Initiative representative case"
+  "initiativeCase": "Initiative representative case",
+  "previousFeatured": "Previous featured initiative",
+  "nextFeatured": "Next featured initiative",
+  "noFeatured": "No featured initiatives. Star an initiative in Initiative management.",
+  "noCompletionRate": "No categories have a measurable completion rate.",
+  "knowledgeIntake": "Business knowledge integration"
 }

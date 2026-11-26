@@ -1,4 +1,6 @@
-from sqlalchemy import func
+import json
+
+from sqlalchemy import case, func
 from sqlmodel import select
 
 from bisheng.core.database import get_async_db_session
@@ -8,7 +10,22 @@ from bisheng.database.models.department import Department
 from bisheng.database.models.flow import Flow, FlowStatus, FlowType
 from bisheng.knowledge.domain.models.knowledge import AuthTypeEnum, Knowledge, KnowledgeState, KnowledgeTypeEnum
 from bisheng.linsight.domain.models.linsight_skill import LinsightSkill
+from bisheng.tool.domain.const import ToolPresetType
 from bisheng.tool.domain.models.gpts_tools import GptsTools, GptsToolsType
+
+
+def mcp_display_name(metadata, operation):
+    if isinstance(metadata, str):
+        try:
+            metadata = json.loads(metadata)
+        except ValueError:
+            return operation
+    if isinstance(metadata, dict):
+        annotations = metadata.get("annotations")
+        for title in (metadata.get("title"), annotations.get("title") if isinstance(annotations, dict) else None):
+            if isinstance(title, str) and title.strip():
+                return title.strip()
+    return operation
 
 
 async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
@@ -59,7 +76,10 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
         (
             "tool",
             "tool",
-            select(GptsTools.id, GptsTools.name, GptsTools.desc, GptsTools.type)
+            select(
+                GptsTools.id, GptsTools.name, GptsTools.desc, GptsTools.type,
+                case((GptsTools.is_preset == ToolPresetType.MCP.value, GptsTools.extra)),
+            )
             .join(GptsToolsType, GptsToolsType.id == GptsTools.type)
             .where(
                 GptsTools.tenant_id == tenant_id,
@@ -88,5 +108,6 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
                 }
                 if group:
                     asset["context_key"] = f"toolset:{group[0]}"
+                    asset["name"] = mcp_display_name(group[1], name)
                 assets.append(asset)
     return departments, sorted(assets, key=lambda a: (a["kind"], a["name"], a["id"]))

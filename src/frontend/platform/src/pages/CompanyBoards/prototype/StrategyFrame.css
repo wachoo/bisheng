@@ -220,3 +220,48 @@ dl dd:last-child { margin-bottom: 0px; }
 button:focus-visible,a:focus-visible { outline:2px solid var(--al-blue); outline-offset:2px; }
 @media (prefers-reduced-motion:reduce) { *,*::before,*::after { transition-duration:0s !important; animation-duration:0s !important; } }
 .shell { padding-block-start: clamp(10px, 1.5cqh, 20px); }
+
+/* Strategy summaries share the same baseline and type scale as the asset strip. */
+.knowledge-details .knowledge-row { grid-template-columns: minmax(3em, auto) 1fr; }
+.knowledge-row dd { grid-template-columns: minmax(20px, 1fr) auto 4ch; }
+.knowledge-track { height: 5px; background: var(--al-line); border-radius: 5px; overflow: hidden; }
+.knowledge-track i { display: block; height: 100%; border-radius: inherit; background: var(--al-teal); }
+.knowledge-count, .knowledge-number { font-size: 12px; text-align: end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.knowledge-count { color: var(--al-muted); }
+.knowledge-number { color: var(--al-ink); }
+.topic-pager { display: inline-flex; align-items: center; gap: 6px; }
+.topic-pager span { min-width: 4ch; font-size: 12px; color: var(--al-muted); text-align: center; font-variant-numeric: tabular-nums; }
+.topic-pager button {
+  display: grid; place-items: center; width: 32px; height: 30px;
+  border: 1px solid var(--al-line); border-radius: 7px; background: var(--al-paper);
+  color: var(--al-ink); font-family: inherit; line-height: 1; font-size: 20px; cursor: pointer;
+}
+.topic-pager button:disabled { opacity: .36; cursor: default; }
+.topic-pager button:hover:not(:disabled) { color: var(--al-blue); background: var(--al-soft); }
+.focus-topic-name { margin: 8px 0; font-size: 18px; line-height: 1.45; overflow-wrap: anywhere; color: var(--al-ink); }
+.focus-empty { margin-block: auto; padding: 24px 0; color: var(--al-muted); font-size: 14px; }
+.feature .topic-stats { justify-content: flex-start; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--al-line); }
+.feature .topic-stats button { margin-left: 0; }
+.feature .topic-stats button:last-child { margin-inline-start: auto; }
+.rank .ranking-modes { align-self: flex-start; }
+.rank .rank-period { margin: 5px 0 9px; }
+.employee-rank {
+  width: 100%; display: grid; grid-template-columns: 30px minmax(0,1fr) auto;
+  align-items: center; gap: 12px; padding: 11px 4px; border: 0;
+  border-bottom: 1px solid var(--al-line); background: transparent;
+  text-align: start; color: var(--al-ink); cursor: pointer;
+}
+.employee-rank:last-child { border-bottom: 0; }
+.employee-rank:hover { background: var(--al-soft); }
+.rank-index { color: var(--al-muted); font-weight: 600; font-size: 13px; text-align: center; font-variant-numeric: tabular-nums; }
+.employee-rank:first-child .rank-index { color: var(--al-blue); }
+.rank-employee { min-width: 0; display: grid; gap: 5px; }
+.rank-employee strong { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.employee-detail { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; color: var(--al-muted); font-size: 12px; }
+.employee-health { display: inline-flex; align-items: center; gap: 5px; }
+.employee-health::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--al-muted); }
+.employee-health[data-health="正常"]::before { background: var(--al-teal); }
+.employee-health[data-health="关注"]::before { background: var(--al-amber); }
+.employee-health[data-health="异常"]::before { background: var(--al-red, #c33f45); }
+.employee-count { font-size: 21px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.employee-count small { margin-inline-start: 4px; font-size: 12px; font-weight: 400; color: var(--al-muted); }

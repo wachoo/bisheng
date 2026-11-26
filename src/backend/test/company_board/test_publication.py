@@ -13,6 +13,7 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories import ledger
+from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories import publication as pub
 from bisheng.database.models.app import App, AppDao
 from bisheng.database.models.assistant import Assistant, AssistantStatus
@@ -74,6 +75,26 @@ class PublicationTest(unittest.IsolatedAsyncioTestCase):
 
     async def asyncTearDown(self):
         await self.engine.dispose()
+
+    async def test_catalog_displays_mcp_title_without_changing_operation_identity(self):
+        pub.install_publication_tracking()
+        async with self.session() as db:
+            db.add(GptsToolsType(id=7, name="询价服务", tenant_id=1))
+            for ident, kind, extra in [
+                (1, 2, '{"title":"物资询价","annotations":{"title":"旧标题"}}'),
+                (2, 2, '{"annotations":{"title":"批量询价"}}'),
+                (3, 2, "legacy"),
+                (4, 0, '{"title":"内部配置"}'),
+            ]:
+                db.add(GptsTools(id=ident, type=7, tenant_id=1, is_preset=kind,
+                                 name=f"quote_{ident}", tool_key=f"key_{ident}", extra=extra))
+            await db.commit()
+        with patch("bisheng.company_board.domain.repositories.catalog.get_async_db_session", self.session):
+            _, assets = await load_catalog(1)
+        self.assertEqual({row["id"]: row["name"] for row in assets}, {
+            "tool:1":"物资询价", "tool:2":"批量询价", "tool:3":"quote_3", "tool:4":"quote_4",
+        })
+        self.assertTrue(all(row["context_key"] == "toolset:7" for row in assets))
 
     async def releases(self, tenant=1):
         async with self.session() as db:

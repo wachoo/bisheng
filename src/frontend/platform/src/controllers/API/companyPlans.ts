@@ -6,6 +6,7 @@ export interface PlanItem {
   id: string;
   name: string;
   version: string;
+  is_featured?: boolean;
   topic_id?: string;
   department_id?: number | null;
   planned_date?: string | null;
@@ -43,7 +44,7 @@ interface PlannedInput extends ItemInput {
 }
 export type PlanEdit =
   | (Targets & { kind: "targets" })
-  | (ItemInput & { kind: "topic" })
+  | (ItemInput & { kind: "topic"; is_featured?: boolean; delete?: boolean })
   | (PlannedInput & { kind: "scene"; support_department_ids: number[]; asset_keys: string[] })
   | (ItemInput & { kind: "collection"; target: number; planned_date: string });
 

@@ -12,5 +12,10 @@
   "empty": "このテーマの代表事例は未選択です。",
   "case": "代表事例",
   "employee": "デジタル従業員",
-  "initiativeCase": "テーマの代表事例"
+  "initiativeCase": "テーマの代表事例",
+  "previousFeatured": "前の重点テーマ",
+  "nextFeatured": "次の重点テーマ",
+  "noFeatured": "重点テーマはありません。テーマ管理で星を付けてください。",
+  "noCompletionRate": "達成率を計算できる分類はありません。",
+  "knowledgeIntake": "業務ナレッジの導入"
 }

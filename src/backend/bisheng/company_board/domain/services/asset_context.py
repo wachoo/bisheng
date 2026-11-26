@@ -10,6 +10,7 @@ from bisheng.common.errcode.company_board import BoardLedgerInvalidError
 from bisheng.common.errcode.http_error import UnAuthorizedError
 from bisheng.common.permission_identity import check_tenant_admin
 from bisheng.company_board.domain.repositories.asset_context import (
+    binding_options,
     effective_topic,
     latest_bindings,
     legacy_assignments,
@@ -86,7 +87,7 @@ async def require_asset_editor(user, tenant, asset_key):
 
 
 async def attach_asset_topics(tenant, year, cutoff, assets, rows):
-    opts = options_from_rows(tenant, year, rows)
+    opts = await binding_options(tenant, year, rows, cutoff)
     by_key = await latest_bindings(tenant, cutoff)
     old = await legacy_assignments(tenant, year, cutoff, rows)
     known = {r["id"] for r in rows if r["kind"] == "topic"}
@@ -144,7 +145,7 @@ async def legacy_context(tenant, key, year, plan):
 async def read_asset_context(user, tenant, key, year):
     await require_asset_editor(user, tenant, key)
     plan = await list_ledger(tenant, year)
-    opts = options_from_rows(tenant, year, plan)
+    opts = await binding_options(tenant, year, plan)
     binding = (await latest_bindings(tenant, key=key)).get(key)
     prior = {} if binding else await legacy_context(tenant, key, year, plan)
     topic, name = (prior["topic"], prior["topic_name"]) if prior else effective_topic(binding, opts)
@@ -179,7 +180,7 @@ async def save_asset_context(user, tenant, key, data):
     if data.year != day.year:
         raise BoardLedgerInvalidError(msg="请重新打开资产设置以切换至新年度")
     plan = await list_ledger(tenant, day.year)
-    opts = options_from_rows(tenant, day.year, plan)
+    opts = await binding_options(tenant, day.year, plan)
     topic = data.topic or opts["default_topic"]
     name = next((t["name"] for t in opts["topics"] if t["id"] == topic), None)
     old = (await latest_bindings(tenant, key=key)).get(key)

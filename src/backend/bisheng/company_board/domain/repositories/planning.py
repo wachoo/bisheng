@@ -14,6 +14,8 @@ from bisheng.common.errcode.company_board import BoardLedgerConflictError, Board
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories.ledger import new_id
+from bisheng.company_board.domain.repositories.topic_state import KIND as TOPIC_STATE, topic_states
+from bisheng.company_board.domain.repositories.asset_context import DEFAULT_TOPIC, topic_id
 from bisheng.company_board.domain.repositories.planning_departments import (
     department_options, direct_departments, validate_plan_departments,
 )
@@ -23,7 +25,7 @@ from bisheng.company_board.domain.schemas.planning import Collection, Scene, Tar
 from bisheng.core.database import get_async_db_session
 from bisheng.database.models.department import Department
 
-CHILD_KINDS = ("scene-team", "recognition", "collection-meta", "plan-date", SCENE_LINKS)
+CHILD_KINDS = ("scene-team", "recognition", "collection-meta", "plan-date", SCENE_LINKS, TOPIC_STATE)
 
 
 def plan_cutoff(year):
@@ -86,6 +88,8 @@ def retains_support_period(prior, requested):
 def read_item(row, children):
     result = {"id": row.id, "name": row.name, "kind": row.kind, "version": version([row, *children])}
     if row.kind == "topic":
+        state = next((fields(c) for c in children if c.kind == TOPIC_STATE), {})
+        result["is_featured"] = state.get("is_featured", False)
         return result
     dates = active(children, "plan-date")
     result.update(
@@ -194,6 +198,8 @@ async def read_plan(tenant, year):
     async with get_async_db_session() as db:
         base = await heads(db, BoardLedger, tenant, year, ("goal", "topic", "scene"))
         details = await heads(db, BoardSupplement, tenant, year, CHILD_KINDS)
+        deleted = {r.parent_id for r in details if r.kind == TOPIC_STATE and fields(r).get("deleted")}
+        base = [r for r in base if r.id not in deleted]
         categories = await category_items(db, tenant, year)
         assigned = {r.department_id for r in base if r.kind == "scene" and r.department_id}
         assigned.update(int(fields(r)["department"]) for r in active(details, "scene-team"))
@@ -297,10 +303,10 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
                     BoardLedger.kind == "topic",
                     BoardLedger.id == str(data.topic_id),
                 )
-                .limit(1)
+                .order_by(BoardLedger.revision.desc()).limit(1).with_for_update()
             )
         ).first()
-        if parent is None:
+        if parent is None or (await topic_states(db, tenant, topic=parent)).get(parent, {}).get("deleted"):
             raise BoardLedgerInvalidError(msg="所属专题不存在或年度不一致")
     standard = LedgerInput(
         year=year, kind=data.kind, name=data.name, parent_id=None if isinstance(data, Topic) else str(data.topic_id)
@@ -323,6 +329,17 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
     if old and (old.year != year or old.kind != data.kind):
         raise BoardLedgerInvalidError(msg="计划类型或年度不符")
     children = await heads(db, BoardSupplement, tenant, year, CHILD_KINDS, parent=ident, lock=True)
+    state = next((c for c in children if c.kind == TOPIC_STATE), None)
+    while state and fields(state).get("deleted"):
+        if not isinstance(data, Topic) or data.id or data.delete:
+            raise BoardLedgerInvalidError(msg="专题已删除")
+        # A new topic may reuse the old display name, but never its asset links.
+        ident = str(uuid5(NAMESPACE_URL, "replacement-topic/" + ident))
+        old = (await db.exec(select(BoardLedger).where(
+            BoardLedger.tenant_id == tenant, BoardLedger.id == ident
+        ).order_by(BoardLedger.revision.desc()).limit(1).with_for_update())).first()
+        children = await heads(db, BoardSupplement, tenant, year, CHILD_KINDS, parent=ident, lock=True)
+        state = next((c for c in children if c.kind == TOPIC_STATE), None)
     check_version(version(([old] if old else []) + children), data.version)
     base = {"kind": data.kind, "name": data.name}
     if not isinstance(data, Topic):
@@ -340,6 +357,19 @@ async def write_item(db, tenant, operator, year, data, available_assets, inherit
         base.update(department_id=data.department_id, parent_id=str(data.topic_id), effective_date=data.completed_date)
     append_base(db, tenant, operator, year, ident, old, **base)
     if isinstance(data, Topic):
+        if data.delete:
+            if not old:
+                raise BoardLedgerInvalidError(msg="原专题不存在")
+            if "".join(old.name.split()) == DEFAULT_TOPIC or ident == topic_id(tenant, year, DEFAULT_TOPIC):
+                raise BoardLedgerInvalidError(msg="默认专题用于承接未指定专题的资产，无法删除")
+            scenes = [r.name for r in await heads(db, BoardLedger, tenant, year, ("scene",), lock=True)
+                      if r.parent_id == ident]
+            if scenes:
+                raise BoardLedgerInvalidError(msg="请先编辑以下场景，更换所属专题：" + "、".join(sorted(scenes)))
+        if data.is_featured is not None or data.delete:
+            day = max(date(year, 1, 1), plan_cutoff(year))
+            append_detail(db, tenant, operator, year, ident, TOPIC_STATE, data.name, day,
+                          {"is_featured": bool(data.is_featured), "deleted": data.delete}, state)
         return
     jan = date(year, 1, 1)
     dates = active(children, "plan-date")

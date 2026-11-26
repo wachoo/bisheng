@@ -1,4 +1,11 @@
 {
+  "defaultHint": "默认专题用于承接未指定专题的资产，无法删除。",
+  "feature": "将「{{name}}」设为重点专题",
+  "unfeature": "取消「{{name}}」的重点标记",
+  "removeTopic": "删除专题",
+  "removeNamed": "删除「{{name}}」",
+  "moveScenesFirst": "请先编辑以下场景，将其移至其他专题。",
+  "removeHint": "删除后该专题将从台账和看板隐藏，资产保留并归入默认专题。",
   "loadFailed": "读取填报数据失败。",
   "retry": "重试",
   "loading": "正在读取年度计划…",

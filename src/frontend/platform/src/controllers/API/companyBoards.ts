@@ -19,7 +19,7 @@ export type LedgerInput = {
   parent_id: string | null;
   effective_date: string | null;
 };
-export type LedgerRow = LedgerInput & { id: string; revision: number };
+export type LedgerRow = LedgerInput & { id: string; revision: number; is_featured?: boolean };
 export type BoardRun = { id: string; asset_id: string; status: string; ended_at: string; active_seconds: number | null };
 export type RuntimeMetrics = {
   scope: string; observed_runs: number; successful_tasks: number | null; failed_tasks: number | null;

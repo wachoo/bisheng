@@ -24,6 +24,8 @@ class Item(Edit):
 
 class Topic(Item):
     kind: Literal["topic"]
+    is_featured: bool | None = None
+    delete: bool = False
 
 
 class DateRange(BaseModel):

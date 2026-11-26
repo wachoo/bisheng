@@ -1,9 +1,10 @@
-import { Button } from "@bisheng/ui";
-import { useQuery } from "@tanstack/react-query";
+import { Button, Modal } from "@bisheng/ui";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { userContext } from "@/contexts/userContext";
-import { readCompanyPlan, type PlanItem } from "@/controllers/API/companyPlans";
+import { readCompanyPlan, saveCompanyPlan, type PlanEdit, type PlanItem } from "@/controllers/API/companyPlans";
+import { showApiError } from "@/controllers/request";
 import { PlanEditor, type Selection } from "./PlanEditor";
 import { TopicRepresentativeEditor } from "./TopicRepresentativeEditor";
 import "./plan.css";
@@ -25,6 +26,17 @@ function PlanSheet({ year, kind }: Props) {
     queryFn: () => readCompanyPlan(year),
   });
   const [editing, setEditing] = useState<Selection | null>(null);
+  const [removing, setRemoving] = useState<PlanItem | null>(null);
+  const cache = useQueryClient();
+  const action = useMutation({
+    mutationFn: (edit: PlanEdit) => saveCompanyPlan(year, edit),
+    onSuccess: async () => {
+      setRemoving(null);
+      await cache.invalidateQueries({queryKey: ["company-boards"]});
+      await cache.invalidateQueries({queryKey: ["company-board-monitoring"]});
+    },
+    onError: (err: unknown) => { showApiError(err); void plan.refetch(); },
+  });
   if (plan.isError)
     return (
       <div className="plan-form" role="alert">
@@ -56,6 +68,16 @@ function PlanSheet({ year, kind }: Props) {
   const annual = kind === "annual";
 
   const addTopic = () => setEditing({ kind: "topic" });
+  const toggleStar = (row?: PlanItem) => {
+    const pressed = !!row?.is_featured;
+    const name = row?.name ?? t("defaultTopicName");
+    const label = t(pressed ? "unfeature" : "feature", { name });
+    return <button type="button" aria-label={label} title={label} aria-pressed={pressed}
+      disabled={action.isLoading} className={`inline-flex h-8 w-8 items-center justify-center rounded text-xl hover:bg-gray-100 ${pressed ? "text-amber-500" : "text-gray-500"}`}
+      onClick={() => action.mutate({kind:"topic", id:row?.id ?? null, name:row?.name ?? "AI先锋行动",
+        version:row?.version ?? null, is_featured:!pressed})}>{pressed ? "★" : "☆"}</button>;
+  };
+  const dependentScenes = scenes.filter(row => row.topic_id === removing?.id);
 
   function table(rows: PlanItem[]) {
     if (!rows.length) return <p className="plan-empty">{t(annual ? "emptyScenes" : "emptyCollections")}</p>;
@@ -153,7 +175,7 @@ function PlanSheet({ year, kind }: Props) {
         </div>
         {annual && !topics.some(r => r.id === data.default_topic) && (
           <section className="plan-topic">
-            <h3>{t("defaultTopicName")}</h3>
+            <div className="flex items-center gap-1">{toggleStar()}<h3>{t("defaultTopicName")}</h3></div>
             <TopicRepresentativeEditor year={year} topicId={data.default_topic} />
           </section>
         )}
@@ -165,12 +187,18 @@ function PlanSheet({ year, kind }: Props) {
                 <section className="plan-topic" key={topic.id}>
                   <div className="plan-topic-heading">
                     <div>
-                      <h3>{topic.name}</h3>
+                      <div className="flex items-center gap-1">{toggleStar(topic)}<h3>{topic.name}</h3></div>
                       <span>
                         {t("sceneCount", { count: rows.length, done: rows.filter(completed).length })}
                       </span>
                     </div>
                     <div className="plan-actions">
+                      {topic.id === data.default_topic ? <span title={t("defaultHint")} tabIndex={0}>
+                        <Button disabled variant="text">{t("removeTopic")}</Button>
+                      </span> : <Button variant="text"
+                        aria-label={t("removeNamed", {name:topic.name})} onClick={() => setRemoving(topic)}>
+                        {t("removeTopic")}
+                      </Button>}
                       <Button variant="text" onClick={() => setEditing({ kind: "topic", item: topic })}>
                         {t("editTopic")}
                       </Button>
@@ -192,6 +220,16 @@ function PlanSheet({ year, kind }: Props) {
         )}
       </section>
       {editing && <PlanEditor year={year} data={data} selection={editing} onClose={() => setEditing(null)} />}
+      {removing && <Modal open size="medium" title={t("removeNamed", {name:removing.name})}
+        closeLabel={t("cancel")} onOpenChange={open => {if (!open && !action.isLoading) setRemoving(null);}}
+        footer={<><Button disabled={action.isLoading} onClick={() => setRemoving(null)}>{t("cancel")}</Button>
+          {!dependentScenes.length && <Button disabled={action.isLoading} onClick={() => action.mutate({
+            kind:"topic", id:removing.id, name:removing.name, version:removing.version, delete:true
+          })}>{t("removeTopic")}</Button>}</>}>
+        {dependentScenes.length ? <><p>{t("moveScenesFirst")}</p>{dependentScenes.map(row =>
+          <Button key={row.id} variant="text" onClick={() => {setRemoving(null); setEditing({kind:"scene", item:row});}}>
+            {t("editNamed", {name:row.name})}</Button>)}</> : <p>{t("removeHint")}</p>}
+      </Modal>}
     </div>
   );
 }

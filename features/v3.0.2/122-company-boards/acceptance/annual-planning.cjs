@@ -152,6 +152,11 @@ async function main() {
     for (const employee of ["验证员工","验证备选员工",null]) {
       await page.goto(base+"/board-ledger/annual?year="+year);
       const topicPanel = page.locator(".plan-topic").filter({has:page.getByRole("heading",{name:"AI先锋行动",exact:true})});
+      const star = topicPanel.getByRole("button", {name:/AI先锋行动.*重点/});
+      if (await star.getAttribute("aria-pressed") !== "true") {
+        await star.click();
+        await topicPanel.locator('button[aria-pressed="true"]').waitFor();
+      }
       const selector = topicPanel.getByRole("combobox",{name:"代表案例数字员工"});
       if (employee) {
         await selector.click();
@@ -164,7 +169,7 @@ async function main() {
       await topicPanel.getByRole("button",{name:"保存",exact:true}).click();
       assert.equal((await (await saved).json()).status_code,200);
       await page.goto(base+"/leadboard");
-      await page.locator("#strategy-cockpit").getByRole("button",{name:"AI先锋行动",exact:true}).click();
+      assert.equal(await page.locator(".focus-topic-name").innerText(), "AI先锋行动");
       const summary = page.locator("#strategy-cockpit .brief");
       if (employee) {
         await summary.getByRole("heading",{name:employee,exact:true}).waitFor();
@@ -177,7 +182,24 @@ async function main() {
         await summary.getByText("此专题尚未选择代表案例数字员工。",{exact:true}).waitFor();
       }
     }
-    console.log("Annual targets, scene dates and departments, category target 5, one categorized knowledge library, and both board projections reconciled. Representative selected, replaced, opened and cleared.");
+    await page.goto(base+"/board-ledger/annual?year="+year);
+    const archivedName = "阶段性采购专项" + suffix;
+    await button("新增专题").click();
+    await page.locator("#plan-name").fill(archivedName);
+    await save();
+    const archivedPanel = page.locator(".plan-topic").filter({has:page.getByRole("heading",{name:archivedName,exact:true})});
+    const mark = archivedPanel.locator("button[aria-pressed]");
+    for (const state of ["true","false"]) {
+      await mark.click();
+      await archivedPanel.locator('button[aria-pressed="'+state+'"]').waitFor();
+      const item = (await read("planning/"+year)).items.find(row=>row.name===archivedName);
+      assert.equal(item.is_featured,state==="true");
+    }
+    await archivedPanel.getByRole("button",{name:"删除「"+archivedName+"」",exact:true}).click();
+    await page.getByRole("dialog").getByRole("button",{name:"删除专题",exact:true}).click();
+    await archivedPanel.waitFor({state:"detached"});
+    assert(!(await read("planning/"+year)).items.some(row=>row.name===archivedName));
+    console.log("Annual plans, departments, classified knowledge, and both board projections reconciled. Representative selected, replaced, opened and cleared. Topic starred, unstarred and archived.");
   } finally { await browser.close(); }
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,5 +1,8 @@
 import unittest
 from datetime import datetime
+from decimal import Decimal
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import create_engine
 from sqlmodel import Session
@@ -7,6 +10,7 @@ from sqlmodel import Session
 from bisheng.company_board.domain.models.feedback import BoardRating
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.repositories.activity_trends import trend_query
+from bisheng.company_board.domain.services import activity_trends
 from bisheng.company_board.domain.services.activity_trends import report_periods
 
 
@@ -68,3 +72,23 @@ class ActivityTrendsTest(unittest.TestCase):
         self.assertNotIn((0, "file"), rows)
         self.assertEqual(rows[0, "version"].output_category, "page")
         self.assertEqual(rows[0, "model"].tokens, 23)
+
+
+class TrendResponseTest(unittest.IsolatedAsyncioTestCase):
+    async def test_mysql_decimal_totals_have_numeric_api_types(self):
+        counts = dict(successful=3, failed=1, cancelled=0, entered=0, timed=4, linked=3, rounds=4, negative=1)
+        row = {key: Decimal(value) for key, value in counts.items()}
+        row.update(period=0, kind="employee", asset_id="42", active_seconds=Decimal("2.5"),
+                   output_day=None, tokens=None)
+        with (
+            patch("bisheng.company_board.domain.services.boards.require_access", new_callable=AsyncMock),
+            patch.object(activity_trends, "load_catalog", new_callable=AsyncMock, return_value=([], [])),
+            patch.object(activity_trends, "grouped_trends", new_callable=AsyncMock, return_value=([row], None)),
+        ):
+            trends = await activity_trends.read_trends(SimpleNamespace(tenant_id=1), "lead", 2026, 11)
+        output = trends["year"]["rows"][0]
+        for key, value in counts.items():
+            self.assertIs(type(output[key]), int, key)
+            self.assertEqual(output[key], value)
+        self.assertEqual(output["active_seconds"], 2.5)
+        self.assertIsNone(output["tokens"])

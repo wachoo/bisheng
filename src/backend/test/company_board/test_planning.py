@@ -60,6 +60,39 @@ class PlanningTest(unittest.IsolatedAsyncioTestCase):
     async def item(self, kind):
         return next(i for i in (await planning.read_plan(1, 2025))["items"] if i["kind"] == kind)
 
+    async def test_topic_star_and_soft_delete(self):
+        await self.save(Topic(kind="topic", name="采购"))
+        topic = await self.item("topic")
+        self.assertFalse(topic["is_featured"])
+        await self.save(Topic(**{**topic, "is_featured": True}))
+        with self.assertRaises(BoardLedgerConflictError):
+            await self.save(Topic(**topic, delete=True))
+        featured = await self.item("topic")
+        self.assertTrue(featured["is_featured"])
+        await self.save(Topic(**featured, delete=True))
+        self.assertFalse((await planning.read_plan(1, 2025))["items"])
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Scene(kind="scene", name="报价", topic_id=topic["id"], department_id=1,
+                                  planned_date="2025-02-01"))
+        async with self.session() as db:
+            self.assertIsNotNone(await db.get(BoardLedger, (1, topic["id"], 1)))
+        await self.save(Topic(kind="topic", name="采购"))
+        replacement = await self.item("topic")
+        self.assertNotEqual(replacement["id"], topic["id"])
+        self.assertFalse(replacement["is_featured"])
+
+    async def test_topics_with_scenes_and_default_are_protected(self):
+        await self.save(Topic(kind="topic", name="投标", is_featured=True))
+        topic = await self.item("topic")
+        await self.save(Scene(kind="scene", name="校核", topic_id=topic["id"], department_id=1,
+                              planned_date="2025-03-01"))
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Topic(**topic, delete=True))
+        await self.save(Topic(kind="topic", name="AI先锋行动", is_featured=True))
+        default = next(r for r in (await planning.read_plan(1, 2025))["items"] if r["name"] == "AI先锋行动")
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Topic(**default, delete=True))
+
     async def test_scenes_use_direct_company_departments_and_preserve_prior_assignments(self):
         plan = await planning.read_plan(1, 2025)
         self.assertEqual([d["id"] for d in plan["departments"]], [1, 2, 3])

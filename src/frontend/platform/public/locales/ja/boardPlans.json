@@ -1,4 +1,11 @@
 {
+  "defaultHint": "所属未指定の資産に使用する既定テーマは削除できません。",
+  "feature": "「{{name}}」を重点に設定",
+  "unfeature": "「{{name}}」の重点指定を解除",
+  "removeTopic": "テーマを削除",
+  "removeNamed": "「{{name}}」を削除",
+  "moveScenesFirst": "以下のシーンを編集し、別のテーマに移してください。",
+  "removeHint": "台帳とボードからテーマを非表示にします。資産は既定のテーマに残ります。",
   "loadFailed": "計画を読み込めませんでした。",
   "retry": "再試行",
   "loading": "年度計画を読み込み中…",

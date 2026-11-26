@@ -12,5 +12,10 @@
   "empty": "此专题尚未选择代表案例数字员工。",
   "case": "代表案例",
   "employee": "数字员工",
-  "initiativeCase": "专题代表案例"
+  "initiativeCase": "专题代表案例",
+  "previousFeatured": "上一个重点专题",
+  "nextFeatured": "下一个重点专题",
+  "noFeatured": "暂无重点专题，可在专题管理中点亮五角星。",
+  "noCompletionRate": "暂无可计算完成率的分类",
+  "knowledgeIntake": "业务知识接入"
 }

@@ -9,6 +9,7 @@ from bisheng.common.errcode.company_board import BoardLedgerConflictError, Board
 from bisheng.common.errcode.http_error import NotFoundError
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.repositories.planning_departments import validate_plan_departments
+from bisheng.company_board.domain.repositories.topic_state import topic_states
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.core.database import get_async_db_session
@@ -42,6 +43,11 @@ async def list_ledger(tenant_id: int, year: int, as_of: date | None = None) -> l
     )
     async with get_async_db_session() as session:
         rows = [public_row(row) for row in (await session.exec(query)).all()]
+        states = await topic_states(session, tenant_id, year=year, cutoff=as_of)
+        for row in rows:
+            if row["kind"] == "topic":
+                row["is_featured"] = states.get(row["id"], {}).get("is_featured", False)
+        rows = [r for r in rows if not states.get(r["id"], {}).get("deleted")]
         cutoff = as_of or date(year, 12, 31)
         history = await _app_audit_history(session, tenant_id, cutoff)
         if not history:
@@ -199,6 +205,12 @@ async def save_ledger(
             )
             if topic.first() is None:
                 raise BoardLedgerInvalidError(msg="上级台账不存在或类型、年度不一致")
+        reference = data.parent_id if data.kind in ("scene", "collection") else ident if data.kind == "topic" else None
+        if reference:
+            await session.exec(select(BoardLedger.id).where(BoardLedger.tenant_id == tenant_id,
+                BoardLedger.id == reference).order_by(BoardLedger.revision.desc()).limit(1).with_for_update())
+            if (await topic_states(session, tenant_id, topic=reference)).get(reference, {}).get("deleted"):
+                raise BoardLedgerInvalidError(msg="该专题已删除")
         latest = (
             await session.exec(
                 select(BoardLedger)

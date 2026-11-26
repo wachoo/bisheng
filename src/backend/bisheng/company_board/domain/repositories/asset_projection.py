@@ -5,7 +5,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from bisheng.company_board.domain.repositories.asset_context import binding_history, effective_topic, options_from_rows
+from bisheng.company_board.domain.repositories.asset_context import binding_history, binding_options, effective_topic
 from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.ledger import list_ledger
 
@@ -13,7 +13,7 @@ from bisheng.company_board.domain.repositories.ledger import list_ledger
 async def project_asset_rows(tenant, cutoff, kinds, records, bindings):
     day = cutoff or datetime.now(ZoneInfo("Asia/Shanghai")).date()
     plans = await list_ledger(tenant, day.year, cutoff)
-    opts = options_from_rows(tenant, day.year, plans)
+    opts = await binding_options(tenant, day.year, plans, day)
     _, assets = await load_catalog(tenant)
     by_key = defaultdict(list)
     for asset in assets:

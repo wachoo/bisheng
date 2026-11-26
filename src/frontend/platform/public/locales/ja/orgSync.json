@@ -52,15 +52,44 @@
     "add": "追加",
     "remove": "削除"
   },
+  "configs": {
+    "title": "WeChat Work 同期設定",
+    "empty": "同期設定がありません。作成して有効化すると、ログイン画面に WeChat Work ログインが表示されます。",
+    "columnName": "設定名",
+    "columnStatus": "状態",
+    "columnUpdated": "更新日時",
+    "columnActions": "操作",
+    "statusActive": "有効",
+    "statusDisabled": "無効",
+    "enable": "有効化",
+    "disable": "無効化",
+    "statusUpdated": "設定の状態を更新しました",
+    "multipleActiveWarning": "有効な WeChat Work 設定が複数あるため、ログイン入口は表示されません。1 件だけ有効にしてください。",
+    "exclusiveHint": "有効にして保存すると、他の有効な WeChat Work 設定は自動的に無効になります。"
+  },
   "form": {
-    "provider": "プロバイダー"
+    "provider": "プロバイダー",
+    "configName": "設定名",
+    "configNamePlaceholder": "例：本社 WeChat Work",
+    "enabled": "この設定を有効にする"
   },
   "dialog": {
-    "createTitle": "新しい同期設定"
+    "createTitle": "新しい同期設定",
+    "editTitle": "同期設定を編集"
   },
   "wecom": {
     "corpid": "Corp ID",
-    "corpsecret": "Corp Secret"
+    "corpsecret": "Corp Secret",
+    "agentId": "Agent ID (agent_id)",
+    "corpidPlaceholder": "Corp ID（例：ww1234567890abcdef）",
+    "corpsecretPlaceholder": "自建アプリの Secret",
+    "agentIdPlaceholder": "自建アプリの Agent ID",
+    "corpsecretMaskedHint": "保存済みの Secret はマスク表示です",
+    "corpsecretEditHint": "マスクのままにすると保存済みの Secret を変更しません",
+    "corpidRequired": "Corp ID は必須です",
+    "corpsecretRequired": "Corp Secret は必須です",
+    "agentIdRequired": "Agent ID は必須です",
+    "corpsecretCannotBeMasked": "新規作成時は実際の Secret を入力してください"
   },
   "feishu": {
     "appId": "App ID"

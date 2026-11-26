@@ -52,15 +52,44 @@
     "add": "Add",
     "remove": "Remove"
   },
+  "configs": {
+    "title": "WeChat Work sync configs",
+    "empty": "No sync config yet. Create and enable one to show the WeChat Work login entry.",
+    "columnName": "Name",
+    "columnStatus": "Status",
+    "columnUpdated": "Updated",
+    "columnActions": "Actions",
+    "statusActive": "Active",
+    "statusDisabled": "Disabled",
+    "enable": "Enable",
+    "disable": "Disable",
+    "statusUpdated": "Config status updated",
+    "multipleActiveWarning": "More than one WeChat Work config is active, which hides the login entry. Keep exactly one active.",
+    "exclusiveHint": "Enabling this config disables any other active WeChat Work config."
+  },
   "form": {
-    "provider": "Provider"
+    "provider": "Provider",
+    "configName": "Config name",
+    "configNamePlaceholder": "e.g. HQ WeChat Work",
+    "enabled": "Enable this config"
   },
   "dialog": {
-    "createTitle": "New Sync Config"
+    "createTitle": "New Sync Config",
+    "editTitle": "Edit Sync Config"
   },
   "wecom": {
     "corpid": "Corp ID",
-    "corpsecret": "Corp Secret"
+    "corpsecret": "Corp Secret",
+    "agentId": "Agent ID (agent_id)",
+    "corpidPlaceholder": "Corp ID, e.g. ww1234567890abcdef",
+    "corpsecretPlaceholder": "Secret of the self-built app",
+    "agentIdPlaceholder": "Agent ID of the self-built app",
+    "corpsecretMaskedHint": "The stored Secret is masked",
+    "corpsecretEditHint": "Keep the mask to leave the stored Secret unchanged",
+    "corpidRequired": "Corp ID is required",
+    "corpsecretRequired": "Corp Secret is required",
+    "agentIdRequired": "Agent ID is required",
+    "corpsecretCannotBeMasked": "Enter the real Secret when creating a config"
   },
   "feishu": {
     "appId": "App ID"

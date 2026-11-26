@@ -55,7 +55,7 @@ export default function Directory({
   const scoped = pool.filter(
     (a) =>
       (filter === "all" || filter === a.kind || filter === "department:" + a.department_id) &&
-      [a.name, owners.get(a.department_id), a.id, profiles.get(a.id)]
+      [a.name, owners.get(a.department_id), a.id, a.kind === "knowledge" ? a.knowledge_category_name : profiles.get(a.id)]
         .join(" ")
         .toLowerCase()
         .includes(query.trim().toLowerCase()),
@@ -90,7 +90,7 @@ export default function Directory({
       {label}
     </button>
   );
-  const searchLabel = t(isNew ? "搜索资产或部门" : "搜索资产、业务方向或部门");
+  const searchLabel = t(isNew ? "搜索资产或部门" : category === "knowledge" ? "搜索资产、业务分类或部门" : "搜索资产、业务方向或部门");
   const departments = data.departments.filter((d) => pool.some((a) => a.department_id === d.id));
   const historical = !isNew && data.catalog_as_of.slice(0, 7) !== data.cutoff.slice(0, 7);
   const historyNote = historical ? (
@@ -182,7 +182,7 @@ export default function Directory({
     days = Number(data.cutoff.slice(8, 10)),
     groups = new Map<string, typeof entries>();
   entries.forEach((r) => {
-    const name = profiles.get(r.a.id) || t("未登记业务方向");
+    const name = r.a.kind === "knowledge" ? (r.a.knowledge_category_name || t("未归类")) : (profiles.get(r.a.id) || t("未登记业务方向"));
     groups.set(name, [...(groups.get(name) || []), r]);
   });
   const distribution = [...groups]

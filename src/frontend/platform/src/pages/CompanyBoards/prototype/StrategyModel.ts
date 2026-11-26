@@ -14,16 +14,6 @@ export function rankedScenes(scenes: SceneUsage[], cutoff: string) {
     .sort((a, b) => b.last90 - a.last90 || b.positive_rate! - a.positive_rate! || a.id.localeCompare(b.id));
 }
 
-export function knowledgeCategories(rows: PrototypeViewProps["registers"], cutoff: string) {
-  const categories = new Map<string, string>();
-  for (const row of rows
-    .filter((r) => r.kind === "collection-meta" && r.date <= cutoff)
-    .sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id))) {
-    if (row.parent_id) categories.set(row.parent_id, row.fields.category);
-  }
-  return categories;
-}
-
 export function constructionAssetTarget(assetId: string, month?: string) {
   return "asset:" + assetId + (month ? "?window=month&month=" + month : "?window=year");
 }
@@ -45,7 +35,6 @@ export function strategyRows(data: BoardOverview) {
       Number(row.effective_date.slice(0, 4)) === data.year,
   );
   const workers = published.filter((row) => /^(assistant|flow|app):/.test(row.asset_key || ""));
-  const collections = data.ledger.filter((row) => row.kind === "collection");
   const depCounts = new Map<number, number>();
   for (const row of published)
     if (row.department_id != null)
@@ -63,7 +52,7 @@ export function strategyRows(data: BoardOverview) {
       name: data.assets.find((a) => a.id === r.asset_id)?.name || r.asset_id,
     }))
     .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
-  return { topics, scenes, plans, published, workers, collections, depRanks, workerRanks };
+  return { topics, scenes, plans, published, workers, depRanks, workerRanks };
 }
 
 export function sceneAssetIds(

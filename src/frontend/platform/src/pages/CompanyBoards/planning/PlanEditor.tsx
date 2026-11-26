@@ -39,8 +39,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const [owner, setOwner] = useState(item?.department_id || 0);
   const [planned, setPlanned] = useState(item?.planned_date || "");
   const [completed, setCompleted] = useState(item?.completed_date || "");
-  const [category, setCategory] = useState(item?.category || "");
-  const [knowledge, setKnowledge] = useState(item?.asset_key || "");
+  const [target, setTarget] = useState(item?.target?.toString() ?? "");
   const [supports, setSupports] = useState<(SupportPeriod & { key: string })[]>(() =>
     (item?.supports || []).map((s) => ({ ...s, key: s.id! })),
   );
@@ -72,10 +71,6 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
     if (id && !departments.some((d) => d.value === String(id)))
       departments.push({ value: String(id), label: t("archivedUnit", { id }) });
   }
-  const knowledgeOptions = data.knowledge.map((row) => ({ value: row.id, label: row.name }));
-  if (item?.asset_key && !knowledgeOptions.some((a) => a.value === item.asset_key))
-    knowledgeOptions.push({ value: item.asset_key, label: t("archivedAsset", { id: item.asset_key }) });
-
   function save(e: FormEvent) {
     e.preventDefault();
     if (mutation.isLoading) return;
@@ -106,6 +101,14 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
       mutation.mutate({ ...base, kind });
       return;
     }
+    if (kind === "collection") {
+      if (!planned || !target || !Number.isInteger(Number(target)) || Number(target) < 0) {
+        setError(t("knowledgeRequired"));
+        return;
+      }
+      mutation.mutate({ ...base, kind, target: Number(target), planned_date: planned });
+      return;
+    }
     if (!topic || !owner || (!item && !planned)) {
       setError(t("scopeRequired"));
       return;
@@ -117,14 +120,6 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
       planned_date: planned || null,
       completed_date: completed || null,
     };
-    if (kind === "collection") {
-      if (!category.trim() || (completed && !knowledge)) {
-        setError(t("knowledgeRequired"));
-        return;
-      }
-      mutation.mutate({ ...common, kind, category: category.trim(), asset_key: knowledge || null });
-      return;
-    }
     if (supports.some((s) => !s.department || s.department === owner || !s.start)) {
       setError(t("supportRequired"));
       return;
@@ -152,7 +147,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   }
   return (
     <Modal
-      size={kind === "scene" || kind === "collection" ? "large" : "medium"}
+      size={kind === "scene" ? "large" : "medium"}
       open
       title={t(kind === "targets" ? "editTargets" : (item ? "edit_" : "new_") + kind)}
       closeLabel={t("cancel")}
@@ -208,17 +203,29 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
         ) : (
           <>
             <label htmlFor="plan-name">
-              {t(kind + "Name")} *
+              {t(kind === "collection" ? "category" : kind + "Name")} *
               <Input
                 id="plan-name"
                 autoFocus
                 required
-                maxLength={160}
+                maxLength={kind === "collection" ? 80 : 160}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </label>
-            {kind !== "topic" && (
+            {kind === "collection" && (
+              <div className="plan-field-pair">
+                <label htmlFor="plan-quantity">{t("quantity")} *
+                  <Input id="plan-quantity" type="number" min={0} max={100000000} step={1} required
+                    value={target} onChange={e => setTarget(e.target.value)} />
+                </label>
+                <label htmlFor="plan-date">{t("planned")} *
+                  <Input id="plan-date" type="date" min={start} max={end} required
+                    value={planned} onChange={e => setPlanned(e.target.value)} />
+                </label>
+              </div>
+            )}
+            {kind === "scene" && (
               <>
                 <div className="plan-field-pair">
                   <div>
@@ -261,7 +268,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                     />
                   </label>
                   <label htmlFor="plan-actual">
-                    {t(kind === "scene" ? "launch" : "verified")}
+                    {t("launch")}
                     <Input
                       id="plan-actual"
                       type="date"
@@ -272,175 +279,135 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                     />
                   </label>
                 </div>
-                {kind === "collection" ? (
-                  <div className="plan-field-pair">
-                    <label htmlFor="plan-category">
-                      {t("category")} *
-                      <Input
-                        id="plan-category"
-                        required
-                        list="plan-categories"
-                        maxLength={80}
-                        value={category}
-                        onChange={(e) => setCategory(e.target.value)}
-                      />
-                    </label>
-                    <datalist id="plan-categories">
-                      {[...new Set(data.items.map((r) => r.category).filter((v): v is string => !!v))].map(
-                        (c) => (
-                          <option key={c} value={c} />
-                        ),
-                      )}
-                    </datalist>
-                    <div>
-                      <label htmlFor="plan-knowledge">
-                        {t("knowledgeBase")}
-                        {completed && " *"}
+                <fieldset>
+                  <legend>{t("supports")}</legend>
+                  {supports.map((s, i) => (
+                    <div className="plan-support" key={s.key}>
+                      <div>
+                        <label htmlFor={"support-" + s.key}>{t("supportOrg")}</label>
+                        <Select
+                          id={"support-" + s.key}
+                          {...labels}
+                          showSearch
+                          options={departments.filter((d) => d.value !== String(owner))}
+                          value={s.department ? String(s.department) : null}
+                          onChange={(v) =>
+                            setSupports(
+                              supports.map((r, j) => (j === i ? { ...r, department: Number(v) } : r)),
+                            )
+                          }
+                        />
+                      </div>
+                      <label>
+                        {t("from")}
+                        <Input
+                          type="date"
+                          min={start}
+                          max={end}
+                          required
+                          value={s.start}
+                          onChange={(e) =>
+                            setSupports(
+                              supports.map((r, j) => (j === i ? { ...r, start: e.target.value } : r)),
+                            )
+                          }
+                        />
                       </label>
-                      <Select
-                        id="plan-knowledge"
-                        {...labels}
-                        allowClear
-                        showSearch
-                        value={knowledge || null}
-                        options={knowledgeOptions}
-                        onChange={(v) => setKnowledge(String(v || ""))}
-                      />
+                      <label>
+                        {t("until")}
+                        <Input
+                          type="date"
+                          min={s.start || start}
+                          value={s.end || ""}
+                          onChange={(e) =>
+                            setSupports(
+                              supports.map((r, j) =>
+                                j === i ? { ...r, end: e.target.value || null } : r,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
+                      <Button
+                        type="button"
+                        variant="text"
+                        onClick={() => setSupports(supports.filter((r) => r.key !== s.key))}
+                      >
+                        {t("remove")}
+                      </Button>
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    <fieldset>
-                      <legend>{t("supports")}</legend>
-                      {supports.map((s, i) => (
-                        <div className="plan-support" key={s.key}>
-                          <div>
-                            <label htmlFor={"support-" + s.key}>{t("supportOrg")}</label>
-                            <Select
-                              id={"support-" + s.key}
-                              {...labels}
-                              showSearch
-                              options={departments.filter((d) => d.value !== String(owner))}
-                              value={s.department ? String(s.department) : null}
-                              onChange={(v) =>
-                                setSupports(
-                                  supports.map((r, j) => (j === i ? { ...r, department: Number(v) } : r)),
-                                )
-                              }
-                            />
-                          </div>
-                          <label>
-                            {t("from")}
-                            <Input
-                              type="date"
-                              min={start}
-                              max={end}
-                              required
-                              value={s.start}
-                              onChange={(e) =>
-                                setSupports(
-                                  supports.map((r, j) => (j === i ? { ...r, start: e.target.value } : r)),
-                                )
-                              }
-                            />
-                          </label>
-                          <label>
-                            {t("until")}
-                            <Input
-                              type="date"
-                              min={s.start || start}
-                              value={s.end || ""}
-                              onChange={(e) =>
-                                setSupports(
-                                  supports.map((r, j) =>
-                                    j === i ? { ...r, end: e.target.value || null } : r,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                          <Button
-                            type="button"
-                            variant="text"
-                            onClick={() => setSupports(supports.filter((r) => r.key !== s.key))}
-                          >
-                            {t("remove")}
-                          </Button>
-                        </div>
-                      ))}
+                  ))}
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      setSupports([
+                        ...supports,
+                        { key: createUuid(), department: 0, start, end: null },
+                      ])
+                    }
+                  >
+                    {t("addSupport")}
+                  </Button>
+                </fieldset>
+                <fieldset>
+                  <legend>{t("recognition")}</legend>
+                  {recognition.map((r, i) => (
+                    <div className="plan-range" key={r.key}>
+                      <label>
+                        {t("from")}
+                        <Input
+                          type="date"
+                          min={start}
+                          max={end}
+                          required
+                          value={r.start}
+                          onChange={(e) =>
+                            setRecognition(
+                              recognition.map((v, j) => (j === i ? { ...v, start: e.target.value } : v)),
+                            )
+                          }
+                        />
+                      </label>
+                      <label>
+                        {t("until")}
+                        <Input
+                          type="date"
+                          min={r.start || start}
+                          value={r.end || ""}
+                          onChange={(e) =>
+                            setRecognition(
+                              recognition.map((v, j) =>
+                                j === i ? { ...v, end: e.target.value || null } : v,
+                              ),
+                            )
+                          }
+                        />
+                      </label>
                       <Button
                         type="button"
-                        onClick={() =>
-                          setSupports([
-                            ...supports,
-                            { key: createUuid(), department: 0, start, end: null },
-                          ])
-                        }
+                        variant="text"
+                        onClick={() => setRecognition(recognition.filter((v) => v.key !== r.key))}
                       >
-                        {t("addSupport")}
+                        {t("remove")}
                       </Button>
-                    </fieldset>
-                    <fieldset>
-                      <legend>{t("recognition")}</legend>
-                      {recognition.map((r, i) => (
-                        <div className="plan-range" key={r.key}>
-                          <label>
-                            {t("from")}
-                            <Input
-                              type="date"
-                              min={start}
-                              max={end}
-                              required
-                              value={r.start}
-                              onChange={(e) =>
-                                setRecognition(
-                                  recognition.map((v, j) => (j === i ? { ...v, start: e.target.value } : v)),
-                                )
-                              }
-                            />
-                          </label>
-                          <label>
-                            {t("until")}
-                            <Input
-                              type="date"
-                              min={r.start || start}
-                              value={r.end || ""}
-                              onChange={(e) =>
-                                setRecognition(
-                                  recognition.map((v, j) =>
-                                    j === i ? { ...v, end: e.target.value || null } : v,
-                                  ),
-                                )
-                              }
-                            />
-                          </label>
-                          <Button
-                            type="button"
-                            variant="text"
-                            onClick={() => setRecognition(recognition.filter((v) => v.key !== r.key))}
-                          >
-                            {t("remove")}
-                          </Button>
-                        </div>
-                      ))}
-                      <Button
-                        type="button"
-                        onClick={() =>
-                          setRecognition([
-                            ...recognition,
-                            {
-                              key: createUuid(),
-                              start: today >= start && today <= end ? today : start,
-                              end: null,
-                            },
-                          ])
-                        }
-                      >
-                        {t("addRecognition")}
-                      </Button>
-                    </fieldset>
-                  </>
-                )}
+                    </div>
+                  ))}
+                  <Button
+                    type="button"
+                    onClick={() =>
+                      setRecognition([
+                        ...recognition,
+                        {
+                          key: createUuid(),
+                          start: today >= start && today <= end ? today : start,
+                          end: null,
+                        },
+                      ])
+                    }
+                  >
+                    {t("addRecognition")}
+                  </Button>
+                </fieldset>
               </>
             )}
           </>

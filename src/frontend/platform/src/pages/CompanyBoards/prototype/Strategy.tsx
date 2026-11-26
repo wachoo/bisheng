@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { CaseOutput } from "../CaseOutput";
-import { kinds, knowledgeCategories, strategyRows, strategyTopicAssets } from "./StrategyModel";
+import { kinds, strategyRows, strategyTopicAssets } from "./StrategyModel";
 import { aggregation, pct as percentage, useBoardTrends } from "./ActivityData";
 import type { PrototypeViewProps } from "./types";
 import frameCss from "./StrategyFrame.css?inline";
@@ -73,8 +73,8 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   }, []);
   const [tab, selectTab] = useState("");
   const [rank, setRank] = useState(false);
-  const [demo, setDemo] = useState(false);
-  const { topics, workers, collections, depRanks, workerRanks } = strategyRows(data);
+  const { t: caseText } = useTranslation("topicExample");
+  const { topics, workers, depRanks, workerRanks } = strategyRows(data);
   const trend = useBoardTrends(data, board).data?.months.find((m) => m.month === data.month);
   const stats = data.strategy;
   const pct = stats.employee_target ? Math.round((stats.employee_built * 100) / stats.employee_target) : null;
@@ -89,18 +89,12 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   const detail = (key: string, title: string) => open("strategy:" + key, title);
   const topicTitle = topic?.name || "尚未登记专题";
   const launchTopic = () => detail("topic:" + selected, topicTitle + " · 专题资产明细");
-  const categories = knowledgeCategories(registers, data.cutoff);
-  const byArea = (area: string) => collections.filter((r) => (categories.get(r.id) || "未归类") === area);
-  const groupLabels = Array.from(
-    new Set(collections.map((r) => categories.get(r.id) || "未归类")),
-  );
+  const categories = stats.knowledge_categories ?? [];
   const caseRow = registers
     .filter((r) => r.kind === "case" && r.parent_id === topic?.id && r.date <= data.cutoff)
     .sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id))[0];
-  const caseAssets = (caseRow?.fields.assets || "")
-    .split(",")
-    .map((id) => data.assets.find((a) => a.id === id.trim()))
-    .filter((a) => a != null);
+  const representative = data.assets.find((asset) => asset.kind === "employee" && asset.id === caseRow?.fields.assets);
+  const hasSample = !!(caseRow?.fields.output || caseRow?.fields.sampleTable);
   const allCaseIds = strategyTopicAssets(data, registers, topic?.id);
   const topicAssets = data.assets.filter((a) => allCaseIds.has(a.id));
   const caseDepts = new Set(topicAssets.flatMap((a) => (a.department_id == null ? [] : [a.department_id])));
@@ -172,41 +166,25 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                             <b>{stats.knowledge_verified}</b> / {stats.knowledge_planned} 个
                           </span>
                         </Hit>
-                        {!collections.length && <p className="knowledge-empty">{t("emptyCollections")}</p>}
+                        {!categories.length && <p className="knowledge-empty">{t("emptyCollections")}</p>}
                         <dl className="knowledge-details">
-                          {groupLabels.map((area) => (
-                            <div className="knowledge-row" key={area}>
-                              <dt>{area}</dt>
+                          {categories.map((group) => {
+                            const segments = Math.min(36, Math.max(1, group.target));
+                            const filled = Math.ceil(segments * group.completed / Math.max(1, group.target));
+                            return (
+                            <div className="knowledge-row" key={group.id}>
+                              <dt>{group.name}</dt>
                               <dd>
-                                <span className="knowledge-segments" title={area + "知识集接入进度"}>
-                                  {byArea(area).length ? (
-                                    byArea(area)
-                                      .slice(0, 36)
-                                      .map((r) => (
-                                        <i
-                                          key={r.id}
-                                          className={
-                                            r.effective_date && r.effective_date <= data.cutoff
-                                              ? "connected"
-                                              : ""
-                                          }
-                                        />
-                                      ))
-                                  ) : (
-                                    <i />
-                                  )}
+                                <span className="knowledge-segments" aria-hidden="true">
+                                  {Array.from({ length: segments }, (_, i) => (
+                                    <i key={i} className={i < filled ? "connected" : ""} />
+                                  ))}
                                 </span>
-                                <span className="knowledge-number">
-                                  {
-                                    byArea(area).filter(
-                                      (r) => r.effective_date && r.effective_date <= data.cutoff,
-                                    ).length
-                                  }{" "}
-                                  / {byArea(area).length} 个
-                                </span>
+                                <span className="knowledge-number">{group.completed} / {group.target} 个</span>
                               </dd>
                             </div>
-                          ))}
+                            );
+                          })}
                         </dl>
                       </div>
                       <div className="capacity-scenes">
@@ -301,51 +279,21 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                         专题资产明细 ↗
                       </button>
                     </div>
-                    <div className="brief">
+                    <div className="brief" style={hasSample ? undefined : { gridTemplateColumns: "1fr" }}>
                       <div className="brief-copy">
-                        <h3>{caseRow?.name || "代表案例"}</h3>
-                        <p>
-                          {caseRow?.fields.summary ||
-                            caseRow?.fields.input ||
-                            (topic ? "尚未登记代表案例与示例输出。" : "暂无该专题的建设台账及代表案例。")}
-                        </p>
-                        <button
-                          className="btn btn-primary case-link"
-                          disabled={!caseRow}
-                          onClick={() => setDemo(true)}
-                        >
-                          {caseRow?.fields.action || "查看案例示例"} ↗
-                        </button>
+                        <h3>{representative?.name || caseText("case")}</h3>
+                        {representative ? <>
+                          <p>{caseRow?.fields.summary || representative.description}</p>
+                          <button className="btn btn-primary case-link" type="button"
+                            onClick={() => open("asset:" + representative.id, representative.name)}>
+                            {caseText("viewEmployee")} ↗
+                          </button>
+                        </> : <p>{caseText("empty")}</p>}
                       </div>
-                      <div className="sample">
-                        <div className="sample-head">
-                          <span className="sample-icon">▤</span>
-                          <h4>{caseRow?.fields.sampleTitle || "案例输出"}</h4>
-                        </div>
-                        <CaseOutput fields={caseRow?.fields} empty="暂无已登记示例" />
-                      </div>
-                    </div>
-                    <div className="asset-footer">
-                      <span className="asset-heading">案例用到的资产</span>
-                      <div id="assets">
-                        {caseAssets.length ? (
-                          caseAssets.map((a) => (
-                            <Hit
-                              cls="asset-row"
-                              key={a.id}
-                              label={a.name}
-                              go={() => open("asset:" + a.id, a.name)}
-                            >
-                              <span className="asset-kind">
-                                {kinds.find((k) => k.kind === a.kind)?.label}
-                              </span>
-                              {a.name}
-                            </Hit>
-                          ))
-                        ) : (
-                          <div className="asset-row">尚未登记案例资产</div>
-                        )}
-                      </div>
+                      {hasSample && <div className="sample">
+                        <div className="sample-head"><h4>{caseRow?.fields.sampleTitle || "案例输出"}</h4></div>
+                        <CaseOutput fields={caseRow?.fields} empty="" />
+                      </div>}
                     </div>
                   </Card>
                   <Card
@@ -428,25 +376,6 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                 </div>
               </main>
             </div>
-            {demo && (
-              <dialog
-                className="modalbox"
-                ref={(el) => {
-                  if (el && !el.open) el.showModal();
-                }}
-                onCancel={() => setDemo(false)}
-              >
-                <div className="modalbody">
-                  <div className="modalhead">
-                    <h2>{caseRow?.name || topicTitle} · 案例示例</h2>
-                    <button aria-label="关闭示例" className="btn-close" onClick={() => setDemo(false)} />
-                  </div>
-                  <p>{caseRow?.fields.input || "尚未登记案例输入"}</p>
-                  <h3>{caseRow?.fields.sampleTitle || "案例输出"}</h3>
-                  <CaseOutput fields={caseRow?.fields} empty="尚未登记案例输出" />
-                </div>
-              </dialog>
-            )}
           </>,
           root,
         )}

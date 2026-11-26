@@ -5,9 +5,9 @@ const base = "http://127.0.0.1:3001";
 const year = new Date().getFullYear();
 const defaultTopic = "00000000-0000-4000-a000-000000000001";
 const topic = "00000000-0000-4000-a000-000000000002";
-const scene = "00000000-0000-4000-a000-000000000003";
+const category = "00000000-0000-4000-a000-000000000003";
 const opts = {year, default_topic:defaultTopic, topics:[{id:defaultTopic,name:"AI先锋行动"},{id:topic,name:"验收采购专题"}],
-  scenes:[{id:scene,name:"供应商比价",topic}]};
+  categories:[{id:category,name:"采购标准"}]};
 async function verifyHostedApp(page) {
   const appId = "00000000-0000-4000-a000-000000000084";
   const appPath = "/api/v1/apps/" + appId;
@@ -36,7 +36,7 @@ async function verifyHostedApp(page) {
     const verb = route.request().method();
     calls.push([verb,path]);
     if (path !== expected) {unexpected.push(path);return route.abort();}
-    if (verb === "GET") return reply(route,{...opts,...stored,scenes:opts.scenes,scene_ids:stored.scenes});
+    if (verb === "GET") return reply(route,{...opts,...stored,categories:opts.categories});
     if (verb === "PUT") {
       const body = route.request().postDataJSON();
       stored = {...body,revision:body.revision+1};
@@ -46,24 +46,17 @@ async function verifyHostedApp(page) {
   });
   await page.goto(base+"/build/apps/"+appId+"?tab=versions");
   await page.getByRole("tab",{name:"发布",exact:true}).click();
-  const expand = page.getByRole("button",{name:/看板归属与代表案例/});
+  const expand = page.getByRole("button",{name:/看板归属（选填）/});
   await expand.click();
-  const area = page.getByLabel("业务方向",{exact:true});
-  assert.equal(await area.inputValue(),"生产");
-  await page.getByRole("combobox",{name:/所属专题/}).selectOption(topic);
-  await page.getByRole("checkbox",{name:"供应商比价"}).check();
-  await area.fill("装备采购");
-  await page.getByLabel("代表案例名称",{exact:true}).fill("托管应用排程");
+  const picker = page.getByRole("combobox",{name:/所属专题/});
+  await picker.selectOption(topic);
   await page.getByRole("button",{name:"保存",exact:true}).click();
   await page.getByRole("button",{name:"保存",exact:true}).waitFor({state:"hidden"});
-  assert.equal(stored.revision,4);assert.equal(stored.topic,topic);
-  assert.deepEqual(stored.scenes,[scene]);assert.equal(stored.profile.direction,"装备采购");
-  assert.equal(stored.case_name,"托管应用排程");
+  assert.deepEqual(stored,{year,revision:4,topic});
   await page.reload();
   await expand.click();
-  assert.equal(await area.inputValue(),"装备采购");
-  assert.equal(await page.getByLabel("代表案例名称",{exact:true}).inputValue(),"托管应用排程");
-  assert(await page.getByRole("checkbox",{name:"供应商比价"}).isChecked());
+  await picker.waitFor();
+  assert.equal(await picker.inputValue(),topic);
   assert.deepEqual(calls,[["GET",expected],["PUT",expected],["GET",expected]]);
   assert.deepEqual(unexpected,[]);
 }
@@ -75,11 +68,19 @@ async function main() {
     page.setDefaultTimeout(8000);
     let creates = 0, writes = 0, data, isolatedOptions = true;
     const unsafe = [];
+    const savedLibraries = [];
     const reply = (route, payload) => route.fulfill({json:{status_code:200,data:payload,status_message:"success"}});
     await page.route("**/api/**", async route => {
       const {pathname} = new URL(route.request().url());
       const verb = route.request().method();
       if (isolatedOptions && pathname.endsWith("/asset-context/options")) return reply(route,opts);
+      if (pathname === "/api/v1/llm/knowledge" && verb === "GET") return reply(route,{embedding_model_id:99});
+      if (pathname === "/api/v1/knowledge/create" && verb === "POST")
+        return reply(route,{id:900000000 + route.request().postDataJSON().type});
+      if (decodeURIComponent(pathname).match(/\/asset-context\/knowledge:90000000[01]$/) && verb === "PUT") {
+        savedLibraries.push(route.request().postDataJSON());
+        return reply(route,{revision:1});
+      }
       if (pathname.endsWith("/api/v1/assistant") && verb === "POST") { creates++;return reply(route,{id:"asset-entry-test"}); }
       if (pathname.endsWith("/asset-context/assistant:asset-entry-test") || pathname.endsWith("/asset-context/assistant%3Aasset-entry-test")) {
         if (verb === "PUT") {
@@ -88,7 +89,7 @@ async function main() {
           data = route.request().postDataJSON();
           return reply(route,{revision:1});
         }
-        return reply(route,{...opts,...data,scenes:opts.scenes,revision:1,scene_ids:data?.scenes || []});
+        return reply(route,{...opts,...data,categories:opts.categories,revision:1});
       }
       // Allow the product's read-only POST lookup endpoints while explicitly blocking resource mutations.
       if (["DELETE","PUT","PATCH"].includes(verb) || verb === "POST" && /\/(?:create|save|update|import|copy|action|publish|upload)(?:\/|$)/.test(pathname)) {
@@ -105,31 +106,26 @@ async function main() {
     await templates.getByText("自定义助手",{exact:true}).click();
     const form=page.getByRole("dialog").filter({has:page.locator("#name")});
     await form.locator("#name").fill("资产归属验收助手");
-    await form.getByRole("button",{name:/看板归属与代表案例/}).click();
+    await form.getByRole("button",{name:/看板归属（选填）/}).click();
     const picker=form.getByRole("combobox",{name:/所属专题/});
     assert.equal(await picker.inputValue(),defaultTopic);
     await picker.selectOption(topic);
-    await form.getByLabel("业务方向",{exact:true}).fill("采购");
-    await form.getByRole("checkbox",{name:"供应商比价"}).check();
-    await form.getByLabel("代表案例名称",{exact:true}).fill("报价比较");
-    await form.getByLabel("成果样表",{exact:true}).fill("供应商\t总价\n甲\t100");
+    for (const label of ["业务方向","代表案例名称","关联计划场景"])
+      assert.equal(await form.getByText(label,{exact:true}).count(),0);
     await form.getByRole("button",{name:"创建",exact:true}).click();
     await form.getByRole("alert").filter({hasText:"业务资料未保存"}).waitFor();
     assert.equal(creates,1);
     await form.getByRole("button",{name:"创建",exact:true}).click();
     await page.waitForURL("**/assistant/asset-entry-test");
     assert.equal(creates,1);assert.equal(writes,2);
-    assert.equal(data.topic,topic);assert.deepEqual(data.scenes,[scene]);assert.equal(data.case_name,"报价比较");
-    assert.equal(data.profile.direction,"采购");
-    assert.deepEqual(JSON.parse(data.case_fields.sampleTable),[["供应商","总价"],["甲","100"]]);
+    assert.deepEqual(data,{year,revision:0,topic});
     await page.goto(base+"/build/apps");
     await page.getByText("新建应用",{exact:true}).first().click();
     await page.getByRole("dialog").getByText("自定义工作流",{exact:true}).click();
-    await page.getByRole("button",{name:/看板归属与代表案例/}).click();
+    await page.getByRole("button",{name:/看板归属（选填）/}).click();
     assert.equal(await page.getByRole("combobox",{name:/所属专题/}).inputValue(),defaultTopic);
-    isolatedOptions = false;
-    async function verifyLiveFields(associationsOnly = false) {
-      await page.getByRole("button",{name:associationsOnly ? "看板归属（选填）" : /看板归属与代表案例/}).click();
+    async function verifyLiveFields() {
+      await page.getByRole("button",{name:"看板归属（选填）"}).click();
       const select = page.getByRole("combobox",{name:/所属专题/});
       await select.waitFor();
       assert((await select.locator("option").allTextContents()).includes("AI先锋行动"));
@@ -138,9 +134,17 @@ async function main() {
       await page.goto(base+"/filelib");
       await page.getByRole("tab",{name:kb}).first().click();
       await page.getByRole("button",{name:"创建",exact:true}).click();
-      await verifyLiveFields(true);
+      await verifyLiveFields();
+      const choice = page.getByLabel("业务分类",{exact:true});
+      await choice.click();
+      await page.getByRole("option",{name:"采购标准"}).click();
       for (const label of ["业务方向","看板业务说明","代表案例名称"]) assert.equal(await page.getByLabel(label,{exact:true}).count(),0);
+      await page.getByRole("dialog").locator('input[name="name"]').fill("隔离业务分类验收");
+      const saved = page.waitForResponse(r=>r.request().method()==="PUT" && decodeURIComponent(r.url()).includes("/asset-context/knowledge:"));
+      await Promise.all([saved, page.getByRole("dialog").getByRole("button",{name:"完成创建",exact:true}).click()]);
+      assert.deepEqual(savedLibraries.at(-1),{year,revision:0,topic:defaultTopic,knowledge_category_id:category});
     }
+    isolatedOptions = false;
     for (const [tab,action] of [["API工具","创建API工具"],["MCP工具","添加MCP服务器"],["技能","新建技能"],["技能","导入技能"]]) {
       await page.goto(base+"/build/tools");
       await page.getByText(tab,{exact:true}).first().click();
@@ -153,11 +157,10 @@ async function main() {
     await firstSkill.locator("td").first().click();
     await page.getByRole("button",{name:/编辑/}).first().click();
     await verifyLiveFields();
-    await page.getByLabel("Skill 规则摘要",{exact:true}).waitFor();
+    assert.equal(await page.getByLabel("Skill 规则摘要",{exact:true}).count(),0);
     await verifyHostedApp(page);
     assert.deepEqual(unsafe,[]);
-    console.log("Hosted application publish settings read, saved and reloaded the correct app_id, topic, scene, business area and case.");
-    console.log("Assistant and workflow, document and QA knowledge, API/MCP and Skill creation/import verified. Skill edit read from the local backend. One isolated assistant creation across two metadata retries; topic, scenario, business direction and case table preserved.");
+    console.log("Verified topic-only asset forms, knowledge category selection and idempotent retries.");
   } finally {await browser.close();}
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

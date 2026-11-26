@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { userContext } from "@/contexts/userContext";
 import { readCompanyPlan, type PlanItem } from "@/controllers/API/companyPlans";
 import { PlanEditor, type Selection } from "./PlanEditor";
+import { TopicRepresentativeEditor } from "./TopicRepresentativeEditor";
 import "./plan.css";
 
 interface Props {
@@ -42,7 +43,7 @@ function PlanSheet({ year, kind }: Props) {
   const collections = data.items.filter((row) => row.kind === "collection");
   const department = (id?: number | null) =>
     data.departments.find((d) => d.id === id)?.name ?? (id ? "#" + id : "—");
-  const topicName = (id?: string) => topics.find((row) => row.id === id)?.name ?? "—";
+  const actuals = new Map(data.knowledge_progress.map(r => [r.id, r.completed]));
   const today = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",
     year: "numeric",
@@ -51,7 +52,7 @@ function PlanSheet({ year, kind }: Props) {
   }).format(new Date());
   const completed = (r: PlanItem) => !!r.completed_date && r.completed_date.startsWith(year + "-") && r.completed_date <= today;
   const annual = kind === "annual";
-  const lines = annual ? scenes : collections;
+
   const addTopic = () => setEditing({ kind: "topic" });
 
   function table(rows: PlanItem[]) {
@@ -61,12 +62,13 @@ function PlanSheet({ year, kind }: Props) {
         <table className="plan-table">
           <thead>
             <tr>
-              <th>{t(annual ? "scene" : "collection")}</th>
-              <th>{t("owner")}</th>
-              <th>{t(annual ? "supports" : "topic")}</th>
-              <th>{t("planned")}</th>
-              <th>{t(annual ? "launch" : "verified")}</th>
-              <th>{t(annual ? "status" : "knowledgeBase")}</th>
+              {annual ? <>
+                <th>{t("scene")}</th><th>{t("owner")}</th><th>{t("supports")}</th>
+                <th>{t("planned")}</th><th>{t("launch")}</th><th>{t("status")}</th>
+              </> : <>
+                <th>{t("category")}</th><th>{t("quantity")}</th>
+                <th>{t("accessCount")}</th><th>{t("planned")}</th>
+              </>}
               <th>{t("actions")}</th>
             </tr>
           </thead>
@@ -74,29 +76,15 @@ function PlanSheet({ year, kind }: Props) {
             {rows.map((row) => (
               <tr key={row.id}>
                 <th scope="row">{row.name}</th>
-                <td>{department(row.department_id)}</td>
-                <td>
-                  {annual
-                    ? [
-                        ...new Set(
-                          (row.supports || []).map((s) => department(s.department)),
-                        ),
-                      ].join(" / ") || "—"
-                    : topicName(row.topic_id)}
-                </td>
-                <td>{row.planned_date || "—"}</td>
-                <td>{row.completed_date || "—"}</td>
-                <td>
-                  {annual
-                    ? t(
-                        completed(row)
-                          ? "launched"
-                          : row.planned_date && row.planned_date < today
-                            ? "overdue"
-                            : "pending",
-                      )
-                    : data.knowledge.find((k) => k.id === row.asset_key)?.name || row.asset_key || "—"}
-                </td>
+                {annual ? <>
+                  <td>{department(row.department_id)}</td>
+                  <td>{[...new Set((row.supports || []).map(s => department(s.department)))].join(" / ") || "—"}</td>
+                  <td>{row.planned_date || "—"}</td>
+                  <td>{row.completed_date || "—"}</td>
+                  <td>{t(completed(row) ? "launched" : row.planned_date && row.planned_date < today ? "overdue" : "pending")}</td>
+                </> : <>
+                  <td>{row.target}</td><td>{actuals.get(row.id) ?? 0}</td><td>{row.planned_date || "—"}</td>
+                </>}
                 <td>
                   <Button
                     variant="text"
@@ -141,7 +129,7 @@ function PlanSheet({ year, kind }: Props) {
             <div>
               <dt>{t("accessVerified")}</dt>
               <dd>
-                {collections.filter(completed).length} <small>/ {collections.length}</small>
+                {data.knowledge_progress.reduce((n, r) => n + r.completed, 0)} <small>/ {collections.reduce((n, r) => n + (r.target ?? 0), 0)}</small>
               </dd>
             </div>
           )}
@@ -150,7 +138,7 @@ function PlanSheet({ year, kind }: Props) {
       <section className="plan-panel">
         <div className="plan-panel-heading">
           <h2>{t(annual ? "topicPlans" : "categoryPlans")}</h2>
-          {annual || !topics.length ? (
+          {annual ? (
             <Button color="primary" variant="solid" onClick={addTopic}>
               {t("addTopic")}
             </Button>
@@ -160,6 +148,12 @@ function PlanSheet({ year, kind }: Props) {
             </Button>
           )}
         </div>
+        {annual && !topics.some(r => r.id === data.default_topic) && (
+          <section className="plan-topic">
+            <h3>{t("defaultTopicName")}</h3>
+            <TopicRepresentativeEditor year={year} topicId={data.default_topic} />
+          </section>
+        )}
         {annual ? (
           topics.length ? (
             topics.map((topic) => {
@@ -182,6 +176,7 @@ function PlanSheet({ year, kind }: Props) {
                       </Button>
                     </div>
                   </div>
+                  <TopicRepresentativeEditor year={year} topicId={topic.id} />
                   {table(rows)}
                 </section>
               );
@@ -190,17 +185,7 @@ function PlanSheet({ year, kind }: Props) {
             <p className="plan-empty">{t("emptyTopics")}</p>
           )
         ) : (
-          [...new Set(lines.map((r) => r.category || ""))].map((category) => (
-            <section className="plan-topic" key={category}>
-              <div className="plan-topic-heading">
-                <h3>{category || t("uncategorized")}</h3>
-              </div>
-              {table(lines.filter((r) => (r.category || "") === category))}
-            </section>
-          ))
-        )}
-        {!annual && !lines.length && (
-          <p className="plan-empty">{t(topics.length ? "emptyCollections" : "knowledgeNeedsTopic")}</p>
+          table(collections)
         )}
       </section>
       {editing && <PlanEditor year={year} data={data} selection={editing} onClose={() => setEditing(null)} />}

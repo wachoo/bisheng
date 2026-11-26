@@ -1,6 +1,7 @@
+import json
 import unittest
 from contextlib import AsyncExitStack, asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
@@ -16,6 +17,7 @@ from bisheng.company_board.domain.repositories import asset_context as repo
 from bisheng.company_board.domain.repositories import asset_projection, ledger, supplement
 from bisheng.company_board.domain.services import asset_context as service
 from bisheng.core.context.tenant import current_tenant_id, set_current_tenant_id
+from bisheng.knowledge.domain.models.knowledge import Knowledge
 from bisheng.database.models.assistant import Assistant
 from bisheng.database.models.audit_log import AuditLog
 
@@ -25,7 +27,7 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
         self.token = set_current_tenant_id(3)
         self.engine = create_async_engine("sqlite+aiosqlite://")
         async with self.engine.begin() as db:
-            for model in (BoardLedger, BoardSupplement, Assistant, AuditLog):
+            for model in (BoardLedger, BoardSupplement, Assistant, Knowledge, AuditLog):
                 await db.run_sync(model.__table__.create)
 
         @asynccontextmanager
@@ -38,6 +40,9 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
         for module in (repo, ledger, service, supplement):
             self.stack.enter_context(patch.object(module, "get_async_db_session", session))
         self.auth = self.stack.enter_context(patch.object(service, "require_business_action", new_callable=AsyncMock))
+        self.category = str(uuid4())
+        self.targets = self.stack.enter_context(patch.object(service, "knowledge_targets", new_callable=AsyncMock))
+        self.targets.return_value = [{"id": self.category, "name": "采购标准"}]
         self.user = SimpleNamespace(user_id=17, tenant_id=3, is_global_super=False)
         self.day = service.today()
         self.topic, self.scene = str(uuid4()), str(uuid4())
@@ -47,6 +52,7 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
             patch.object(asset_projection, "load_catalog", AsyncMock(return_value=([], self.published)))
         )
         async with session() as db:
+            db.add(Knowledge(id=42, tenant_id=3, name="采购制度", type=0))
             db.add(Assistant(id="sample", user_id=17, tenant_id=3, name="采购助手"))
             for kind, ident, name, parent in (
                 ("topic", self.topic, "供应链", None),
@@ -82,39 +88,59 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(next(t["name"] for t in plan if t["id"] == default), "AI先锋行动")
         self.assertEqual(await repo.latest_bindings(3), {})
         before = await service.read_asset_context(self.user, 3, self.key, self.day.year)
-        self.assertEqual((before["topic"], before["revision"], before["scene_ids"]), (default, 0, []))
-        form = self.form(
-            topic=self.topic,
-            scenes=[self.scene],
-            case_name="报价比对",
-            case_fields={"input": "报价单", "sampleTable": '[["供应商"],["甲"]]'},
-        )
+        self.assertEqual((before["topic"], before["revision"]), (default, 0))
         for _ in range(2):
-            saved = await service.save_asset_context(self.user, 3, self.key, form)
-            self.assertEqual(saved["revision"], 1)
+            self.assertEqual(await service.save_asset_context(self.user, 3, self.key, self.form(topic=self.topic)), {"revision": 1})
         self.auth.assert_awaited_with(self.user, resource_type="assistant", resource_id="sample", action="edit")
-        after = await service.read_asset_context(self.user, 3, self.key, self.day.year)
-        self.assertEqual(
-            (after["topic"], after["scene_ids"], after["case_name"]), (self.topic, [self.scene], "报价比对")
-        )
-        projections = await supplement.list_supplements(3, self.day)
-        self.assertEqual({r["kind"] for r in projections}, {"scene-asset", "case"})
-        self.assertEqual(next(r for r in projections if r["kind"] == "case")["fields"]["assets"], self.key)
-        self.assertEqual(await supplement.list_supplements(3, self.day - timedelta(days=1)), [])
+        self.assertEqual(await supplement.list_supplements(3, self.day), [])
         with self.assertRaises(BoardLedgerConflictError):
             await service.save_asset_context(self.user, 3, self.key, self.form())
-        await service.save_asset_context(
-            self.user, 3, self.key, self.form(revision=1, topic=self.topic, case_name="无场景案例")
-        )
-        projections = await supplement.list_supplements(3, self.day)
-        self.assertEqual([(r["kind"], r["parent_id"]) for r in projections], [("case", self.topic)])
-        self.published.clear()
-        self.assertEqual(await supplement.list_supplements(3, self.day), [])
 
-    async def test_asset_http_read_write_read_uses_asset_authority_without_board_menu(self):
+    async def test_knowledge_category_options_validation_and_history(self):
+        key = "knowledge:42"
+        original = {"topic": self.topic, "topic_name": "供应链", "scenes": [self.scene],
+                    "profile": {"direction": "成本"}, "case_name": "报价", "case_fields": {"input": "报价单"}}
+        await repo.write_binding(3, key, 17, 0, self.day - timedelta(days=1), original)
+        options = await service.options(3, self.day.year)
+        self.assertEqual(options["categories"], [{"id":self.category, "name":"采购标准"}])
+        self.targets.assert_awaited_with(3, self.day.year)
+        with self.assertRaises(BoardLedgerInvalidError):
+            await service.save_asset_context(self.user, 3, key, self.form(revision=1, knowledge_category_id=uuid4()))
+        form = self.form(topic=self.topic, revision=1, knowledge_category_id=self.category)
+        self.assertEqual(await service.save_asset_context(self.user, 3, key, form), {"revision": 2})
+        new = await service.read_asset_context(self.user, 3, key, self.day.year)
+        self.assertEqual((new["knowledge_category_id"], new["knowledge_category_name"]), (self.category, "采购标准"))
+        binding = (await repo.latest_bindings(3, key=key))[key]
+        self.assertEqual(json.loads(binding.payload), {**original, "knowledge_category_id": self.category, "knowledge_category_name":"采购标准"})
+        self.assertEqual(json.loads((await repo.latest_bindings(3, self.day-timedelta(days=1)))[key].payload), original)
+        with self.assertRaises(BoardLedgerInvalidError):
+            await service.save_asset_context(self.user, 3, self.key, self.form(topic=self.topic, knowledge_category_id=self.category))
+        await service.save_asset_context(
+            self.user, 3, key, self.form(revision=2, topic=self.topic, knowledge_category_id=None)
+        )
+        cleared = json.loads((await repo.latest_bindings(3, key=key))[key].payload)
+        self.assertIsNone(cleared["knowledge_category_id"])
+        self.assertNotIn("knowledge_category_name", cleared)
+        with self.assertRaises(UnAuthorizedError):
+            await service.save_asset_context(self.user, 4, key, form)
+
+    async def test_legacy_verified_library_can_clear_its_displayed_category(self):
+        from bisheng.company_board.domain.repositories.planning import category_key
+
+        async with self.session() as db:
+            db.add(BoardLedger(id="old-plan", tenant_id=3, revision=1, kind="collection", year=self.day.year,
+                               name="旧接入计划", asset_key="knowledge:42", effective_date=self.day, operator_id=17))
+            await db.commit()
+        read = await service.read_asset_context(self.user, 3, "knowledge:42", self.day.year)
+        self.assertEqual(read["knowledge_category_id"], category_key(3, "未归类"))
+        await service.save_asset_context(self.user, 3, "knowledge:42", service.AssetContextInput(
+            year=self.day.year, revision=read["revision"], topic=read["topic"], knowledge_category_id=None))
+        read = await service.read_asset_context(self.user, 3, "knowledge:42", self.day.year)
+        self.assertIsNone(read["knowledge_category_id"])
+
+    async def test_asset_http_roundtrip_without_board_menu(self):
         from fastapi import FastAPI
         from httpx import ASGITransport, AsyncClient
-
         from bisheng.common.dependencies.user_deps import UserPayload
         from bisheng.company_board.api.asset_context import router
 
@@ -123,56 +149,17 @@ class AssetContextTest(unittest.IsolatedAsyncioTestCase):
         app.dependency_overrides[UserPayload.get_login_user] = lambda: self.user
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             options = (await client.get("/asset-context/options")).json()["data"]
-            self.assertIn({"id": options["default_topic"], "name": "AI先锋行动"}, options["topics"])
+            self.assertIn({"id": self.category, "name": "采购标准"}, options["categories"])
             path = "/asset-context/" + self.key
-            request = {
-                "year": self.day.year,
-                "revision": 0,
-                "topic": self.topic,
-                "scenes": [self.scene],
-                "profile": {"direction": "采购"},
-                "case_name": "比价",
-                "case_fields": {"output": "供应商报价表"},
-            }
+            request = {"year":self.day.year, "revision":0, "topic":self.topic}
+            self.assertEqual((await client.put(path, json={**request, "case_name":"多余字段"})).status_code,422)
             for _ in range(2):
                 self.assertEqual((await client.put(path, json=request)).json()["data"]["revision"], 1)
-            data = (await client.get(path)).json()["data"]
-            self.assertEqual(
-                (data["topic"], data["scene_ids"], data["case_name"], data["profile"]),
-                (self.topic, [self.scene], "比价", {"direction": "采购"}),
-            )
+            self.assertEqual((await client.get(path)).json()["data"]["topic"], self.topic)
 
-    async def test_legacy_profile_is_editable_and_explicit_clear_replaces_it(self):
-        async with self.session() as db:
-            db.add(
-                BoardSupplement(
-                    tenant_id=3,
-                    id=str(uuid4()),
-                    revision=1,
-                    kind="asset-profile",
-                    year=self.day.year,
-                    name="旧业务说明",
-                    parent_id=self.key,
-                    business_date=self.day,
-                    payload='{"direction":"采购","description":"旧描述"}',
-                    operator_id=12,
-                    recorded_at=datetime.now(),
-                )
-            )
-            await db.commit()
-        context = await service.read_asset_context(self.user, 3, self.key, self.day.year)
-        self.assertEqual(context["profile"], {"direction": "采购", "description": "旧描述"})
-        await service.save_asset_context(
-            self.user, 3, self.key, self.form(profile={"direction": "制造", "description": "产能"})
-        )
-        (row,) = await supplement.list_supplements(3, self.day, ["asset-profile"])
-        self.assertEqual((row["parent_id"], row["fields"]), (self.key, {"direction": "制造", "description": "产能"}))
-        await service.save_asset_context(self.user, 3, self.key, self.form(revision=1, profile={}))
-        self.assertEqual(await supplement.list_supplements(3, self.day, ["asset-profile"]), [])
-
-    async def test_invalid_scene_cross_tenant_and_readonly_asset(self):
+    async def test_invalid_topic_cross_tenant_and_readonly_asset(self):
         with self.assertRaises(BoardLedgerInvalidError):
-            await service.save_asset_context(self.user, 3, self.key, self.form(scenes=[self.scene]))
+            await service.save_asset_context(self.user, 3, self.key, self.form(topic=self.scene))
         self.auth.reset_mock()
         with self.assertRaises(UnAuthorizedError):
             await service.save_asset_context(self.user, 4, self.key, self.form(topic=self.topic))

@@ -5,7 +5,7 @@ export type AssetKind = "employee" | "knowledge" | "skill" | "tool";
 export type LedgerKind = "goal" | "topic" | "scene" | "release" | "collection";
 export type GoalIndicator = "employee" | "scene" | "knowledge";
 export type BoardAccess = { lead: boolean; monitor: boolean; manage: boolean; resolve: boolean };
-export type BoardAsset = { id: string; name: string; kind: AssetKind; topic_id?: string; description?: string | null; department_id: number | null; published_at?: string | null };
+export type BoardAsset = { id: string; name: string; kind: AssetKind; topic_id?: string; knowledge_category_name?: string | null; description?: string | null; department_id: number | null; published_at?: string | null };
 export type BoardDepartment = { id: number; name: string };
 export type LedgerInput = {
   kind: LedgerKind;
@@ -41,7 +41,7 @@ export type BoardOverview = {
   scene_usage?: SceneUsage[];
   year: number; month: number | null; cutoff: string; catalog_as_of: string; assets: BoardAsset[]; departments: BoardDepartment[];
   ledger: LedgerRow[]; runtime: RuntimeMetrics;
-  strategy: { employee_built: number; scene_launched: number; knowledge_verified: number; employee_target: number | null; scene_target: number | null; knowledge_target: number | null; knowledge_planned: number };
+  strategy: { employee_built: number; scene_launched: number; knowledge_verified: number; employee_target: number | null; scene_target: number | null; knowledge_target: number | null; knowledge_planned: number; knowledge_categories: {id:string; name:string; planned_date:string | null; target:number; completed:number}[] };
   satisfaction: { successful: number; linked: number; negative: number; positive_rate: number | null };
 };
 const base = "/api/v1/company-boards";

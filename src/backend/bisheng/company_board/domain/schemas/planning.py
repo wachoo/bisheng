@@ -74,16 +74,11 @@ class Scene(PlannedItem):
         return self
 
 
-class Collection(PlannedItem):
+class Collection(Item):
     kind: Literal["collection"]
-    category: str = Field(min_length=1, max_length=80)
-    asset_key: str | None = Field(default=None, max_length=96)
-
-    @model_validator(mode="after")
-    def verified_has_knowledge(self):
-        if self.completed_date and not self.asset_key:
-            raise ValueError("已核验的知识接入计划必须关联知识库")
-        return self
+    name: str = Field(min_length=1, max_length=80)
+    target: int = Field(ge=0, le=100_000_000)
+    planned_date: date
 
 
 PlanEdit = Annotated[Targets | Topic | Scene | Collection, Field(discriminator="kind")]

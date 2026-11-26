@@ -23,6 +23,9 @@
     "viewUnmonitored": "未監視の資産を表示"
   },
   "assetContext": {
+    "category": "業務分類",
+    "chooseCategory": "業務分類を選択",
+    "noCategories": "今年度の業務分類は未登録です",
     "associationsTitle": "ダッシュボードとの関連付け（任意）",
     "direction": "業務分野",
     "description": "ダッシュボード用の説明",

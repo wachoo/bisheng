@@ -283,7 +283,7 @@ export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploa
                     )}
                 </div>
 
-                <AssetContextFields skill ref={assetContext} />
+                <AssetContextFields ref={assetContext} />
                 <DialogFooter>
                     <Button variant="outlined" onClick={() => onOpenChange(false)} color="default">
                         {t("skillManage.form.cancel")}

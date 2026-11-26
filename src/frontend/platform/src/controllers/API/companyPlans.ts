@@ -18,8 +18,7 @@ export interface PlanItem {
   department_id?: number | null;
   planned_date?: string | null;
   completed_date?: string | null;
-  category?: string | null;
-  asset_key?: string | null;
+  target?: number;
   supports?: SupportPeriod[];
   recognition?: PlanPeriod[];
 }
@@ -33,7 +32,8 @@ export interface PlanData {
   items: PlanItem[];
   built: number;
   departments: { id: number; name: string }[];
-  knowledge: { id: string; name: string }[];
+  knowledge_progress: { id: string; completed: number }[];
+  default_topic: string;
 }
 interface ItemInput {
   id: string | null;
@@ -50,7 +50,7 @@ export type PlanEdit =
   | (Targets & { kind: "targets" })
   | (ItemInput & { kind: "topic" })
   | (PlannedInput & { kind: "scene"; supports: SupportPeriod[]; recognition: PlanPeriod[] })
-  | (PlannedInput & { kind: "collection"; category: string; asset_key: string | null });
+  | (ItemInput & { kind: "collection"; target: number; planned_date: string });
 
 export function readCompanyPlan(year: number) {
   return request.get<unknown, PlanData>("/api/v1/company-boards/planning/" + year);

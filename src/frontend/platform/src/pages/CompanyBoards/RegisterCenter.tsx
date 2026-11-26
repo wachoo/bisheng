@@ -14,13 +14,13 @@ import "./registers.css";
 const sections = ["annual", "knowledge", "research"] as const;
 type Section = (typeof sections)[number];
 const legacySection: Record<string, Section> = {
-  goal: "annual", topic: "annual", scene: "annual", release: "annual",
+  case: "annual", goal: "annual", topic: "annual", scene: "annual", release: "annual",
   "scene-team": "annual", recognition: "annual",
   collection: "knowledge", "collection-meta": "knowledge",
   project: "research", subject: "research", expense: "research", receivable: "research",
   receipt: "research", estimate: "research", "value-rate": "research",
 };
-const assetKinds = ["case", "scene-asset", "asset-profile"];
+const assetKinds = [ "scene-asset", "asset-profile"];
 
 export default function RegisterCenter() {
   const { t } = useTranslation("companyBoards");

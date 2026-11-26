@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import { useState, type ReactNode } from "react";
 import { isReportView, ResearchReportDetail } from "./ResearchReportDetail";
 import { CaseOutput } from "../CaseOutput";
@@ -5,7 +6,6 @@ import type { PrototypeDetailProps } from "./types";
 import {
   constructionAssetTarget,
   kinds,
-  knowledgeCategories,
   rankedScenes,
   sceneAssetIds,
   strategyRows,
@@ -141,9 +141,10 @@ export function StrategyDetail(props: PrototypeDetailProps) {
   return <DetailBody key={props.target} {...props} />;
 }
 function DetailBody({ data, registers, target, period, open, board }: PrototypeDetailProps) {
+  const { t: caseText } = useTranslation("topicExample");
   const [, route, arg] = target.split(":");
   const trend = useBoardTrends(data, board).data?.months.find((m) => m.month === data.month);
-  const { topics, scenes, plans, published, workers, collections, depRanks, workerRanks } =
+  const { topics, scenes, plans, published, workers, depRanks, workerRanks } =
     strategyRows(data);
   const [q, search] = useState("");
   const [topic, pickTopic] = useState("all");
@@ -275,6 +276,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
     return (
       <>
         <Panel name={c.name} caption={c.date}>
+          {link("asset:" + c.fields.assets, assetName(c.fields.assets), caseText("viewEmployee"))}
           {c.fields.summary && <p className="al-info">{c.fields.summary}</p>}
           <div className="al-info">案例输入 · {c.fields.input || "尚未登记"}</div>
         </Panel>
@@ -285,21 +287,12 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
     );
   }
   if (route === "knowledge") {
-    const cats = knowledgeCategories(registers, data.cutoff);
+    const { knowledge_categories = [], knowledge_verified, knowledge_planned } = data.strategy;
     return (
-      <Panel
-        name="年度计划知识集"
-        caption={
-          "已接入 " + data.strategy.knowledge_verified + " 个 / 年度计划 " + collections.length + " 个"
-        }
-      >
+      <Panel name="年度知识接入计划" caption={`已接入 ${knowledge_verified} 个 / 年度计划 ${knowledge_planned} 个`}>
         <Table
-          heads={["业务分类", "知识集", "接入状态"]}
-          rows={collections.map((r) => [
-            cats.get(r.id) || "未归类",
-            r.name,
-            r.effective_date && r.effective_date <= data.cutoff ? "已接入" : "待接入",
-          ])}
+          heads={["业务分类", "计划数", "已接入", "计划完成日期"]}
+          rows={knowledge_categories.map(row => [row.name, row.target, row.completed, row.planned_date || "—"])}
         />
       </Panel>
     );
@@ -715,25 +708,9 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
         </Panel>
         <Panel name="专题代表案例">
           <Table
-            heads={["案例", "所属场景", "案例输入", "案例输出", "案例使用资产"]}
-            rows={cases.map((c) => [
-              <>
-                {c.name}
-                <br />
-                {link("strategy:case:" + c.id, c.name, c.fields.action || "查看案例示例")}
-              </>,
-              scLink(c.fields.scene, scenes.find((s) => s.id === c.fields.scene)?.name || "场景"),
-              c.fields.input || "—",
-              <>
-                <strong>{c.fields.sampleTitle}</strong>
-                <CaseOutput fields={c.fields} empty="—" />
-              </>,
-              (c.fields.assets || "")
-                .split(",")
-                .map((s) => s.trim())
-                .filter(Boolean)
-                .map((id) => <span key={id}>{link("asset:" + id, assetName(id))} </span>),
-            ])}
+            heads={[caseText("label")]}
+            rows={cases.map((c) => [link("asset:" + c.fields.assets, assetName(c.fields.assets))])}
+            none={caseText("empty")}
           />
         </Panel>
       </>
@@ -755,7 +732,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
   );
   const distribution = new Map<string, { count: number; uses: number | null }>();
   for (const row of rows) {
-    const key = profiles.get(row.id) || "未归类",
+    const key = (row.kind === "knowledge" ? row.knowledge_category_name : profiles.get(row.id)) || "未归类",
       group = distribution.get(key) || { count: 0, uses: null };
     group.count++;
     const uses = totals(row.id);
@@ -831,7 +808,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
             <article className="va-card">
               <div className="va-title">
                 <h2>业务分布</h2>
-                <span>按业务方向 · 数量 / 有效{verb[type.kind]}次数</span>
+                <span>按{type.kind === "knowledge" ? "业务分类" : "业务方向"} · 数量 / 有效{verb[type.kind]}次数</span>
               </div>
               <div className="va-body">
                 {bars.map(([name, group]) => (

@@ -1,4 +1,6 @@
 {
+  "搜索资产、业务分类或部门": "Search assets, business categories or departments",
+  "未归类": "Uncategorized",
   "8 小时 / 人天": "8 hours per person-day",
   "按关联资产汇总，共用资产可归属多个场景": "Shared assets may contribute to multiple scenarios",
   "按交付日匹配成果类别、文件或版本单位、折算工时与小时单价。缺少分类或有效参数时暂缺估值。": "Valuation uses the output category, file or version unit, hours and hourly rate effective on delivery. Missing categories or rates leave the estimate unavailable.",

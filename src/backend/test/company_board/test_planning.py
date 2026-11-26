@@ -46,7 +46,7 @@ class PlanningTest(unittest.IsolatedAsyncioTestCase):
         current_tenant_id.reset(self.tenant)
 
     async def save(self, edit):
-        return await planning.save_plan(1, 20, 2025, edit, {"knowledge:1"})
+        return await planning.save_plan(1, 20, 2025, edit)
 
     async def item(self, kind):
         return next(i for i in (await planning.read_plan(1, 2025))["items"] if i["kind"] == kind)
@@ -112,16 +112,20 @@ class PlanningTest(unittest.IsolatedAsyncioTestCase):
             )
             await db.commit()
         row = await self.item("collection")
-        self.assertIsNone(row["category"])
-        changes = {**row, "category": "Procurement", "planned_date": "2025-06-01", "completed_date": "2025-06-15"}
-        with self.assertRaises(ValidationError):
-            Collection(**changes)
-        with self.assertRaises(BoardLedgerInvalidError):
-            await self.save(Collection(**{**changes, "asset_key": "knowledge:foreign"}))
-        await self.save(Collection(**{**changes, "asset_key": "knowledge:1"}))
+        self.assertEqual((row["name"], row["target"]), ("未归类", 1))
+        edit = dict(id=row["id"], version=row["version"], name="装备维保", target=5, planned_date="2025-06-01")
+        await self.save(Collection(kind="collection", **edit))
         current = await self.item("collection")
-        self.assertEqual(
-            (current["id"], current["category"], current["asset_key"]), (collection_id, "Procurement", "knowledge:1")
-        )
-        self.assertEqual(len([r for r in (await planning.read_plan(1, 2025))["items"] if r["kind"] == "collection"]), 1)
-        self.assertEqual((await planning.read_plan(2, 2025))["items"], [])
+        self.assertEqual((current["id"], current["name"], current["target"]), (row["id"], "装备维保", 5))
+        with self.assertRaises(BoardLedgerConflictError):
+            await self.save(Collection(kind="collection", **edit))
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Collection(kind="collection", name="装备维保", target=1, planned_date="2025-08-01"))
+        self.assertEqual(len(await planning.knowledge_targets(1, 2025)), 1)
+        self.assertEqual(await planning.knowledge_targets(2, 2025), [])
+        await planning.save_plan(1, 20, 2026, Collection(kind="collection", name="装备维保", target=0, planned_date="2026-05-01"))
+        self.assertEqual((await planning.knowledge_targets(1, 2026))[0]["id"], row["id"])
+        async with self.session() as db:
+            self.assertIsNotNone(await db.get(BoardLedger, (1, collection_id, 1)))
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Collection(kind="collection", name="法务", target=3, planned_date="2026-06-01"))

@@ -23,6 +23,9 @@
     "viewUnmonitored": "查看未监测资产"
   },
   "assetContext": {
+    "category": "业务分类",
+    "chooseCategory": "选择业务分类",
+    "noCategories": "本年度尚未登记业务分类",
     "associationsTitle": "看板归属（选填）",
     "direction": "业务方向",
     "description": "看板业务说明",

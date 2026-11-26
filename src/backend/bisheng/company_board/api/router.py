@@ -7,6 +7,7 @@ from bisheng.company_board.domain.services.boards import board_access, ledger_fo
 
 from .asset_context import router as asset_context_router
 from .planning import router as planning_router
+from .representatives import router as representatives_router
 from .research_report import router as research_report_router
 from .feedback import router as feedback_router
 from .monitoring import router as monitoring_router
@@ -17,6 +18,7 @@ from .trends import router as trends_router
 router = APIRouter(prefix="/company-boards", tags=["Company boards"])
 router.include_router(asset_context_router)
 router.include_router(planning_router)
+router.include_router(representatives_router)
 router.include_router(research_report_router)
 router.include_router(feedback_router)
 router.include_router(monitoring_router)

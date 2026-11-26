@@ -23,6 +23,9 @@
     "viewUnmonitored": "View unmonitored assets"
   },
   "assetContext": {
+    "category": "Business category",
+    "chooseCategory": "Select a category",
+    "noCategories": "No categories registered for this year",
     "associationsTitle": "Dashboard associations (optional)",
     "direction": "Business area",
     "description": "Dashboard description",

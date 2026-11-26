@@ -21,6 +21,7 @@ from bisheng.database.models.audit_log import AuditLog
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.database.models.department import Department
+from bisheng.knowledge.domain.models.knowledge import Knowledge
 
 engine = create_async_engine("sqlite+aiosqlite://")
 
@@ -34,7 +35,7 @@ async def session():
 async def catalog(_tenant):
     return (
         [{"id": i, "name": name} for i, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1)],
-        [
+        [{"id":"assistant:2","kind":"employee","name":"验证备选员工","department_id":None}] + [
             {"id": prefix + ":1", "kind": kind, "department_id": None, "name": "验证" + name}
             for kind, prefix, name in [
                 ("employee", "assistant", "员工"),
@@ -56,6 +57,13 @@ async def lifespan(_app):
     for item in pkgutil.iter_modules(repositories.__path__):
         importlib.import_module(f"{repositories.__name__}.{item.name}")
 
+    from bisheng.company_board.domain.services import asset_context
+    importlib.import_module("bisheng.company_board.domain.services.knowledge_progress")
+
+    async def fixture_edit(user, *, resource_type, resource_id, action):
+        assert user.user_id == 9 and resource_type == "knowledge_library" and resource_id == 1 and action == "edit"
+
+    asset_context.require_business_action = fixture_edit
     for module in tuple(sys.modules.values()):
         if not getattr(module, "__name__", "").startswith("bisheng.company_board."):
             continue
@@ -64,9 +72,10 @@ async def lifespan(_app):
         if hasattr(module, "load_catalog"):
             module.load_catalog = catalog
     async with engine.begin() as conn:
-        for model in (BoardLedger, BoardRuntimeEvent, BoardRating, BoardIssueResolution, BoardSupplement, Department, AuditLog):
+        for model in (BoardLedger, BoardRuntimeEvent, BoardRating, BoardIssueResolution, BoardSupplement, Department, AuditLog, Knowledge):
             await conn.run_sync(model.__table__.create)
     async with session() as db:
+        db.add(Knowledge(id=1, name="验证知识库", user_id=9, tenant_id=1, type=0))
         for idx, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1):
             db.add(Department(id=idx, dept_id=f"fixture-{idx}", name=name, tenant_id=1))
         db.add(

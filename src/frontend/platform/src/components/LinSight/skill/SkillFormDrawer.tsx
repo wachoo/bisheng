@@ -209,7 +209,7 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
                             }} textareaClassName={"h-full resize-none font-mono text-sm"} className={"flex-1 min-h-0"} />
                         {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content}</p>}
                     </div>
-                    <AssetContextFields skill ref={assetContext} assetKey={editing ? "skill:" + editing.id : undefined} />
+                    <AssetContextFields ref={assetContext} assetKey={editing ? "skill:" + editing.id : undefined} />
                 </div>
 
                 {/* footer — actions only */}

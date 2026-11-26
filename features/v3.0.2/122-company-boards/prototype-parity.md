@@ -19,14 +19,14 @@
 
 ## 管理员与资产创建人的填报入口
 
-管理员从左栏「台账填报」进入年度建设计划、知识接入计划、科研与经营三个入口。资产专题、场景关联和代表案例从资产创建或编辑页面填写。字段、父子关系、完成口径和跨月样例见[填报与数据模型](registers-plan.md)。
+管理员从左栏「台账填报」进入年度建设计划、知识接入计划、科研与经营三个入口。资产创建人选择所属专题，知识库还可选择已登记的业务分类。专题管理维护代表案例数字员工。字段、父子关系、完成口径和跨月样例见[填报与数据模型](registers-plan.md)。
 
 | 验收对象 | 操作与读数 |
 |---|---|
 | 场景计划 | 维护一个承建部门和两个支持部门。5 月计划、6 月实际投产，切换两个月份核对分子 |
-| 知识接入 | 登记计划后新增一个分母。绑定真实库并核验后，新增一个分子 |
+| 知识接入 | 按年度填写分类目标，文档库或 QA 库选用该分类后计入接入完成数 |
 | 科研与经营 | 在相邻月直接填报两次余额 18.5 和 12 万元，回查 5 月仍显示 18.5 万元；可由报告直接查看课题 |
-| 资产创建与编辑 | 留空默认归入 AI先锋行动，可改选专题、场景或代表案例。验证保存、重试与原资产创建结果 |
+| 资产创建与编辑 | 留空默认归入 AI先锋行动，可改选专题，知识库可选择已有业务分类。验证保存、重试与原资产创建结果 |
 
 ## 页面边界
 
@@ -56,7 +56,7 @@
 | 业务赋能 | [原型](screenshots/parity/business-prototype.png) | [浅色](screenshots/parity/business-local.png) · [深色](screenshots/parity/business-dark.png) |
 | 应用活力 | [原型](screenshots/parity/adoption-prototype.png) | [浅色](screenshots/parity/adoption-local.png) · [深色](screenshots/parity/adoption-dark.png) |
 | 运营监控 | [原型](screenshots/parity/operations-prototype.png) | [浅色](screenshots/parity/operations-local.png) · [深色](screenshots/parity/operations-dark.png) · [覆盖部分资产的运行样例](screenshots/parity/operations-monitored-sample.png) |
-| 填报及对账 | 按业务需要新增 | [填报台账](screenshots/parity/registers-local.png) · [年度计划样例](screenshots/parity/annual-plan-sample.png) · [知识接入样例](screenshots/parity/knowledge-plan-sample.png) · [科研经营月报](screenshots/parity/research-monthly.png) |
+| 填报及对账 | 按业务需要新增 | [填报台账](screenshots/parity/registers-local.png) · [年度计划样例](screenshots/parity/annual-plan-sample.png) · [专题代表案例样例](screenshots/parity/topic-representative-sample.png) · [知识接入样例](screenshots/parity/knowledge-plan-sample.png) · [科研经营月报](screenshots/parity/research-monthly.png) |
 
 
-本次在本地 Compose 更新管理端、后端及任务进程。管理端生产构建通过，工作台沿用上次构建。最终后端镜像运行 48 项看板专项测试，全部通过。全平台 TypeScript 检查仍有 681 条既有诊断，按文件、诊断号和内容对比，本次未增加诊断。三语资源一致性检查通过。
+本次在本地 Compose 更新管理端和后端 API。管理端生产构建通过，工作台沿用上次构建。最终后端镜像运行 53 项看板专项测试，全部通过。全平台 TypeScript 检查仍有 681 条既有诊断，按文件、诊断号和内容对比，本次未增加诊断。三语资源一致性检查通过。

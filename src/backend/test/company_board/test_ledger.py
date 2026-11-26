@@ -56,6 +56,15 @@ class LedgerTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await list_ledger(1, 2026))[0]["target"], 20)
         self.assertEqual(await list_ledger(2, 2026), [])
 
+    async def test_obsolete_collection_write_is_rejected(self):
+        from unittest.mock import AsyncMock
+        from bisheng.company_board.domain.services import boards
+
+        entry = LedgerInput(kind="collection", name="旧入口", year=2026, parent_id="topic")
+        with patch.object(boards, "require_access", new_callable=AsyncMock):
+            with self.assertRaises(BoardLedgerInvalidError):
+                await boards.record_entry(None, entry)
+
     async def test_tenant_year_parent_and_strategic_totals(self):
         topic = await save_ledger(1, 7, LedgerInput(kind="topic", year=2026, name="采购"))
         scene = LedgerInput(
@@ -77,10 +86,10 @@ class LedgerTest(unittest.IsolatedAsyncioTestCase):
         await save_ledger(1, 9, release)
         await save_ledger(1, 9, LedgerInput(kind="collection", year=2026, name="采购制度", parent_id=topic["id"]))
         rows = await list_ledger(1, 2026)
-        september = strategic_totals(rows, 2026, date(2026, 9, 30))
+        september = strategic_totals(rows, 2026, date(2026, 9, 30), [{"target": 5, "completed": 3}])
         self.assertEqual(september["scene_launched"], 1)
         self.assertEqual(september["employee_built"], 0)
         self.assertIsNone(september["employee_target"])
-        self.assertEqual(september["knowledge_planned"], 1)
-        self.assertEqual(september["knowledge_verified"], 0)
+        self.assertEqual(september["knowledge_planned"], 5)
+        self.assertEqual(september["knowledge_verified"], 3)
         self.assertEqual(strategic_totals(rows, 2026, date(2026, 10, 31))["employee_built"], 1)

@@ -48,14 +48,13 @@ def reporting_period(year: int, month: int | None, now: datetime) -> tuple[datet
     return start, min(end, now)
 
 
-def strategic_totals(rows: list[dict], year: int, cutoff: date) -> dict:
+def strategic_totals(rows: list[dict], year: int, cutoff: date, knowledge=()) -> dict:
     goals = {r["indicator"]: r["target"] for r in rows if r["kind"] == "goal"}
     reached = [
         r for r in rows if r["effective_date"] and r["effective_date"].year == year and r["effective_date"] <= cutoff
     ]
     active_topics = {r["id"] for r in rows if r["kind"] == "topic"}
     planned_scenes = {r["id"] for r in rows if r["kind"] == "scene" and r["parent_id"] in active_topics}
-    collections = {r["id"] for r in rows if r["kind"] == "collection" and r["parent_id"] in active_topics}
     return {
         "employee_built": len(
             {
@@ -67,15 +66,17 @@ def strategic_totals(rows: list[dict], year: int, cutoff: date) -> dict:
             }
         ),
         "scene_launched": len({r["id"] for r in reached if r["id"] in planned_scenes}),
-        "knowledge_verified": len({r["id"] for r in reached if r["id"] in collections}),
+        "knowledge_verified": sum(group["completed"] for group in knowledge),
         "employee_target": goals.get("employee"),
         "scene_target": goals.get("scene"),
         "knowledge_target": goals.get("knowledge"),
-        "knowledge_planned": len(collections),
+        "knowledge_planned": sum(group["target"] for group in knowledge),
+        "knowledge_categories": list(knowledge),
     }
 
 
 async def overview(user: UserPayload, board: BoardKind, year: int, month: int | None) -> dict:
+    from bisheng.company_board.domain.services.knowledge_progress import knowledge_progress
     from bisheng.company_board.domain.services.runtime import read_runtime
     from bisheng.company_board.domain.services.scene_usage import read_scenes
 
@@ -94,6 +95,10 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
         from bisheng.company_board.domain.services.asset_context import attach_asset_topics
 
         await attach_asset_topics(tenant_id, year, cutoff, assets, rows)
+    # Asset details are shared by both boards, including monitor-only accounts.
+    knowledge = []
+    if board == "lead" or any(asset["kind"] == "knowledge" for asset in assets):
+        knowledge = await knowledge_progress(tenant_id, year, cutoff, assets)
     runtime = await read_runtime(tenant_id, start, end)
     # No prompts, file contents or private feedback are returned to the company aggregate.
     visible_assets = {a["id"] for a in assets}
@@ -110,7 +115,9 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
         "departments": departments,
         "assets": assets,
         "ledger": rows,
-        "strategy": strategic_totals(rows, year, cutoff) if board == "lead" else None,
+        "strategy": strategic_totals(rows, year, cutoff, knowledge)
+        if board == "lead"
+        else None,
         "runtime": runtime,
         "satisfaction": await satisfaction(tenant_id, start - timedelta(hours=8), end - timedelta(hours=8))
         if board == "lead"
@@ -125,6 +132,8 @@ async def ledger_for(user: UserPayload, year: int):
 
 async def record_entry(user: UserPayload, data: LedgerInput, entry_id: str | None = None, revision: int = 0):
     await require_access(user, "manage")
+    if data.kind == "collection":
+        raise BoardLedgerInvalidError(msg="请在知识接入计划维护分类目标，在知识库选择业务分类。")
     if data.kind == "release":
         raise BoardLedgerInvalidError(msg="资产首次上线由系统记录。")
     if data.kind == "goal" and data.indicator == "knowledge":

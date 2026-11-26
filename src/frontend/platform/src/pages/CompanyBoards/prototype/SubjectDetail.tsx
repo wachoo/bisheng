@@ -551,11 +551,11 @@ function Asset(
             </Card>
           )}
         </div>
-        {(skill || profile || asset.description) && (
+        {(kb || skill || profile || asset.description) && (
           <Card title={skill ? "Skill 内容" : "业务说明"}>
             <Definitions
               rows={[
-                ["业务方向", profile?.fields.direction || "尚未登记"],
+                kb ? ["业务分类", asset.knowledge_category_name || "未归类"] : ["业务方向", profile?.fields.direction || "尚未登记"],
                 ["说明", profile?.fields.description || asset.description || "—"],
                 ...(skill
                   ? [

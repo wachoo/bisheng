@@ -1,0 +1,16 @@
+{
+  "label": "Representative digital employee",
+  "choose": "Select an employee in this initiative",
+  "noEmployees": "No published employees in this initiative",
+  "unavailable": "Previous employee no longer available in this initiative",
+  "save": "Save",
+  "clear": "Clear selection",
+  "loadFailed": "Could not load representative employees.",
+  "retry": "Retry",
+  "loading": "Loading representative employees…",
+  "viewEmployee": "View digital employee",
+  "empty": "No representative employee selected for this initiative.",
+  "case": "Representative case",
+  "employee": "Digital employee",
+  "initiativeCase": "Initiative representative case"
+}

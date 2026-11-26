@@ -1,0 +1,462 @@
+[
+  {
+    "action": "daily",
+    "target": "1",
+    "userId": 389,
+    "at": "2026-11-26T09:15:30.569Z",
+    "expected": {
+      "runs": 0,
+      "scene_uses": 0
+    },
+    "matched": true,
+    "counters": {
+      "runs": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      },
+      "scene_uses": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "chat": "c691b65f5dd5463496ccc4b99cb9b4db",
+      "message": 2
+    }
+  },
+  {
+    "action": "assistant",
+    "target": "836c9ec6389a424b8481343bad0abc49",
+    "sample": "tools",
+    "userId": 389,
+    "at": "2026-11-26T09:18:18.767Z",
+    "expected": {
+      "success": 1,
+      "scene_uses": 1,
+      "skill": 1,
+      "knowledge": 1,
+      "mcp": 1
+    },
+    "matched": false,
+    "counters": {
+      "success": {
+        "before": null,
+        "after": 1,
+        "delta": 1
+      },
+      "scene_uses": {
+        "before": 0,
+        "after": 1,
+        "delta": 1
+      },
+      "skill": {
+        "before": null,
+        "after": 1,
+        "delta": 1
+      },
+      "knowledge": {
+        "before": null,
+        "after": 2,
+        "delta": 2
+      },
+      "mcp": {
+        "before": null,
+        "after": 1,
+        "delta": 1
+      },
+      "scene_users": {
+        "before": 0,
+        "after": 1,
+        "delta": 1
+      }
+    },
+    "receipt": {
+      "chat": "e991daeb1a9c4a93882e1a63e0c3f95b",
+      "message": 15,
+      "answer": "已按指定技能完成操作：调用报价工具并检索知识库，结果如下。\n\n**含税总价**：报价工具返回「验收报价单 Q-1126：供应商甲，含税总价 18.6 万元」。\n\n**交期**：报价工具返回结果中未包含交期字段，无法核对交期信息。\n\n**复核记录**：\n- 已调用报价工具获取供应商甲报价；\n- 已检索知识库核对规则，但知",
+      "timeline": [
+        {
+          "name": "1",
+          "category": "knowledge",
+          "result": "done"
+        },
+        {
+          "name": "use_assistant_skill",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "board1126_quote_f0f4de51",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "1",
+          "category": "knowledge",
+          "result": "done"
+        }
+      ],
+      "knowledgeHit": false,
+      "mcpQuote": true,
+      "run": "eb6bda1158664e52b35e2af007a3446a",
+      "department": 15,
+      "status": "success"
+    }
+  },
+  {
+    "action": "assistant",
+    "target": "836c9ec6389a424b8481343bad0abc49",
+    "sample": "reject",
+    "userId": 390,
+    "at": "2026-11-26T09:20:06.609Z",
+    "expected": {
+      "success": 1,
+      "scene_uses": 1,
+      "skill": 1,
+      "knowledge": 1,
+      "mcp_failure": 1
+    },
+    "checks": {
+      "counts": true,
+      "knowledgeAnswer": false,
+      "mcpResponse": true,
+      "skill": true,
+      "terminal": true,
+      "department": true
+    },
+    "matched": false,
+    "counters": {
+      "success": {
+        "before": 1,
+        "after": 2,
+        "delta": 1
+      },
+      "scene_uses": {
+        "before": 1,
+        "after": 2,
+        "delta": 1
+      },
+      "skill": {
+        "before": 1,
+        "after": 2,
+        "delta": 1
+      },
+      "knowledge": {
+        "before": 2,
+        "after": 3,
+        "delta": 1
+      },
+      "mcp_failure": {
+        "before": 0,
+        "after": 1,
+        "delta": 1
+      },
+      "scene_users": {
+        "before": 1,
+        "after": 2,
+        "delta": 1
+      }
+    },
+    "receipt": {
+      "chat": "91295c839c0b4ef292f43e9505c1ea79",
+      "message": 27,
+      "answer": "采集验收模型已完成本轮。",
+      "timeline": [
+        {
+          "name": "board1126_quote_f0f4de51",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "use_assistant_skill",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "1",
+          "category": "knowledge",
+          "result": "done"
+        }
+      ],
+      "knowledgeHit": false,
+      "mcpQuote": false,
+      "knowledgeQuestion": true,
+      "mcpRejected": true,
+      "run": "23defb0a622246fd889febd0188027b5",
+      "department": 35,
+      "status": "success"
+    }
+  },
+  {
+    "action": "assistant",
+    "target": "836c9ec6389a424b8481343bad0abc49",
+    "sample": "tools",
+    "userId": 389,
+    "at": "2026-11-26T09:20:17.410Z",
+    "expected": {
+      "success": 1,
+      "scene_uses": 1,
+      "skill": 1,
+      "knowledge": 1,
+      "mcp": 1
+    },
+    "checks": {
+      "counts": true,
+      "knowledgeAnswer": false,
+      "mcpResponse": true,
+      "skill": true,
+      "terminal": true,
+      "department": true
+    },
+    "matched": false,
+    "counters": {
+      "success": {
+        "before": 2,
+        "after": 3,
+        "delta": 1
+      },
+      "scene_uses": {
+        "before": 2,
+        "after": 3,
+        "delta": 1
+      },
+      "skill": {
+        "before": 2,
+        "after": 3,
+        "delta": 1
+      },
+      "knowledge": {
+        "before": 3,
+        "after": 4,
+        "delta": 1
+      },
+      "mcp": {
+        "before": 1,
+        "after": 2,
+        "delta": 1
+      },
+      "scene_users": {
+        "before": 2,
+        "after": 2,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "chat": "823a91f2e5da466c8a86b417d9172b08",
+      "message": 39,
+      "answer": "采集验收模型已完成本轮。Q-1126",
+      "timeline": [
+        {
+          "name": "board1126_quote_f0f4de51",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "use_assistant_skill",
+          "category": "tool",
+          "result": "done"
+        },
+        {
+          "name": "1",
+          "category": "knowledge",
+          "result": "done"
+        }
+      ],
+      "knowledgeHit": false,
+      "mcpQuote": true,
+      "knowledgeQuestion": true,
+      "mcpRejected": false,
+      "run": "019b2a976bcb45a3ab9c2b03cb5a9c9b",
+      "department": 15,
+      "status": "success"
+    }
+  },
+  {
+    "action": "assistant",
+    "target": "d55272b8e29e415d856d5eda24348b16",
+    "sample": "plain",
+    "userId": 391,
+    "at": "2026-11-26T09:20:28.359Z",
+    "expected": {
+      "success": 1,
+      "scene_uses": 1
+    },
+    "checks": {
+      "counts": true,
+      "terminal": true,
+      "department": true
+    },
+    "matched": true,
+    "counters": {
+      "success": {
+        "before": 3,
+        "after": 4,
+        "delta": 1
+      },
+      "scene_uses": {
+        "before": 3,
+        "after": 4,
+        "delta": 1
+      },
+      "scene_users": {
+        "before": 2,
+        "after": 3,
+        "delta": 1
+      }
+    },
+    "receipt": {
+      "chat": "0be67687c04144c09bfab5bf11f127a3",
+      "message": 42,
+      "answer": "业务检查完成",
+      "timeline": [],
+      "run": "259ae8e1ea6a415ba27d6d5befd129a9",
+      "department": 36,
+      "status": "success"
+    }
+  },
+  {
+    "action": "rate",
+    "target": "42",
+    "sample": "1",
+    "userId": 391,
+    "at": "2026-11-26T09:20:40.717Z",
+    "expected": {
+      "negative": 0,
+      "pending": 0
+    },
+    "checks": {
+      "counts": true,
+      "savedRating": true
+    },
+    "matched": true,
+    "counters": {
+      "negative": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      },
+      "pending": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "message": 42,
+      "liked": 1,
+      "savedRating": 1
+    }
+  },
+  {
+    "action": "rate",
+    "target": "27",
+    "sample": "2",
+    "userId": 390,
+    "at": "2026-11-26T09:20:41.381Z",
+    "expected": {
+      "negative": 1,
+      "pending": 1,
+      "closed": 0
+    },
+    "checks": {
+      "counts": true,
+      "savedRating": true
+    },
+    "matched": true,
+    "counters": {
+      "negative": {
+        "before": 0,
+        "after": 1,
+        "delta": 1
+      },
+      "pending": {
+        "before": 0,
+        "after": 1,
+        "delta": 1
+      },
+      "closed": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "message": 27,
+      "liked": 2,
+      "savedRating": 2,
+      "newIssues": [
+        "23defb0a622246fd889febd0188027b5"
+      ]
+    }
+  },
+  {
+    "action": "resolve",
+    "target": "23defb0a622246fd889febd0188027b5",
+    "userId": 1,
+    "at": "2026-11-26T09:20:41.931Z",
+    "expected": {
+      "negative": 0,
+      "pending": -1,
+      "closed": 1
+    },
+    "checks": {
+      "counts": false,
+      "closedIssue": false
+    },
+    "matched": false,
+    "counters": {
+      "negative": {
+        "before": 1,
+        "after": 1,
+        "delta": 0
+      },
+      "pending": {
+        "before": 1,
+        "after": 1,
+        "delta": 0
+      },
+      "closed": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "run": "23defb0a622246fd889febd0188027b5"
+    }
+  },
+  {
+    "action": "verify-resolution",
+    "target": "23defb0a622246fd889febd0188027b5",
+    "userId": 1,
+    "at": "2026-11-26T09:21:18.841Z",
+    "expected": {
+      "pending": 0,
+      "closed": 0
+    },
+    "checks": {
+      "counts": true,
+      "closedIssue": true
+    },
+    "matched": true,
+    "counters": {
+      "pending": {
+        "before": 0,
+        "after": 0,
+        "delta": 0
+      },
+      "closed": {
+        "before": 1,
+        "after": 1,
+        "delta": 0
+      }
+    },
+    "receipt": {
+      "run": "23defb0a622246fd889febd0188027b5",
+      "resolvedAt": "2026-11-26T09:20:42",
+      "measure": "采集验收1126：已核对报价样本及工具凭据，完成处置。"
+    }
+  }
+]

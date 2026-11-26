@@ -17,18 +17,9 @@ from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.company_board.api.router import router
 from bisheng.company_board.domain.models.feedback import BoardIssueResolution, BoardRating
 from bisheng.company_board.domain.models.ledger import BoardLedger
+from bisheng.database.models.audit_log import AuditLog
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.models.supplement import BoardSupplement
-from bisheng.company_board.domain.repositories import (
-    activity_trends,
-    feedback,
-    ledger,
-    monitoring,
-    runtime,
-    scene_usage,
-    subjects,
-    supplement,
-)
 from bisheng.database.models.department import Department
 
 engine = create_async_engine("sqlite+aiosqlite://")
@@ -42,7 +33,7 @@ async def session():
 
 async def catalog(_tenant):
     return (
-        [{"id": 1, "name": "验证部门"}],
+        [{"id": i, "name": name} for i, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1)],
         [
             {"id": prefix + ":1", "kind": kind, "department_id": None, "name": "验证" + name}
             for kind, prefix, name in [
@@ -57,18 +48,27 @@ async def catalog(_tenant):
 
 @asynccontextmanager
 async def lifespan(_app):
+    import importlib
+    import pkgutil
     import sys
+    from bisheng.company_board.domain import repositories
 
-    for module in (activity_trends, feedback, ledger, monitoring, runtime, scene_usage, subjects, supplement):
-        module.get_async_db_session = session
+    for item in pkgutil.iter_modules(repositories.__path__):
+        importlib.import_module(f"{repositories.__name__}.{item.name}")
+
     for module in tuple(sys.modules.values()):
-        if getattr(module, "__name__", "").startswith("bisheng.company_board.") and hasattr(module, "load_catalog"):
+        if not getattr(module, "__name__", "").startswith("bisheng.company_board."):
+            continue
+        if hasattr(module, "get_async_db_session"):
+            module.get_async_db_session = session
+        if hasattr(module, "load_catalog"):
             module.load_catalog = catalog
     async with engine.begin() as conn:
-        for model in (BoardLedger, BoardRuntimeEvent, BoardRating, BoardIssueResolution, BoardSupplement, Department):
+        for model in (BoardLedger, BoardRuntimeEvent, BoardRating, BoardIssueResolution, BoardSupplement, Department, AuditLog):
             await conn.run_sync(model.__table__.create)
     async with session() as db:
-        db.add(Department(id=1, dept_id="fixture", name="验证部门", tenant_id=1))
+        for idx, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1):
+            db.add(Department(id=idx, dept_id=f"fixture-{idx}", name=name, tenant_id=1))
         db.add(
             BoardRuntimeEvent(
                 id="sample",

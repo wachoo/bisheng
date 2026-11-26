@@ -7,11 +7,11 @@ import type { PrototypeViewProps } from "./types";
 export const healthStates = ["异常", "关注", "正常", "暂无执行", "未监测"] as const;
 export type Health = (typeof healthStates)[number];
 export const colors: Record<Health, string> = {
-  异常: "#bd503b",
-  关注: "#c1852d",
-  正常: "#288578",
-  暂无执行: "#aab6c2",
-  未监测: "#7587a4",
+  异常: "var(--al-danger)",
+  关注: "var(--al-amber)",
+  正常: "var(--al-success)",
+  暂无执行: "rgb(var(--border-deep))",
+  未监测: "rgb(var(--text-3))",
 };
 export const kindNames: Record<OperationalKind, string> = {
   employee: "数字员工",

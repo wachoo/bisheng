@@ -28,10 +28,10 @@ export function constructionAssetTarget(assetId: string, month?: string) {
   return "asset:" + assetId + (month ? "?window=month&month=" + month : "?window=year");
 }
 export const kinds: { kind: AssetKind; label: string; unit: string; color: string }[] = [
-  { kind: "employee", label: "数字员工", unit: "位", color: "#286889" },
-  { kind: "knowledge", label: "知识库", unit: "个", color: "#328e81" },
-  { kind: "skill", label: "Skill", unit: "项", color: "#6385ae" },
-  { kind: "tool", label: "工具/MCP", unit: "项", color: "#9a855f" },
+  { kind: "employee", label: "数字员工", unit: "位", color: "var(--al-blue)" },
+  { kind: "knowledge", label: "知识库", unit: "个", color: "var(--al-teal)" },
+  { kind: "skill", label: "Skill", unit: "项", color: "var(--al-slate)" },
+  { kind: "tool", label: "工具/MCP", unit: "项", color: "var(--al-amber)" },
 ];
 
 export function strategyRows(data: BoardOverview) {
@@ -112,6 +112,9 @@ export function strategyTopicAssets(
       .filter((r) => r.kind === "scene" && r.parent_id === topic)
       .flatMap((s) => Array.from(sceneAssetIds(data, registers, s.id))),
   );
+  for (const asset of data.assets) {
+    if (asset.topic_id === topic) ids.add(asset.id);
+  }
   for (const row of registers.filter(
     (r) => r.kind === "case" && r.parent_id === topic && (!r.date || r.date <= data.cutoff),
   )) {

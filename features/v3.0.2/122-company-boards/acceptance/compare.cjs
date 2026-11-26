@@ -153,18 +153,34 @@ async function checkTabHistory(page) {
     await page.setViewportSize(screen);
     await checkTabHistory(page);
     await page.goto(root+"/board-ledger");
-    await page.getByRole("link",{name:/年度目标|年度建设目标/}).first().waitFor();
-    const hrefs=await page.locator('a[href*="/board-ledger/"]').evaluateAll(xs=>[...new Set(xs.map(x=>x.href))]);
-    assert(hrefs.length>=18,"only "+hrefs.length+" register links");
-    for(const href of hrefs) {
-      await page.goto(href);const add=page.getByRole("button",{name:/新增|新建|添加/}).last();await add.click();
-      await page.getByRole("dialog").waitFor();
-      assert.equal(await page.locator('a.navlink[href="/board-ledger"]').getAttribute("aria-current"),"page","native register menu");
-      assert(await page.getByRole("dialog").getByRole("button",{name:/保存/}).count(),"no save action "+href);
+    const nav=page.getByRole("navigation",{name:"看板填报台账"});
+    await nav.waitFor();
+    const titles=["年度建设计划","知识接入计划","科研与经营"];
+    assert.deepEqual(await nav.getByRole("link").allTextContents(),titles);
+    for (const name of titles) {
+      await nav.getByRole("link",{name,exact:true}).click();
+      assert.equal(await nav.getByRole("link",{name,exact:true}).getAttribute("aria-current"),"page");
+      assert.equal(await page.locator('a.navlink[href="/board-ledger"]').getAttribute("aria-current"),"page");
+      await page.waitForLoadState("networkidle");
+      assert.equal(await page.locator("main.br-center").getByRole("alert").count(),0,name);
     }
-    await page.goto(root+"/board-ledger/project");await page.waitForLoadState("networkidle");
+    await nav.getByRole("link",{name:titles[0]}).click();
+    await page.waitForLoadState("networkidle");
     await page.screenshot({path:path.join(out,"registers-local.png")});
-    console.log("registers",hrefs.length,"dialogs opened; page errors",errors);
+    await page.goto(root+"/leadboard");
+    await page.locator("#strategy-cockpit .card.hero").waitFor();
+    await page.getByRole("button",{name:/主题/}).first().click();
+    await page.locator("html.dark").waitFor();
+    for(const [selector,token] of [[".hero .goal-label","--text-2"],[".hero .total","--brand-main"]]) {
+      const colors=await page.locator("#strategy-cockpit").locator(selector).first().evaluate((el,token)=>{
+        const style=getComputedStyle(el);
+        return [style.color.match(/\d+/g).join(" "),style.getPropertyValue(token).trim()];
+      },token);
+      assert.equal(colors[0],colors[1],"strategy follows the native dark theme on "+selector);
+    }
+    await page.screenshot({path:path.join(out,"strategy-dark.png")});
+    await page.getByRole("button",{name:/主题/}).first().click();
+    console.log("Three registers, native light/dark theme, page errors:",errors);
     assert.equal(errors.length,0);
   } finally {await browser.close();}
 })().catch(err=>{console.error(err);process.exitCode=1;});

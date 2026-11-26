@@ -132,3 +132,12 @@
     flex-wrap: wrap;
   }
 }
+
+.br-center .cb-frame { max-width: none; padding: 24px clamp(16px, 2.4vw, 40px) 36px; }
+.br-center .cb-heading h1 { font-size: var(--text-h2); letter-spacing: normal; }
+.br-sections { display: flex; flex-wrap: wrap; gap: 4px 20px; border-bottom: 1px solid rgb(var(--border-base)); margin-bottom: 20px; }
+.br-sections a { display: inline-flex; align-items: center; min-height: 44px; color: rgb(var(--text-2)); border-bottom: 2px solid transparent; font-weight: 500; text-decoration: none; }
+.br-sections a[aria-current="page"] { border-color: rgb(var(--brand-main)); color: rgb(var(--brand-main)); }
+.br-sections a:hover { color: rgb(var(--brand-main)); }
+.br-center :where(a,button,input,select,textarea):focus-visible { outline: 2px solid rgb(var(--brand-main)); outline-offset: 2px; }
+.br-center .cb-period select { background: rgb(var(--bg-page)); border: 1px solid rgb(var(--border-base)); border-radius: 6px; color: rgb(var(--text-1)); padding: 5px 8px; width: auto; }

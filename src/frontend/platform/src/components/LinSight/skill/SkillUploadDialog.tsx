@@ -1,3 +1,4 @@
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Input, notification } from '@bisheng/ui';
 // F035: import a skill from a local file (.md or .zip/.skill bundle, archive root
 // must contain SKILL.md) or from a public GitHub directory URL. The size check here
@@ -14,7 +15,7 @@ import { Tabs } from "@bisheng/ui";
 import { skillApi, type SkillUploadLimit } from "@/controllers/API/linsight";
 import { FileArchive } from "lucide-react";
 import { Outlined } from "bisheng-icons";
-import { MouseEvent, useCallback, useEffect, useState } from "react";
+import { MouseEvent, useCallback, useEffect, useRef, useState } from "react";
 import { useDropzone } from "react-dropzone";
 import { useTranslation } from "react-i18next";
 import { showSkillError } from "./skillErrors";
@@ -56,6 +57,7 @@ interface SkillUploadDialogProps {
 }
 
 export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploadDialogProps) {
+    const assetContext = useRef<AssetContextHandle>(null);
     const { t } = useTranslation();
     const [mode, setMode] = useState<ImportMode>("file");
     const [file, setFile] = useState<File | null>(null);
@@ -120,8 +122,13 @@ export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploa
         if (!file || uploading) return;
         setUploading(true);
         try {
-            const detail = await skillApi.createSkillUpload(file);
-            toastImported(detail);
+            let detail: Awaited<ReturnType<typeof skillApi.createSkillUpload>> | undefined;
+            await assetContext.current!.persist("skill", async () => {
+                detail = await skillApi.createSkillUpload(file);
+                return detail.id;
+            });
+            if (detail) toastImported(detail);
+            else notification.open({type: "success", description: t("skillManage.saved")});
             onOpenChange(false);
             onUploaded();
         } catch (err) {
@@ -138,8 +145,13 @@ export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploa
         if (!githubUrlValid || importing) return;
         setImporting(true);
         try {
-            const detail = await skillApi.importSkillFromGithub(url);
-            toastImported(detail);
+            let detail: Awaited<ReturnType<typeof skillApi.createSkillUpload>> | undefined;
+            await assetContext.current!.persist("skill", async () => {
+                detail = await skillApi.importSkillFromGithub(url);
+                return detail.id;
+            });
+            if (detail) toastImported(detail);
+            else notification.open({type: "success", description: t("skillManage.saved")});
             onOpenChange(false);
             onUploaded();
         } catch (err) {
@@ -151,7 +163,7 @@ export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploa
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[560px]">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
                 <DialogHeader>
                     <DialogTitle>{t("skillManage.upload")}</DialogTitle>
                 </DialogHeader>
@@ -271,6 +283,7 @@ export function SkillUploadDialog({ open, onOpenChange, onUploaded }: SkillUploa
                     )}
                 </div>
 
+                <AssetContextFields skill ref={assetContext} />
                 <DialogFooter>
                     <Button variant="outlined" onClick={() => onOpenChange(false)} color="default">
                         {t("skillManage.form.cancel")}

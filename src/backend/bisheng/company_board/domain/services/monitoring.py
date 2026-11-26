@@ -8,6 +8,7 @@ from bisheng.company_board.domain.repositories.feedback import feedback_snapshot
 from bisheng.company_board.domain.repositories.ledger import list_ledger, release_departments
 from bisheng.company_board.domain.repositories.monitoring import monthly_terminals, own_excerpts, run_receipt
 from bisheng.company_board.domain.repositories.supplement import list_supplements
+from bisheng.company_board.domain.services.asset_context import attach_asset_topics
 from bisheng.company_board.domain.services.boards import reporting_period, require_access, tenant_for
 
 
@@ -42,7 +43,7 @@ def monthly_scope(assets, records, ownership, cutoff, topic, scene, department, 
             continue
         asset_scenes = sorted(connections[asset["id"]])
         topic_scenes = [key for key in asset_scenes if not topic or scenes[key]["parent_id"] == topic]
-        if (topic and not topic_scenes) or (scene and scene not in topic_scenes):
+        if (topic and topic != asset.get("topic_id") and not topic_scenes) or (scene and scene not in topic_scenes):
             continue
         owner = ownership.get(asset["id"])
         if department and department != ("unknown" if owner is None else str(owner)):
@@ -81,6 +82,7 @@ def add_terminal_stats(scoped, known, events):
 async def read_scope(tenant, year, cutoff, topic, scene, department, kind):
     records = await list_ledger(tenant, year, cutoff)
     _, catalog = await load_catalog(tenant)
+    await attach_asset_topics(tenant, year, cutoff, catalog, records)
     ownership = await release_departments(tenant, cutoff)
     reused = await list_supplements(tenant, cutoff, ["scene-asset"])
     return monthly_scope(catalog, records, ownership, cutoff, topic, scene, department, kind, reused)

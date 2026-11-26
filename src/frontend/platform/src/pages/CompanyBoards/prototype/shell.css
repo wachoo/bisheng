@@ -1,3 +1,10 @@
-.company-board-screen{height:100%;width:100%;min-width:0;container:board-content / size;overflow:auto;background:#f7f9fa}
+.company-board-screen{height:100%;width:100%;min-width:0;container:board-content / size;overflow:auto;background:rgb(var(--fill-1));color-scheme:light}
 #ai-leader [hidden]{display:none!important}
 #ai-leader .al-month-picker input{max-width:10rem}
+
+.dark .company-board-screen {color-scheme:dark}
+#ai-leader :where(button, a, input, select, summary):focus-visible {outline:2px solid var(--al-blue);outline-offset:2px}
+#ai-leader .al-panel, #ai-leader .om-panel {border-radius:var(--radius)}
+@media (prefers-reduced-motion:reduce) {
+  .company-board-screen *, .company-board-screen *::before, .company-board-screen *::after {scroll-behavior:auto !important;transition-duration:0s !important;animation-duration:0s !important}
+}

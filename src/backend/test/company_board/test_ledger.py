@@ -8,9 +8,11 @@ from sqlmodel.ext.asyncio.session import AsyncSession
 
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
 from bisheng.company_board.domain.models.ledger import BoardLedger
+from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories.ledger import list_ledger, save_ledger
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.company_board.domain.services.boards import strategic_totals
+from bisheng.database.models.audit_log import AuditLog
 
 
 class LedgerTest(unittest.IsolatedAsyncioTestCase):
@@ -18,6 +20,8 @@ class LedgerTest(unittest.IsolatedAsyncioTestCase):
         self.engine = create_async_engine("sqlite+aiosqlite://")
         async with self.engine.begin() as connection:
             await connection.run_sync(BoardLedger.__table__.create)
+            await connection.run_sync(AuditLog.__table__.create)
+            await connection.run_sync(BoardSupplement.__table__.create)
 
         @asynccontextmanager
         async def session():

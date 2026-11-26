@@ -1,4 +1,29 @@
 {
+  "assetContext": {
+    "direction": "業務分野",
+    "description": "ダッシュボード用の説明",
+    "useAssetDescription": "空欄の場合は資産の説明を使用",
+    "rules": "Skill ルールの要約",
+    "title": "ダッシュボードの所属と代表事例（任意）",
+    "topic": "所属テーマ（既定は AI先锋行动）",
+    "scenes": "関連する計画シナリオ",
+    "case": "代表事例名",
+    "summary": "事例の概要",
+    "input": "入力",
+    "output": "出力",
+    "sampleTitle": "成果名",
+    "action": "ボタンの表示名",
+    "table": "成果サンプル表",
+    "loading": "テーマとシナリオを読み込み中…",
+    "loadFailed": "テーマとシナリオを読み込めませんでした。",
+    "saveFailed": "資産は保存済みです。業務情報の保存を再試行してください。"
+  },
+  "forms": {
+    "annual": "年度整備計画",
+    "knowledge": "ナレッジ接続計画",
+    "research": "研究・経営",
+    "assetMoved": "テーマ、関連シナリオ、事例は資産の作成・編集画面で登録できます。"
+  },
   "navigation": {
     "detail": "データ明細",
     "leadDetail": "この明細は経営ダッシュボードから開いてください。",

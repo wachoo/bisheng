@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from bisheng.company_board.domain.repositories.catalog import load_catalog
-from bisheng.company_board.domain.repositories.supplement import list_supplements, save_supplement
+from bisheng.common.errcode.company_board import BoardLedgerInvalidError
+from bisheng.company_board.domain.repositories.supplement import list_supplements
 from bisheng.company_board.domain.services.boards import reporting_period, require_access, tenant_for
 
 
@@ -16,6 +16,6 @@ async def read(user, board, year, month):
 
 async def save(user, data):
     await require_access(user, "manage")
-    tenant = tenant_for(user)
-    _, assets = await load_catalog(tenant) if data.kind in {"scene-asset", "asset-profile", "case"} else ([], [])
-    return await save_supplement(tenant, user.user_id, data, {a["id"] for a in assets})
+    if data.kind in {"case", "scene-asset", "asset-profile"}:
+        raise BoardLedgerInvalidError(msg="请在资产创建或编辑页维护业务归属和案例。")
+    raise BoardLedgerInvalidError(msg="请从年度建设计划、知识接入计划或科研与经营表单保存记录。")

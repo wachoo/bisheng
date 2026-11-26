@@ -141,6 +141,9 @@ async def lifespan(app: FastAPI):
         await stack.enter_async_context(app.state.work_mcp_runtime.run())
         await initialize_app_context(config=settings)
         _register_permission_runtime_contexts()
+        from bisheng.company_board.domain.repositories.publication import install_publication_tracking
+
+        install_publication_tracking()
         _register_app_publish_composition()
         await _apply_stored_dsh_public_url(app)
         from bisheng.app_runtime.domain.services.entry_authz_service import diagnose_obo_configuration

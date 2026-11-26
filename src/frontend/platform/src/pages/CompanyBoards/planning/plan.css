@@ -1,0 +1,169 @@
+.plan-form {
+  display: grid;
+  gap: 18px;
+  color: rgb(var(--text-1));
+}
+.plan-panel {
+  min-width: 0;
+  background: rgb(var(--bg-page));
+  border: 1px solid rgb(var(--border-base));
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+.plan-panel-heading,
+.plan-topic-heading,
+.plan-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.plan-panel-heading h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+}
+.plan-topic-heading h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+.plan-topic {
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 1px solid rgb(var(--border-base));
+}
+.plan-topic-heading span,
+.plan-empty,
+.plan-metrics dt,
+.plan-metrics small {
+  color: rgb(var(--text-2));
+}
+.plan-topic-heading span,
+.plan-table,
+.plan-empty {
+  font-size: 13px;
+}
+.plan-actions {
+  justify-content: flex-end;
+  gap: 6px;
+}
+.plan-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 64px;
+  margin: 16px 0 0;
+}
+.plan-metrics dt {
+  font-size: 13px;
+  font-weight: 400;
+}
+.plan-metrics dd {
+  margin: 4px 0 0;
+  font-size: 25px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.plan-metrics small {
+  font-size: 15px;
+  font-weight: 400;
+}
+.plan-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+  margin-top: 10px;
+}
+.plan-table {
+  width: 100%;
+  border-collapse: collapse;
+  line-height: 1.5;
+}
+.plan-table th,
+.plan-table td {
+  text-align: left;
+  padding: 9px 10px;
+  border-bottom: 1px solid rgb(var(--border-base));
+  vertical-align: middle;
+}
+.plan-table thead th {
+  color: rgb(var(--text-2));
+  background: rgb(var(--fill-1));
+  font-weight: 500;
+  white-space: nowrap;
+}
+.plan-table th[scope="row"] {
+  font-weight: 500;
+}
+.plan-table td:last-child,
+.plan-table th:last-child {
+  text-align: right;
+}
+.plan-empty {
+  padding: 16px 0 8px;
+}
+.plan-editor {
+  display: grid;
+  gap: 16px;
+  padding: 2px;
+}
+.plan-editor label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  color: rgb(var(--text-1));
+  font-size: 13px;
+  line-height: 1.5;
+}
+.plan-editor label + button {
+  margin-top: 5px;
+}
+.plan-field-pair,
+.plan-support,
+.plan-range {
+  display: grid;
+  align-items: end;
+  gap: 10px;
+}
+.plan-field-pair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.plan-editor fieldset {
+  min-width: 0;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+.plan-editor legend {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.plan-support,
+.plan-range {
+  margin-bottom: 9px;
+}
+.plan-range {
+  grid-template-columns: 1fr 1fr auto;
+}
+.plan-support {
+  grid-template-columns: 1.1fr 1fr 1fr auto;
+}
+.plan-editor [role="alert"] {
+  color: rgb(var(--danger-active));
+  font-size: 13px;
+}
+@media (max-width: 820px) {
+  .plan-panel {
+    padding: 16px;
+  }
+  .plan-support,
+  .plan-range {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .plan-field-pair {
+    grid-template-columns: 1fr;
+  }
+}

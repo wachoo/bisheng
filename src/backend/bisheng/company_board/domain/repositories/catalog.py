@@ -17,7 +17,7 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
         (
             "employee",
             "assistant",
-            select(Assistant.id, Assistant.name).where(
+            select(Assistant.id, Assistant.name, Assistant.desc).where(
                 Assistant.tenant_id == tenant_id,
                 Assistant.status == AssistantStatus.ONLINE.value,
                 Assistant.is_delete == 0,
@@ -26,17 +26,21 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
         (
             "employee",
             "flow",
-            select(Flow.id, Flow.name).where(
+            select(Flow.id, Flow.name, Flow.description).where(
                 Flow.tenant_id == tenant_id,
                 Flow.status == FlowStatus.ONLINE.value,
                 Flow.flow_type == FlowType.WORKFLOW.value,
             ),
         ),
-        ("employee", "app", select(App.id, App.name).where(App.tenant_id == tenant_id, App.state == APP_STATE_ONLINE)),
+        (
+            "employee",
+            "app",
+            select(App.id, App.name, App.description).where(App.tenant_id == tenant_id, App.state == APP_STATE_ONLINE),
+        ),
         (
             "knowledge",
             "knowledge",
-            select(Knowledge.id, Knowledge.name).where(
+            select(Knowledge.id, Knowledge.name, Knowledge.description).where(
                 Knowledge.tenant_id == tenant_id,
                 Knowledge.state == KnowledgeState.PUBLISHED.value,
                 Knowledge.type != KnowledgeTypeEnum.PRIVATE.value,
@@ -47,13 +51,15 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
             "skill",
             "skill",
             select(
-                LinsightSkill.id, func.coalesce(func.nullif(LinsightSkill.display_name, ""), LinsightSkill.name)
+                LinsightSkill.id,
+                func.coalesce(func.nullif(LinsightSkill.display_name, ""), LinsightSkill.name),
+                LinsightSkill.description,
             ).where(LinsightSkill.tenant_id == tenant_id, LinsightSkill.owner_user_id == 0, LinsightSkill.enabled == 1),
         ),
         (
             "tool",
             "tool",
-            select(GptsTools.id, GptsTools.name)
+            select(GptsTools.id, GptsTools.name, GptsTools.desc, GptsTools.type)
             .join(GptsToolsType, GptsToolsType.id == GptsTools.type)
             .where(
                 GptsTools.tenant_id == tenant_id,
@@ -72,6 +78,15 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
         departments = [{"id": ident, "name": name} for ident, name in rows.all()]
         assets = []
         for kind, prefix, query in sources:
-            for ident, name in (await session.exec(query)).all():
-                assets.append({"id": f"{prefix}:{ident}", "kind": kind, "name": name, "department_id": None})
+            for ident, name, description, *group in (await session.exec(query)).all():
+                asset = {
+                    "id": f"{prefix}:{ident}",
+                    "kind": kind,
+                    "name": name,
+                    "description": description,
+                    "department_id": None,
+                }
+                if group:
+                    asset["context_key"] = f"toolset:{group[0]}"
+                assets.append(asset)
     return departments, sorted(assets, key=lambda a: (a["kind"], a["name"], a["id"]))

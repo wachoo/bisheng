@@ -1,4 +1,29 @@
 {
+  "assetContext": {
+    "direction": "Business area",
+    "description": "Dashboard description",
+    "useAssetDescription": "Uses the asset description when empty",
+    "rules": "Skill rules summary",
+    "title": "Dashboard attribution and case study (optional)",
+    "topic": "Initiative (default: AI Pioneer Initiative)",
+    "scenes": "Related planned scenarios",
+    "case": "Case study title",
+    "summary": "Summary",
+    "input": "Input",
+    "output": "Output",
+    "sampleTitle": "Result title",
+    "action": "Action label",
+    "table": "Sample results table",
+    "loading": "Loading initiatives and scenarios…",
+    "loadFailed": "Could not load initiatives and scenarios.",
+    "saveFailed": "The asset was saved. Retry to save its business details."
+  },
+  "forms": {
+    "annual": "Annual delivery plan",
+    "knowledge": "Knowledge integration plan",
+    "research": "Research and operations",
+    "assetMoved": "Edit the topic, linked scenarios, and case study when creating or editing an asset."
+  },
   "navigation": {
     "detail": "Details",
     "leadDetail": "Open these details from the leadership dashboard.",

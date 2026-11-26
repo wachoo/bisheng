@@ -35,3 +35,18 @@ class SceneUsageTest(TestCase):
         self.assertEqual(result["month_hours"], 4 / 60)
         self.assertEqual(result["positive_rate"], 0.8)
         self.assertEqual(result["month_positive_rate"], 1)
+
+    def test_editing_a_legacy_release_reassigns_future_usage_only(self):
+        start = date(2026, 1, 1)
+        transition = date(2026, 1, 2)
+        entries = [
+            SimpleNamespace(kind="scene", id=s, name=s, parent_id="t", effective_date=start, department_id=7)
+            for s in ("old", "new")
+        ]
+        entries.append(SimpleNamespace(kind="release", asset_key="assistant:42", parent_id="old", effective_date=start))
+        links = [{"date": transition, "parent_id": "new", "fields": {"asset": "assistant:42"}}]
+        events = [(day, "42", "success", count, count, 10, count, 0) for day, count in [(start, 1), (transition, 3)]]
+        rows = reconcile_scenes(entries, links, events, start, start, start, transition, {"assistant:42": transition})
+        self.assertEqual(
+            {r["id"]: (r["year"], r["asset_ids"]) for r in rows}, {"old": (1, []), "new": (3, ["assistant:42"])}
+        )

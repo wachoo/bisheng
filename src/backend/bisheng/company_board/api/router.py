@@ -5,6 +5,9 @@ from bisheng.common.schemas.api import resp_200
 from bisheng.company_board.domain.schemas.ledger import BoardKind, LedgerEdit, LedgerInput
 from bisheng.company_board.domain.services.boards import board_access, ledger_for, overview, record_entry
 
+from .asset_context import router as asset_context_router
+from .planning import router as planning_router
+from .research_report import router as research_report_router
 from .feedback import router as feedback_router
 from .monitoring import router as monitoring_router
 from .subjects import router as subjects_router
@@ -12,6 +15,9 @@ from .supplement import router as supplement_router
 from .trends import router as trends_router
 
 router = APIRouter(prefix="/company-boards", tags=["Company boards"])
+router.include_router(asset_context_router)
+router.include_router(planning_router)
+router.include_router(research_report_router)
 router.include_router(feedback_router)
 router.include_router(monitoring_router)
 router.include_router(subjects_router)

@@ -62,7 +62,7 @@ def strategic_totals(rows: list[dict], year: int, cutoff: date) -> dict:
                 r["asset_key"]
                 for r in reached
                 if r["kind"] == "release"
-                and r["parent_id"] in planned_scenes
+                and (not r["parent_id"] or r["parent_id"] in planned_scenes)
                 and r["asset_key"].split(":", 1)[0] in {"assistant", "flow", "app"}
             }
         ),
@@ -90,6 +90,10 @@ async def overview(user: UserPayload, board: BoardKind, year: int, month: int | 
     first_publishers = await release_info(tenant_id, cutoff)
     for asset in assets:
         asset["department_id"], asset["published_at"] = first_publishers.get(asset["id"], (None, None))
+    if board == "lead" or access["manage"]:
+        from bisheng.company_board.domain.services.asset_context import attach_asset_topics
+
+        await attach_asset_topics(tenant_id, year, cutoff, assets, rows)
     runtime = await read_runtime(tenant_id, start, end)
     # No prompts, file contents or private feedback are returned to the company aggregate.
     visible_assets = {a["id"] for a in assets}
@@ -121,6 +125,8 @@ async def ledger_for(user: UserPayload, year: int):
 
 async def record_entry(user: UserPayload, data: LedgerInput, entry_id: str | None = None, revision: int = 0):
     await require_access(user, "manage")
+    if data.kind == "release":
+        raise BoardLedgerInvalidError(msg="资产首次上线由系统记录。")
     if data.kind == "goal" and data.indicator == "knowledge":
         raise BoardLedgerInvalidError(msg="知识集目标由计划清单去重计算。历史数值目标仅供查阅。")
     tenant_id = tenant_for(user)

@@ -1,0 +1,69 @@
+{
+  "fields": {
+    "name": "課題名",
+    "project": "所属プロジェクト",
+    "ai": "AI 課題",
+    "start": "開始日",
+    "end": "終了日",
+    "status": "状態"
+  },
+  "metrics": {
+    "projects": "年度実施研究プロジェクト数（件）",
+    "ai_projects": "うち AI プロジェクト数（件）",
+    "active_ai_projects": "実施中の AI プロジェクト数（件）",
+    "budget": "実施中 AI プロジェクトの総予算（万元）",
+    "spending": "年度 AI 経費の純支出（万元）",
+    "outstanding": "当年度の契約未収額（万元）",
+    "valued_scenes": "評価対象シナリオ数（件）",
+    "labor_value": "年間換算労働価値見込（万元）",
+    "direct_savings": "年間直接費削減見込（万元）",
+    "equivalent_days": "成果物の換算作業量（人日）",
+    "equivalent_value": "成果物の換算労働価値（万元）"
+  },
+  "groups": {
+    "projects": "研究プロジェクト",
+    "finance": "研究経費と経営",
+    "value": "シナリオ価値と成果"
+  },
+  "tabs": {
+    "projects": "プロジェクト",
+    "subjects": "課題"
+  },
+  "views": {
+    "research": "研究プロジェクトと課題",
+    "spending": "年度 AI 経費支出",
+    "budget": "実施中プロジェクト予算",
+    "receivables": "当年度の契約未収額",
+    "forecast": "年間 AI 価値見込"
+  },
+  "subjects": "年度実施課題",
+  "addSubject": "課題を追加",
+  "subjectCount": "全 {{all}} 件、うち AI 課題 {{ai}} 件",
+  "allSubjects": "年度実施課題数",
+  "aiSubjects": "うち AI 課題数",
+  "projectShare": "AI プロジェクト比率",
+  "subjectShare": "AI 課題比率",
+  "forecastTotal": "年間価値見込合計（万元）",
+  "active": "実施中",
+  "closed": "終了",
+  "yes": "はい",
+  "no": "いいえ",
+  "noSubjects": "この期間の課題記録はありません",
+  "invalidCounts": "実施中の AI 件数、年度 AI 件数、研究プロジェクト総数の順で増加する必要があります。",
+  "invalidSubject": "課題名、所属プロジェクト、実施日付をご確認ください。年度開始から選択月までの実施が必要です。",
+  "month": "報告月",
+  "monthName": "{{month}}月",
+  "asOf": "最終報告 {{year}}年{{month}}月",
+  "legacy": "過去の台帳集計",
+  "empty": "この年度は未報告です",
+  "futureYear": "選択年度の開始後に報告できます。",
+  "save": "当月のデータを保存",
+  "saved": "当月のデータを保存しました",
+  "remove": "取り除く",
+  "removeNamed": "課題 {{name}} を取り除く",
+  "notEntered": "未入力",
+  "retry": "再読み込み",
+  "loading": "読み込み中…",
+  "previous": "前へ",
+  "next": "次へ"
+}

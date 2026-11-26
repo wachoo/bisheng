@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { isReportView, ResearchReportDetail } from "./ResearchReportDetail";
 import { CaseOutput } from "../CaseOutput";
 import type { PrototypeDetailProps } from "./types";
 import {
@@ -22,6 +23,7 @@ const archives = [
   ["research", "科研项目与课题"],
   ["spending", "年度 AI 经费支出"],
   ["budget", "在研项目预算"],
+  ["forecast", "预估年度 AI 产值"],
   ["receivables", "合同本年度待收款"],
 ];
 function Table({
@@ -265,44 +267,8 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
         </div>
       </Panel>
     );
-  if (route === "forecast") {
-    const estimates = new Map(
-      registers
-        .filter((r) => r.kind === "estimate" && r.year === data.year && r.date <= data.cutoff)
-        .map((r) => [r.parent_id, r]),
-    );
-    const rows = [...estimates.values()].map((r) => {
-      const labor = Number(r.fields.hours) * Number(r.fields.hourly),
-        saving = Number(r.fields.saving);
-      return {
-        id: r.parent_id!,
-        name: scenes.find((s) => s.id === r.parent_id)?.name || r.name,
-        labor,
-        saving,
-        total: labor + saving,
-      };
-    });
-    const sum = (key: "labor" | "saving" | "total") =>
-      rows.length ? amount(rows.reduce((n, r) => n + r[key], 0)) + " 万元" : "—";
-    return (
-      <>
-        <Stats
-          rows={[
-            ["等效人工价值", sum("labor")],
-            ["直接费用节约", sum("saving")],
-            ["预估合计", sum("total")],
-            ["测算场景", rows.length + " 个"],
-          ]}
-        />
-        <Panel name="年度价值测算">
-          <Table
-            heads={["测算场景", "人工价值 / 万元", "直接费用 / 万元", "合计 / 万元"]}
-            rows={rows.map((r) => [scLink(r.id, r.name), amount(r.labor), amount(r.saving), amount(r.total)])}
-          />
-        </Panel>
-      </>
-    );
-  }
+  if (isReportView(route))
+    return <ResearchReportDetail year={data.year} month={Number(period.slice(5, 7))} view={route} subjectTab={arg === "subject"} cutoff={data.cutoff} />;
   if (route === "case") {
     const c = registers.find((r) => r.kind === "case" && r.id === arg && r.date <= data.cutoff);
     if (!c) return <Panel name="专题代表案例">当前期间未登记该案例</Panel>;
@@ -666,149 +632,6 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
                       r.count,
                     ])
             }
-          />
-        </Panel>
-      </>
-    );
-  }
-  if (["spending", "budget", "receivables", "research"].includes(route)) {
-    const projects = registers.filter((r) => r.kind === "project" && (!r.date || r.date <= data.cutoff));
-    const aiProjects = new Set(projects.filter((r) => r.fields.ai === "yes").map((r) => r.id));
-    const live = projects.filter(
-      (r) => r.fields.ai === "yes" && (!r.fields.end || r.fields.end > data.cutoff),
-    );
-    if (route === "research") {
-      const isSubject = mode === "subject";
-      const records = isSubject
-        ? registers.filter((r) => r.kind === "subject" && (!r.date || r.date <= data.cutoff))
-        : projects;
-      const active = records.filter((r) => !r.fields.end || r.fields.end >= data.year + "-01-01");
-      const ai = active.filter((r) => r.fields.ai === "yes");
-      return (
-        <>
-          <div className="al-toolbar">
-            {filters([
-              ["all", "项目"],
-              ["subject", "课题"],
-            ])}
-            <span className="al-caption">
-              AI {isSubject ? "课题" : "项目"} {ai.length} / 全部 {active.length} ·{" "}
-              {active.length ? Math.round((100 * ai.length) / active.length) + "%" : "—"}
-            </span>
-          </div>
-          <section className="al-panel">
-            <Table
-              heads={
-                isSubject ? ["AI 课题", "所属项目", "状态"] : ["AI 科研项目", "状态", "全周期预算 / 万元"]
-              }
-              rows={ai.map((r) => {
-                const status = r.fields.end && r.fields.end <= data.cutoff ? "已结项" : "实施中";
-                return isSubject
-                  ? [r.name, projects.find((p) => p.id === r.parent_id)?.name || "—", status]
-                  : [r.name, status, amount(r.fields.budget)];
-              })}
-            />
-          </section>
-          <div className="al-info">项目与所属课题按各自清单统计。</div>
-        </>
-      );
-    }
-    if (route === "budget") {
-      const complete = live.every((r) => r.fields.budget != null && r.fields.budget !== "");
-      const total = complete
-        ? amount(live.reduce((sum, r) => sum + Number(r.fields.budget), 0)) + " 万元"
-        : "待补预算";
-      return (
-        <Panel name="在研项目" caption={"当前在研 " + live.length + " 项 · 全周期批准预算 " + total}>
-          <Table
-            heads={["在研项目", "批准预算 / 万元", "状态"]}
-            rows={live.map((r) => [r.name, amount(r.fields.budget), "实施中"])}
-          />
-        </Panel>
-      );
-    }
-    if (route === "spending") {
-      const lines = registers.filter(
-        (r) =>
-          r.kind === "expense" &&
-          aiProjects.has(r.parent_id || "") &&
-          r.date &&
-          r.date <= data.cutoff &&
-          r.date.startsWith(String(data.year)),
-      );
-      const paid = lines.reduce((n, r) => n + Math.max(0, Number(r.fields.amount) || 0), 0);
-      const refund = lines.reduce((n, r) => n - Math.min(0, Number(r.fields.amount) || 0), 0);
-      return (
-        <>
-          <Stats
-            rows={[
-              ["已支付金额", amount(paid) + " 万元"],
-              ["退款冲减", amount(refund) + " 万元"],
-              ["净支出", amount(paid - refund) + " 万元"],
-              ["统计截止", data.cutoff],
-            ]}
-          />
-          <section className="al-panel">
-            <Table
-              heads={["归集类别", "金额 / 万元", "记录类型"]}
-              rows={lines.map((r) => [
-                r.name,
-                amount(r.fields.amount),
-                Number(r.fields.amount) < 0 ? "冲减" : "支付",
-              ])}
-            />
-          </section>
-        </>
-      );
-    }
-    const receipts = registers.filter((r) => r.kind === "receipt" && r.date && r.date <= data.cutoff);
-    const nodes = registers.filter(
-      (r) =>
-        r.kind === "receivable" && r.date?.startsWith(String(data.year)) && aiProjects.has(r.parent_id || ""),
-    );
-    const paid = (id: string) =>
-      receipts.filter((r) => r.parent_id === id).reduce((sum, r) => sum + Number(r.fields.amount || 0), 0);
-    const total = nodes.reduce((sum, n) => sum + Number(n.fields.amount || 0), 0);
-    const received = nodes.reduce((sum, n) => sum + paid(n.id), 0);
-    return (
-      <>
-        <Panel name="年度回款进度">
-          <div className="al-receipt-summary">
-            {[
-              ["计划收款", total],
-              ["已到账核销", received],
-              ["待收款", total - received],
-            ].map(([name, n]) => (
-              <div key={name}>
-                {name} <strong>{amount(n)}</strong>
-              </div>
-            ))}
-          </div>
-          <div className="al-token-split">
-            {total > 0 && (
-              <>
-                <span style={{ width: Math.min(100, (100 * received) / total) + "%" }} />
-                <span style={{ flex: 1 }} />
-              </>
-            )}
-          </div>
-        </Panel>
-        <Panel name="合同收款节点" caption="金额单位 · 万元">
-          <Table
-            heads={["项目", "合同编号", "计划收款日", "计划金额", "已核销", "待收款", "状态"]}
-            rows={nodes.map((r) => [
-              projects.find((p) => p.id === r.parent_id)?.name || "—",
-              r.fields.contract || "—",
-              r.date,
-              amount(r.fields.amount),
-              amount(paid(r.id)),
-              amount(Number(r.fields.amount) - paid(r.id)),
-              paid(r.id) >= Number(r.fields.amount)
-                ? "已收"
-                : r.date! < data.cutoff
-                  ? "已到期未收"
-                  : "未到期",
-            ])}
           />
         </Panel>
       </>

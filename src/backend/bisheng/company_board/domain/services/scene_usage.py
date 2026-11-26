@@ -1,6 +1,8 @@
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
+from bisheng.company_board.domain.repositories.asset_context import first_binding_dates
+from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.scene_usage import scene_inputs
 from bisheng.company_board.domain.repositories.supplement import list_supplements
 
@@ -9,13 +11,17 @@ def feedback_rate(r, key):
     return 1 - r[key + "_negative"] / r[key] if r[key] and r[key + "_linked"] == r[key] else None
 
 
-def reconcile_scenes(entries, reused, events, year_start, month_start, trailing, cutoff):
+def reconcile_scenes(entries, reused, events, year_start, month_start, trailing, cutoff, first_edits=None):
     topics = {r.id: r.name for r in entries if r.kind == "topic"}
     scenes = {r.id: r for r in entries if r.kind == "scene" and r.effective_date and r.effective_date <= cutoff}
     mappings = defaultdict(list)
     for row in entries:
         if row.kind == "release" and row.parent_id in scenes and row.asset_key and row.effective_date:
-            mappings[row.asset_key].append((row.parent_id, row.effective_date, None))
+            transition = (first_edits or {}).get(row.asset_key)
+            if transition is None or row.effective_date < transition:
+                mappings[row.asset_key].append(
+                    (row.parent_id, row.effective_date, transition - timedelta(days=1) if transition else None)
+                )
     for row in reused:
         if row["parent_id"] in scenes and row["date"]:
             expiry = row["fields"].get("end")
@@ -89,7 +95,13 @@ async def read_scenes(tenant, month_start, end, monthly_only=False):
     start = month_start if monthly_only else datetime.combine(min(year, trailing), time.min)
     entries, events = await scene_inputs(tenant, start - timedelta(hours=8), end - timedelta(hours=8))
     links = await list_supplements(tenant, cutoff, ["scene-asset"])
-    rows = reconcile_scenes(entries, links, events, year, month_start.date(), trailing, cutoff)
+    first_edits = await first_binding_dates(tenant, cutoff)
+    if any(key.startswith("toolset:") for key in first_edits):
+        _, catalog = await load_catalog(tenant)
+        first_edits.update(
+            {a["id"]: first_edits[a["context_key"]] for a in catalog if a.get("context_key") in first_edits}
+        )
+    rows = reconcile_scenes(entries, links, events, year, month_start.date(), trailing, cutoff, first_edits)
     if monthly_only:
         fields = {
             "id",

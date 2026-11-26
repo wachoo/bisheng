@@ -9,6 +9,7 @@ from sqlmodel import select
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement as Row
+from bisheng.company_board.domain.repositories.asset_projection import project_asset_rows
 from bisheng.company_board.domain.schemas.supplement import PARENTS
 from bisheng.core.database import get_async_db_session
 from bisheng.database.models.department import Department
@@ -30,7 +31,12 @@ def public(row):
 async def list_supplements(tenant, cutoff, kinds=None):
     latest = select(Row.id, func.max(Row.revision).label("revision")).where(Row.tenant_id == tenant)
     if kinds is not None:
-        latest = latest.where(Row.kind.in_(kinds))
+        included = set(kinds)
+        if included & {"case", "scene-asset", "asset-profile"}:
+            included.add("asset-binding")
+        latest = latest.where(Row.kind.in_(included))
+    else:
+        latest = latest.where(Row.kind.notin_(("research-report", "research-subject", "publication-watch", "publication-legacy")))
     if cutoff is not None:
         # The annual contract plan includes instalments due later in the reporting year.
         # Other records only take effect on their business date.
@@ -47,7 +53,13 @@ async def list_supplements(tenant, cutoff, kinds=None):
         .where(Row.tenant_id == tenant)
     )
     async with get_async_db_session() as db:
-        return [public(r) for r in (await db.exec(statement.order_by(Row.business_date, Row.id))).all()]
+        result = (await db.exec(statement.order_by(Row.business_date, Row.id))).all()
+    records = [public(r) for r in result if r.kind != "asset-binding"]
+    records = [r for r in records if r["kind"] not in {"scene-team", "recognition"} or not r["fields"].get("_removed")]
+    bindings = [r for r in result if r.kind == "asset-binding"]
+    if bindings:
+        return await project_asset_rows(tenant, cutoff, kinds, records, bindings)
+    return records
 
 
 async def allocated_receipts(db, tenant: int, parent_id: str, except_id: str | None = None) -> Decimal:

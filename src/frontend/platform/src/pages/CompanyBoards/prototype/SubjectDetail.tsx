@@ -333,11 +333,15 @@ function Asset(
   const related = data.ledger.filter(
     (r) => r.kind === "scene" && scenes.has(r.id),
   );
-  const attachments = related.length > 0 && (
+  const directTopic = data.ledger.find(r => r.kind === "topic" && r.id === asset?.topic_id);
+  const attachments = (related.length > 0 || directTopic) && (
     <Card title="关联专题与场景">
       <Table
         heads={["建设专题", "应用场景"]}
-        rows={related.map((s) => {
+        rows={[...(directTopic && !related.some(scene => scene.parent_id === directTopic.id)
+          ? [[<Link to={(props.board === "monitor" ? "topic-operations:" : "strategy:topic:") + directTopic.id}
+              title={directTopic.name} open={open} />, "—"]]
+          : []), ...related.map((s) => {
           const topic = data.ledger.find((r) => r.id === s.parent_id);
           return [
             topic && (
@@ -349,7 +353,7 @@ function Asset(
             ),
             <Link to={(props.board==="monitor"?"monitor:scene:":"strategy:scene:")+s.id} title={s.name} open={open} />,
           ];
-        })}
+        })]}
       />
     </Card>
   );
@@ -547,12 +551,12 @@ function Asset(
             </Card>
           )}
         </div>
-        {(skill || profile) && (
+        {(skill || profile || asset.description) && (
           <Card title={skill ? "Skill 内容" : "业务说明"}>
             <Definitions
               rows={[
                 ["业务方向", profile?.fields.direction || "尚未登记"],
-                ["说明", profile?.fields.description || "—"],
+                ["说明", profile?.fields.description || asset.description || "—"],
                 ...(skill
                   ? [
                       ["规则", profile?.fields.rules || "尚未登记"] as [

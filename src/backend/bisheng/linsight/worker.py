@@ -481,6 +481,9 @@ class ScheduleCenterProcess(Process):
             )
 
             loop.run_until_complete(initialize_app_context(settings, instance_role="linsight"))
+            from bisheng.company_board.domain.repositories.publication import install_publication_tracking
+
+            install_publication_tracking()
 
             async def initialize(client):
                 return await initialize_f048_worker_runtime(

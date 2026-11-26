@@ -5,7 +5,7 @@ export type AssetKind = "employee" | "knowledge" | "skill" | "tool";
 export type LedgerKind = "goal" | "topic" | "scene" | "release" | "collection";
 export type GoalIndicator = "employee" | "scene" | "knowledge";
 export type BoardAccess = { lead: boolean; monitor: boolean; manage: boolean; resolve: boolean };
-export type BoardAsset = { id: string; name: string; kind: AssetKind; department_id: number | null; published_at?: string | null };
+export type BoardAsset = { id: string; name: string; kind: AssetKind; topic_id?: string; description?: string | null; department_id: number | null; published_at?: string | null };
 export type BoardDepartment = { id: number; name: string };
 export type LedgerInput = {
   kind: LedgerKind;

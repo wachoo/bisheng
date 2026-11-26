@@ -1,3 +1,4 @@
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Input, Textarea, notification } from '@bisheng/ui';
 import { Dialog,DialogClose,DialogContent,DialogFooter,DialogHeader,DialogTitle } from "@/components/bs-ui/dialog";
 
@@ -25,6 +26,7 @@ interface LibraryDialogProps {
 export function KnowledgeLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode = 'create', currentLib = null }: LibraryDialogProps) {
     const { t } = useTranslation('knowledge')
     const { user } = useContext(userContext)
+    const assetContext = useRef<AssetContextHandle>(null);
     const expectedTenant = useRef<number | null>(null)
     const wasOpen = useRef(false)
     useEffect(() => {
@@ -147,18 +149,17 @@ export function KnowledgeLibraryDialog({ datalist, open, onOpenChange, onLoadEnd
 
         setIsSubmitting(true)
         if (mode === 'create') {
-            await createFileLib({
+            await assetContext.current!.persist("knowledge", async () => ((await createFileLib({
                 name,
                 description: desc,
                 model: modelId,
                 expected_tenant_id: expectedTenant.current,
                 type: 0
-            }).then(response => {
-                const res = response as unknown as { id: string | number };
+            })) as unknown as {id:string | number}).id).then(id => {
                 (window as Window & { libname?: [string, string] }).libname = [name, desc]
                 navigate(isImport
-                    ? `/filelib/upload/${res.id}`
-                    : `/filelib/${res.id}`
+                    ? `/filelib/upload/${id}`
+                    : `/filelib/${id}`
                 );
                 onOpenChange(false);
             }).catch(showApiError).finally(() => {
@@ -172,7 +173,7 @@ export function KnowledgeLibraryDialog({ datalist, open, onOpenChange, onLoadEnd
                 "knowledge_name": name,
                 "description": desc
             }
-            await updateKnowledge(data).then(() => {
+            await assetContext.current!.persist("knowledge", async () => { await updateKnowledge(data); return currentLib!.id; }).then(() => {
                 notification.open({ type: "success", description: String(t('updateSuccess') ?? '') })
                 onOpenChange(false);
                 onLoadEnd()
@@ -187,7 +188,7 @@ export function KnowledgeLibraryDialog({ datalist, open, onOpenChange, onLoadEnd
     }
 
     return <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-[625px]">
+        <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                 <DialogTitle>{mode === 'create' ? t('lib.createLibrary', { ns: 'bs' }) : t('knowledgeBaseSettings')}</DialogTitle>
             </DialogHeader>
@@ -247,7 +248,8 @@ export function KnowledgeLibraryDialog({ datalist, open, onOpenChange, onLoadEnd
                     )}
                 </div>
             </div>
-            <DialogFooter>
+            <AssetContextFields ref={assetContext} assetKey={mode === "edit" && currentLib ? "knowledge:" + currentLib.id : undefined} />
+                <DialogFooter>
                 <DialogClose>
                     <Button variant="outlined" color="default">{t('cancel')}</Button>
                 </DialogClose>

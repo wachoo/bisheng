@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useResearchReport } from "@/controllers/API/companyResearchReport";
 import type { BoardAsset } from "@/controllers/API/companyBoards";
 import type { MonitorSnapshot } from "@/controllers/API/companyMonitoring";
 import { health } from "./MonitorParts";
@@ -30,10 +31,12 @@ function valuation(metrics: ReturnType<typeof aggregation>, registers: Prototype
 }
 
 function associatedAssets(props: PrototypeViewProps, topic: string) {
-  return sceneAssets(
+  const ids = sceneAssets(
     props,
     new Set(props.data.ledger.filter((s) => s.kind === "scene" && s.parent_id === topic).map((s) => s.id)),
   );
+  for (const asset of props.data.assets) if (asset.topic_id === topic) ids.add(asset.id);
+  return ids;
 }
 const colors = ["var(--al-blue)", "var(--al-teal)", "var(--al-slate)", "var(--al-amber)"];
 
@@ -396,6 +399,8 @@ export function ImpactDetail(props: PrototypeDetailProps) {
   );
   const maxMonth = data.month || 12;
   const selected = scope === "year" ? 0 : Number(scope) || maxMonth;
+  const needEquivalent = route === "labor" && mode === "equiv";
+  const report = useResearchReport("lead", data.year, selected || maxMonth, needEquivalent);
   const series = query.data,
     point = selected ? series?.months[selected - 1] : series?.year,
     totals = aggregation(point);
@@ -421,6 +426,8 @@ export function ImpactDetail(props: PrototypeDetailProps) {
       </select>
     </label>
   );
+  if (needEquivalent && report.isLoading) return <p role="status" className="al-empty">{t("正在读取看板…")}</p>;
+  if (needEquivalent && report.isError) return <TrendNotice retry={report.refetch} />;
   if (query.isError) return <TrendNotice retry={query.refetch} />;
   if (monitoring.isError) return <TrendNotice retry={monitoring.refetch} />;
   if (route === "ratings")
@@ -490,7 +497,13 @@ export function ImpactDetail(props: PrototypeDetailProps) {
       unit = t(days ? "工作日" : "小时");
     const val = (m: ReturnType<typeof aggregation>) =>
       estimate ? valuation(m, props.registers).hours : m.hours === null ? null : days ? m.hours / 8 : m.hours;
-    const equivalent = valuation(totals, props.registers);
+    const direct = estimate && report.data?.source === "direct" ? report.data : null;
+    const legacy = valuation(totals, props.registers);
+    const asNumber = (v: string | number | null | undefined) => v == null ? null : Number(v);
+    const equivalentDays = direct ? asNumber(direct.metrics.equivalent_days) : legacy.hours === null ? null : legacy.hours / 8;
+    const equivalentValue = direct ? asNumber(direct.metrics.equivalent_value) : legacy.value === null ? null : legacy.value / 10000;
+    const sourceNote = direct ? t("科研与经营") + " · " + data.year + "-" + String(direct.source_month).padStart(2, "0") : t("等效人工工作量");
+
     const modeText = t(estimate ? "等效人工工作量" : days ? "作业工作日" : "实际执行工时");
     return (
       <>
@@ -514,24 +527,24 @@ export function ImpactDetail(props: PrototypeDetailProps) {
         </div>
         <div className="al-stats">
           <Metric
-            name={t(selected ? "所选月累计" : "年度累计")}
-            value={fmt(val(totals))}
+            name={t(direct ? "截至所选月年累计" : selected ? "所选月累计" : "年度累计")}
+            value={fmt(direct ? equivalentDays === null ? null : equivalentDays * 8 : val(totals))}
             unit={unit}
-            note={modeText}
+            note={direct ? sourceNote : modeText}
           />
           {estimate ? (
             <>
               <Metric
                 name={t("等效人工工作日")}
-                value={fmt(equivalent.hours === null ? null : equivalent.hours / 8)}
+                value={fmt(equivalentDays)}
                 unit={t("人天")}
                 note={t("8 小时 / 人天")}
               />
               <Metric
                 name={t("等效工作量价值")}
-                value={fmt(equivalent.value === null ? null : equivalent.value / 10000)}
+                value={fmt(equivalentValue)}
                 unit={t("万元")}
-                note={t("按交付日生效参数估算")}
+                note={direct ? sourceNote : t("按交付日生效参数估算")}
               />
             </>
           ) : (
@@ -550,19 +563,22 @@ export function ImpactDetail(props: PrototypeDetailProps) {
             to={"deliveries:" + (selected || "year")}
           />
         </div>
-        <Panel title={t(estimate ? "月度等效工作量（估算）" : "月度作业趋势")}>
+        <Panel title={t(direct ? "截至各月累计等效工时" : estimate ? "月度等效工作量（估算）" : "月度作业趋势")}>
           <Chart
             name={modeText}
             unit={unit}
             period={period}
             cutoff={data.cutoff}
             selected={selected}
-            values={months.map((m) => val(m))}
+            values={direct ? months.map((_, i) => {
+              const days = asNumber(direct.history?.find((entry) => entry.month === i + 1)?.equivalent_days);
+              return days === null ? null : days * 8;
+            }) : months.map((m) => val(m))}
           />
         </Panel>
         <div className="al-info">
           {t(
-            estimate
+            direct ? "年度累计值按填报月份展示，每人天按 8 小时折算。" : estimate
               ? "按交付日匹配成果类别、文件或版本单位、折算工时与小时单价。缺少分类或有效参数时暂缺估值。"
               : "成功和失败任务均累计主动工作时间，扣除排队、暂停、人工等待和纯工具等待。每个工作日按 8 小时折算。",
           )}

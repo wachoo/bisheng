@@ -1,4 +1,29 @@
 {
+  "assetContext": {
+    "direction": "业务方向",
+    "description": "看板业务说明",
+    "useAssetDescription": "留空时使用资产简介",
+    "rules": "Skill 规则摘要",
+    "title": "看板归属与代表案例（选填）",
+    "topic": "所属专题（默认 AI先锋行动）",
+    "scenes": "关联计划场景",
+    "case": "代表案例名称",
+    "summary": "案例简介",
+    "input": "案例输入",
+    "output": "案例输出",
+    "sampleTitle": "成果标题",
+    "action": "体验按钮文字",
+    "table": "成果样表",
+    "loading": "正在读取专题和场景…",
+    "loadFailed": "专题和场景读取失败。",
+    "saveFailed": "资产已保存，业务资料未保存，请重试。"
+  },
+  "forms": {
+    "annual": "年度建设计划",
+    "knowledge": "知识接入计划",
+    "research": "科研与经营",
+    "assetMoved": "专题、关联场景和代表案例可在资产的创建或编辑页维护。"
+  },
   "navigation": {
     "detail": "数据明细",
     "leadDetail": "请从领导看板打开该明细。",

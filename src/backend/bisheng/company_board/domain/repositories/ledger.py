@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, time, timedelta
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import and_, func
@@ -8,8 +8,11 @@ from sqlmodel import select
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
 from bisheng.common.errcode.http_error import NotFoundError
 from bisheng.company_board.domain.models.ledger import BoardLedger
+from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.core.database import get_async_db_session
+from bisheng.database.models.app import App
+from bisheng.database.models.audit_log import AuditLog
 from bisheng.database.models.department import Department
 
 
@@ -37,11 +40,92 @@ async def list_ledger(tenant_id: int, year: int, as_of: date | None = None) -> l
         .order_by(BoardLedger.kind, BoardLedger.name, BoardLedger.id)
     )
     async with get_async_db_session() as session:
-        return [public_row(row) for row in (await session.exec(query)).all()]
+        rows = [public_row(row) for row in (await session.exec(query)).all()]
+        cutoff = as_of or date(year, 12, 31)
+        history = await _app_audit_history(session, tenant_id, cutoff)
+        if not history:
+            return rows
+        firsts = await _ledger_releases(session, tenant_id, cutoff)
+        names_needed = {}
+        period_releases = {r["asset_key"]: r for r in rows if r["kind"] == "release"}
+        for key, day in history.items():
+            if key in firsts and firsts[key][1] <= day:
+                continue
+            row = period_releases.get(key)
+            if row:
+                # If the audit proved an earlier year, a later registration
+                # is not a second commissioning of this digital employee.
+                row["effective_date"] = day if year == day.year else None
+                row["department_id"] = None
+            elif day.year == year:
+                names_needed[key.split(":", 1)[1]] = day
+        if names_needed:
+            names = dict(
+                (
+                    await session.exec(
+                        select(App.id, App.name).where(App.tenant_id == tenant_id, App.id.in_(list(names_needed)))
+                    )
+                ).all()
+            )
+            for app_id, day in sorted(names_needed.items()):
+                key = f"app:{app_id}"
+                rows.append(
+                    public_row(
+                        BoardLedger(
+                            tenant_id=tenant_id,
+                            id=str(uuid5(NAMESPACE_URL, f"bisheng:board:{tenant_id}:observed:{key}")),
+                            revision=1,
+                            kind="release",
+                            year=day.year,
+                            name=names.get(app_id) or key,
+                            asset_key=key,
+                            effective_date=day,
+                            operator_id=0,
+                        )
+                    )
+                )
+        return rows
 
 
-async def release_info(tenant_id: int, cutoff: date) -> dict:
-    """The first-release attribution survives a change of reporting year or viewer role."""
+async def _app_audit_history(session, tenant_id, cutoff):
+    # The audit format predates board tracking. The ID is inside the structured
+    # metadata, including for applications subsequently stopped or removed.
+    end = datetime.combine(cutoff + timedelta(days=1), time.min)
+    filters = (AuditLog.tenant_id == tenant_id, AuditLog.action == "app.release.online", AuditLog.create_time < end)
+    dialect = session.get_bind().dialect.name
+    result = {}
+    if dialect in {"mysql", "sqlite"}:
+        app_id = func.json_extract(AuditLog.audit_metadata, "$.app_id")
+        if dialect == "mysql":
+            app_id = func.json_unquote(app_id)
+        # One row per app, even when releases generate a large audit history.
+        grouped = select(app_id, func.min(AuditLog.create_time)).where(*filters).group_by(app_id)
+        for ident, stamp in (await session.exec(grouped)).all():
+            if isinstance(ident, str) and ident:
+                result[f"app:{ident}"] = stamp.date()
+    else:
+        # Other supported engines use the portable text representation of JsonType.
+        query = select(AuditLog.audit_metadata, AuditLog.create_time).where(*filters)
+        for metadata, stamp in (await session.exec(query)).all():
+            ident = metadata.get("app_id") if isinstance(metadata, dict) else None
+            if isinstance(ident, str) and ident:
+                key = f"app:{ident}"
+                result[key] = min(result.get(key, stamp.date()), stamp.date())
+    baselines = await session.exec(
+        select(BoardSupplement.parent_id, BoardSupplement.business_date).where(
+            BoardSupplement.tenant_id == tenant_id,
+            BoardSupplement.kind == "publication-legacy",
+        )
+    )
+    for key, day in baselines.all():
+        if day and day <= cutoff:
+            result[key] = day
+        else:
+            result.pop(key, None)
+    return result
+
+
+async def _ledger_releases(session, tenant_id, cutoff):
     latest = (
         select(BoardLedger.id, func.max(BoardLedger.revision).label("version"))
         .where(BoardLedger.tenant_id == tenant_id, BoardLedger.kind == "release")
@@ -52,9 +136,22 @@ async def release_info(tenant_id: int, cutoff: date) -> dict:
         select(BoardLedger.asset_key, BoardLedger.department_id, BoardLedger.effective_date)
         .join(latest, and_(BoardLedger.id == latest.c.id, BoardLedger.revision == latest.c.version))
         .where(BoardLedger.tenant_id == tenant_id, BoardLedger.effective_date <= cutoff)
+        .order_by(BoardLedger.effective_date, BoardLedger.id)
     )
+    result = {}
+    for asset, department, day in (await session.exec(query)).all():
+        result.setdefault(asset, (department, day))
+    return result
+
+
+async def release_info(tenant_id: int, cutoff: date) -> dict:
+    """The earliest confirmed release and the department known at that time."""
     async with get_async_db_session() as session:
-        return {asset: (department, day) for asset, department, day in (await session.exec(query)).all()}
+        result = await _ledger_releases(session, tenant_id, cutoff)
+        for key, day in (await _app_audit_history(session, tenant_id, cutoff)).items():
+            if key not in result or day < result[key][1]:
+                result[key] = (None, day)
+        return result
 
 
 async def release_departments(tenant_id: int, cutoff: date) -> dict[str, int]:

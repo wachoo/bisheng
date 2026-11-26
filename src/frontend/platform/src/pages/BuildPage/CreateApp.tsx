@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Input, Textarea } from '@bisheng/ui';
 import AppAvator from "@/components/bs-comp/cardComponent/avatar";
 import { Outlined } from "bisheng-icons";
@@ -44,6 +45,7 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
         const [templateLoading, setTemplateLoading] = useState(false);
         const generation = useRef(0);
         const assistantDraft = useRef<AssistantTemplateDraft>({});
+        const assetContext = useRef<AssetContextHandle>(null);
         const submitting = useRef(false);
         const { t } = useTranslation('flow');
         const { appConfig } = useContext(locationContext);
@@ -179,12 +181,15 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
             const request = generation.current;
             try {
             if (isEditMode) {
-                await onSave({
+                await assetContext.current.persist(appType === AppType.ASSISTANT ? "assistant" : "flow", async () => {
+                    await onSave({
                     name: formData.name,
                     description: formData.desc,
                     logo: formData.url,
                     viewUrl: formData.viewUrl,
-                })
+                    });
+                    return appId;
+                });
                 setOpen(false);
                 return;
             }
@@ -192,7 +197,7 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
             const template = tempDataRef.current ? JSON.parse(JSON.stringify(tempDataRef.current)) : null;
             if (template) {
                 if (AppType.ASSISTANT === appType) {
-                    const id = await instantiateAssistantTemplate(template.data, formData, assistantDraft.current);
+                    const id = await assetContext.current.persist("assistant", () => instantiateAssistantTemplate(template.data, formData, assistantDraft.current));
                     if (request === generation.current) { setOpen(false); navigate('/assistant/' + id); }
                     return;
                 }
@@ -228,27 +233,27 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
                             )
                         }
                     })
-                    const res = await createWorkflowApi(formData.name, formData.desc, formData.url, template);
-                    if (res && request === generation.current) navigate('/flow/' + res.id);
+                    const id = await assetContext.current.persist("flow", async () => (await createWorkflowApi(formData.name, formData.desc, formData.url, template)).id);
+                    if (id && request === generation.current) navigate('/flow/' + id);
                 }
             } else {
                 if (appType === AppType.ASSISTANT) {
-                    const res = await createAssistantsApi(formData.name, formData.desc, formData.url);
-                    if (res) {
+                    const id = await assetContext.current.persist("assistant", async () => (await createAssistantsApi(formData.name, formData.desc, formData.url)).id);
+                    if (id && request === generation.current) {
                         //@ts-ignore
                         window.assistantCreate = true // Mark the created assistant
-                        navigate('/assistant/' + res.id)
+                        navigate('/assistant/' + id)
                     }
                 } else {
                     if (appId) return navigate('/flow/' + appId);
-                    const workflow = await createWorkflowApi(formData.name, formData.desc, formData.url);
-                    if (workflow) {
+                    const id = await assetContext.current.persist("flow", async () => (await createWorkflowApi(formData.name, formData.desc, formData.url)).id);
+                    if (id && request === generation.current) {
                         const navigateToFlow = (id) => navigate(`/flow/${id}`);
-                        if (!appConfig.isPro) return navigateToFlow(workflow.id);
+                        if (!appConfig.isPro) return navigateToFlow(id);
 
-                        setAppId(workflow.id);
-                        const securityCreated = await securityRef.current.create(workflow.id);
-                        if (securityCreated) navigateToFlow(workflow.id);
+                        setAppId(String(id));
+                        const securityCreated = await securityRef.current.create(id);
+                        if (securityCreated) navigateToFlow(id);
                     }
                 }
             }
@@ -274,7 +279,7 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
 
         return (
             <Dialog open={open} onOpenChange={(value) => { if (!value) ++generation.current; setOpen(value); }}>
-                <DialogContent className="sm:max-w-[625px] bg-background-login">
+                <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto bg-background-login">
                     <DialogHeader>
                         <DialogTitle>{isEditMode ? t('edit') : t('create')}{appType === AppType.ASSISTANT ? t('assistant') : t('workflow')}</DialogTitle>
                     </DialogHeader>
@@ -303,6 +308,7 @@ const CreateApp = forwardRef<ModalRef, ModalProps & { loca?: any }>(
                             {errors.desc && <p className="bisheng-tip mt-1">{errors.desc}</p>}
                         </div>
                     </div>
+                    <AssetContextFields ref={assetContext} assetKey={isEditMode ? (appType === AppType.ASSISTANT ? "assistant:" : "flow:") + appId : undefined} />
                     {/* Workflow Security Review */}
                     <div className={isEditMode ? '' : 'hidden'}>
                         {appConfig.isPro && <Accordion type="multiple" className="w-full">

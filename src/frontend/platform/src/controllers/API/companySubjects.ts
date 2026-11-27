@@ -7,7 +7,7 @@ export type SubjectRun = {
   status: string;
 };
 type Snapshot = {
-  series: { date: string; success: number; failed: number; entered: number }[];
+  series: { date: string; success: number; failed: number; entered: number | null }[];
   known: boolean;
   last: string | null;
   total: number | null;

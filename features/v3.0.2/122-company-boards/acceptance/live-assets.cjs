@@ -16,6 +16,11 @@ const questions = [fixture.question];
 const answer = fixture.answer;
 const legacyQuestion = "验收采购报价的复核规则是什么？";
 const matchesQA = row => [fixture.question, legacyQuestion].some(q => row.questions?.includes(q));
+const buyerPrompt = "你是物资采购比价助手。检索定价指引，查询供应商报价，根据两项回执概括差异。";
+const previousBuyerPrompts = [
+  "你是验收采购助手。按用户指示实际加载 Skill、检索知识库、调用报价工具，将返回的原文摘要提供给用户。",
+  "你是物资采购比价助手。按用户指示调用报价复核技能、检索定价指引、查询供应商报价，并概括差异。",
+];
 
 async function main() {
   assert(process.env.BOARD_SESSION, "Set BOARD_SESSION to a local sign-in storage state.");
@@ -97,7 +102,8 @@ async function main() {
     if (kbId) assert.ok(manifests.some(m=>String(m.knowledge)===kbId), "The existing library has a different ID. Supply its verified BOARD_ASSET_MANIFEST.");
     if (!kbId) {
       const kb = await step("创建公开问答知识库",{knowledge:1,classified:0},()=>post("knowledge/create",
-        {type:1,name:kbName,model:String(vectorModel.id),auth_type:"public",description:"汇集物资采购定价、供应商询价和报价复核规则。"}),
+        {type:1,name:kbName,model:String(vectorModel.id),auth_type:"public",expected_tenant_id:managementTenant,
+          description:"汇集物资采购定价、供应商询价和报价复核规则。"}),
         created=>checkpoint({knowledge:Number(created.id),knowledge_collection:created.collection_name}));
       kbId = kb.id;
     }
@@ -125,18 +131,23 @@ async function main() {
     const child = tool.children.find(c=>c.name==="board1126_quote");
     const slug = "board1126-quote-check";
     let skill = (await get("linsight/skill?keyword="+slug)).data.find(s=>s.name===slug);
+    if (skill) assert.ok(manifests.some(m=>String(m.skill)===String(skill.id)),
+      "The existing Skill is not in the verified asset manifest.");
     if (!skill) {
       skill = await step("创建管理员公共 Skill",{skill:1},()=>call("post","linsight/skill",{multipart:{
         display_name:fixture.skill[0],name:slug,description:"规范供应商询价结果的比对与复核。",
         content:"请调用报价工具，并核对知识库返回的采购规则；用含税总价、交期及复核记录三项作答。"}}),
         created=>checkpoint({skill:created.id}));
     }
+    const publishedSkill = await get("linsight/skill/"+slug);
+    assert.equal(publishedSkill.id,skill.id);
+    assert.equal(publishedSkill.enabled,true,"The public Skill must be enabled in Skill management.");
     await mark("skill:"+skill.id,topics[0]);
     const employees = [];
     for (const [i,names] of fixture.employees.entries()) {
       let employee;
       for (const alias of names) {
-        employee = (await get("assistant?name="+encodeURIComponent(alias)+"&limit=20")).data.find(a=>a.name===alias);
+        employee = (await get("assistant?name="+encodeURIComponent(alias)+"&action=visible&page_size=20")).data.find(a=>a.name===alias);
         if (employee) break;
       }
       if (employee) assert.ok(manifests.some(m=>m.employees[i]===employee.id),
@@ -151,10 +162,12 @@ async function main() {
         assert(model,"An enabled assistant chat model is required.");
         await put("assistant",{id:employee.id,name,model_name:String(model),temperature:0.1,max_token:4096,
           desc:i===0?"核对供应商报价与采购定价口径。":"核查工程合同的履约条款与交付要求。",
-          prompt:i===0?"你是物资采购比价助手。按用户指示调用报价复核技能、检索定价指引、查询供应商报价，并概括差异。":"你是项目合同履约助手，核对合同条款并给出简明中文答复。",
-          tool_list:i===0?[child.id]:[],knowledge_list:i===0?[Number(kbId)]:[],skill_ids:i===0?[skill.id]:[]});
+          prompt:i===0?buyerPrompt:"你是项目合同履约助手，核对合同条款并给出简明中文答复。",
+          tool_list:i===0?[child.id]:[],knowledge_list:i===0?[Number(kbId)]:[]});
         await mark("assistant:"+employee.id,topics[i]);
         await step("正式上线"+name,{employee:1,built:1},()=>post("assistant/status",{id:employee.id,status:2}));
+      } else if (i===0 && previousBuyerPrompts.includes((await get("assistant/info/"+employee.id)).prompt)) {
+        await post("assistant/prompt",{id:employee.id,prompt:buyerPrompt});
       }
       employees.push(employee.id);
     }
@@ -168,7 +181,6 @@ async function main() {
       assert.deepEqual(published.assets.filter(a=>a.id===key).map(a=>a.topic_id),[topic],"Published asset: "+key);
     }
     const detail = await get("assistant/info/"+employees[0]);
-    assert.deepEqual(detail.skill_ids,[skill.id]);
     assert.deepEqual(detail.tool_list.map(t=>t.id),[child.id]);
     assert.deepEqual(detail.knowledge_list.map(k=>k.id),[Number(kbId)]);
     const entries = await get("knowledge/qa/list/"+kbId+"?page=1&limit=20");

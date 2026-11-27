@@ -30,10 +30,10 @@ async function snapshot(admin, period) {
     .reduce((total, row) => total + row.rounds, 0);
   return {
     totals: {runs:r.observed_runs, rounds, success:r.successful_tasks, failed:r.failed_tasks,
-      skill:r.skill_calls, knowledge:r.knowledge_success, mcp:r.tool_success, mcp_failure:r.tool_failure,
+      knowledge:r.knowledge_success, mcp:r.tool_success, mcp_failure:r.tool_failure,
       scene_uses:board.scene_service.uses, scene_users:board.scene_service.users,
       negative:board.satisfaction.negative, pending:issues.pending, closed:issues.closed},
-    runs: r.recent_runs, issues: issues.rows, usage: r.usage,
+    skillCalls: r.skill_calls, runs: r.recent_runs, issues: issues.rows, usage: r.usage,
   };
 }
 
@@ -60,7 +60,7 @@ async function assistant(storageState, asset, prompt) {
     return await page.evaluate(({asset, prompt, chat})=>new Promise((resolve, reject)=>{
       const ws = new WebSocket(`ws://${location.host}/api/v1/assistant/chat/${asset}`);
       const data = {id:asset, chatId:chat, type:5};
-      let ready = false, message, answer, timeline, failure;
+      let ready = false, message, answer, failure;
       const frames = [];
       const timer = setTimeout(()=>{ws.close(); reject(new Error('Socket timeout: ' + frames.slice(-6)));}, 140000);
       ws.onopen = ()=>ws.send(JSON.stringify({chat_id:chat, flow_id:asset, chatHistory:[], inputs:{data}}));
@@ -71,10 +71,6 @@ async function assistant(storageState, asset, prompt) {
         if (item.category==='answer' && ['end','end_cover'].includes(item.type)) {
           message=item.message_id;
           answer = String(item.message).slice(0,160);
-          const extra = typeof item.extra === 'string' ? JSON.parse(item.extra || '{}') : item.extra;
-          timeline = (extra?.assistant_timeline || []).filter(x=>x.type==='tool').map(x=>({
-            name:x.tool_key, category:x.category, result:x.status,
-          }));
         }
         if (item.category==='processing' && item.type==='close') {
           if (!ready && !failure) {
@@ -82,13 +78,21 @@ async function assistant(storageState, asset, prompt) {
             ws.send(JSON.stringify({chat_id:chat, flow_id:asset, chatHistory:[], inputs:{data, input:prompt}}));
           } else {
             clearTimeout(timer); ws.close();
-            resolve({chat, message, answer, timeline, failure, frames:[...new Set(frames)]});
+            resolve({chat, message, answer, failure, frames:[...new Set(frames)]});
           }
         }
       };
       ws.onclose = ev=>{clearTimeout(timer); if (!message && !failure) reject(new Error('WebSocket close ' + ev.code + ' ' + ev.reason));};
     }), {asset, prompt, chat:randomUUID().replaceAll('-','')});
   } finally {await browser.close();}
+}
+
+function toolReceipts(rows) {
+  return rows.filter(row=>row.type==='end' && ['knowledge','tool'].includes(row.category)).map(row=>{
+    const payload = typeof row.message==='string' ? JSON.parse(row.message) : row.message;
+    return {id:row.id, name:payload.serialized?.name || payload.tool_key,
+      category:row.category, output:payload.output};
+  });
 }
 
 async function replay() {
@@ -108,10 +112,10 @@ async function replay() {
       expected = {runs:0, rounds:0, scene_uses:0};
       receipt = await daily(user,target);
     } else if (action==='assistant') {
-      expected = {success:1, rounds:1, scene_uses:1};
-      if (sample==='tools' || sample==='reject') Object.assign(expected,{skill:1, knowledge:1, [sample==='reject'?'mcp_failure':'mcp']:1});
+      expected = {success:1, rounds:1, scene_uses:1, knowledge:0, mcp:0, mcp_failure:0};
+      if (sample==='tools' || sample==='reject') Object.assign(expected,{knowledge:1, [sample==='reject'?'mcp_failure':'mcp']:1});
       const prompt = sample==='tools' || sample==='reject'
-        ? fixture.question + '请应用报价复核规范，检索定价指引，并查询供应商甲的报价。' +
+        ? fixture.question + '请检索定价指引，并查询供应商甲的报价。' +
           (sample==='reject'?'供应商已撤回原报价，请核对该单是否仍可用。':'')
         : '请确认本周关键合同履约核查安排，回复“已收到履约核查安排”。';
       receipt = await assistant(process.env.BOARD_SESSION,target,prompt);
@@ -145,19 +149,23 @@ async function replay() {
     }
     const delta = Object.fromEntries(Object.keys(before.totals).map(k=>[k,Number(after.totals[k])-Number(before.totals[k])]));
     const checks = {counts:Object.keys(expected).every(k=>delta[k]===expected[k])};
+    if (action==='daily' || action==='assistant') {
+      checks.independentSkillUsage = before.skillCalls !== undefined && before.skillCalls === after.skillCalls;
+    }
     if(action==='daily') checks.savedAnswer=receipt.answer?.includes(dailyAcknowledgement)===true;
     if(action==='assistant'){
       if(receipt.message && ['tools','reject'].includes(sample)){
         const rows = await business(user,'GET',`/api/v1/chat/history?flow_id=${target}&chat_id=${receipt.chat}&page_size=40`);
-        const traces = rows.filter(row=>['tool_result','tool','knowledge'].includes(row.category))
-          .map(row=>JSON.stringify(row));
-        receipt.knowledgeHit = traces.some(text=>text.includes(fixture.answer) || text.includes('K-1126'));
-        receipt.mcpQuote = traces.some(text=>text.includes('Q-1126'));
-        receipt.knowledgeQuestion = traces.some(text=>text.includes(fixture.question) || text.includes('验收采购报价的复核规则是什么？'));
-        receipt.mcpRejected = traces.some(text=>text.includes('供应商报价服务拒绝请求'));
+        const traces = toolReceipts(rows);
+        const knowledge = traces.filter(r=>r.category==='knowledge' || /^knowledge_\d+$/.test(r.name));
+        const quotes = traces.filter(r=>r.name?.includes('board1126_quote'));
+        receipt.tools = [...knowledge,...quotes];
+        receipt.knowledgeHit = knowledge.some(r=>r.output?.includes(fixture.answer) || r.output?.includes('K-1126'));
+        receipt.mcpQuote = quotes.some(r=>r.output?.includes('Q-1126'));
+        receipt.knowledgeQuestion = knowledge.some(r=>r.output?.includes(fixture.question) || r.output?.includes('验收采购报价的复核规则是什么？'));
+        receipt.mcpRejected = quotes.some(r=>r.output?.includes('供应商报价服务拒绝请求'));
         checks.knowledgeAnswer = receipt.knowledgeHit;
         checks.mcpResponse = sample==='tools' ? receipt.mcpQuote : receipt.mcpRejected && !receipt.mcpQuote;
-        checks.skill = receipt.timeline?.some(step=>step.name==='use_assistant_skill' && step.result==='done') || false;
       }
       const run=after.runs.find(r=>r.asset_id==='assistant:'+target && !before.runs.some(v=>v.id===r.id));
       if(run){

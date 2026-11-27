@@ -13,9 +13,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from bisheng.api.services.assistant_agent import AssistantAgent
-from bisheng.api.services.assistant_skills import bind_skill_tools
-from bisheng.common.board_observation import BoardObservation, current_observation
+from bisheng.common.board_observation import BoardObservation
 from bisheng.common.chat.client import ChatClient
+from bisheng.common.chat.types import WorkType
 from bisheng.common.constants.enums.telemetry import ApplicationTypeEnum, StatusEnum
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.services.runtime import WebAssistantObservation, read_runtime, save_observation
@@ -122,6 +122,20 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         for summary in (before, after):
             self.assertEqual((summary["file_outputs"], summary["code_versions"], summary["deliverables"]), (0, 1, 1))
 
+    def new_chat_client(self):
+        with patch("bisheng.common.chat.client.settings", Mock(get_from_db=Mock(return_value={}))):
+            return ChatClient(
+                request=Mock(),
+                client_key="test",
+                client_id="asset",
+                chat_id="web-session",
+                user_id=7,
+                login_user=SimpleNamespace(user_id=7),
+                work_type=WorkType.GPTS,
+                websocket=AsyncMock(),
+                board_sink=WebAssistantObservation.begin,
+            )
+
     async def test_web_handshake_caches_delivery_tool_and_validates_each_turn(self):
         async def create(file: str):
             """Produce an artifact in the test interpreter."""
@@ -136,9 +150,7 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
             app_type=ApplicationTypeEnum.ASSISTANT,
             user_id=7,
         )
-        client = object.__new__(ChatClient)
-        client.kwargs = {"board_sink": WebAssistantObservation.begin}
-        client.client_key, client.client_id, client.chat_id, client.user_id = "test", "asset", "web-session", 7
+        client = self.new_chat_client()
         client.init_chat_history = AsyncMock()
 
         async def callbacks():
@@ -148,9 +160,8 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         client.gpts_async_callback = []
         client.get_latest_history = AsyncMock(return_value=[])
         client.add_message = AsyncMock(return_value=None)
-        client.send_response, client.websocket, client.generate_session_title = AsyncMock(), AsyncMock(), AsyncMock()
-        client.finalizing_tasks, client.background_tasks = set(), set()
-        assistant = SimpleNamespace(id="asset", name="demo", status=AssistantStatus.ONLINE.value, skill_ids=[])
+        client.send_response, client.generate_session_title = AsyncMock(), AsyncMock()
+        assistant = SimpleNamespace(id="asset", name="demo", status=AssistantStatus.ONLINE.value)
         self.enterContext(patch("bisheng.common.chat.client.AssistantDao.get_one_assistant", return_value=assistant))
         self.enterContext(patch.object(AssistantAgent, "init_llm", AsyncMock()))
         self.enterContext(patch.object(AssistantAgent, "init_agent", AsyncMock()))
@@ -195,15 +206,12 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         self.assertEqual((summary["file_outputs"], summary["tool_success"], summary["successful_tasks"]), (2, 2, 2))
 
     def web_chat_client(self):
-        client = object.__new__(ChatClient)
-        client.kwargs = {"board_sink": WebAssistantObservation.begin}
-        client.client_key, client.client_id, client.chat_id, client.user_id = "test", "asset", "web-session", 7
+        client = self.new_chat_client()
         client.init_gpts_agent = AsyncMock()
         client.db_assistant = SimpleNamespace(status=AssistantStatus.ONLINE.value)
         client.get_latest_history = AsyncMock(return_value=[])
         client.add_message = AsyncMock(return_value=SimpleNamespace(id=9001))
-        client.send_response, client.websocket, client.generate_session_title = AsyncMock(), AsyncMock(), AsyncMock()
-        client.finalizing_tasks, client.background_tasks = set(), set()
+        client.send_response, client.generate_session_title = AsyncMock(), AsyncMock()
         client.gpts_async_callback = []
         client.gpts_agent = Mock()
         client.gpts_agent.llm.streaming = False
@@ -253,30 +261,12 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         await client.handle_gpts_message({"inputs": {"input": "after recovery"}})
         self.assertEqual((await self.query())["successful_tasks"], 1)
 
-    async def test_actual_skill_and_version_replay(self):
+    async def test_registered_files_and_version_replay(self):
         turn = BoardObservation("one", 7)
-        token = current_observation.set(turn)
-        self.addCleanup(current_observation.reset, token)
-        row = SimpleNamespace(
-            name="bisheng-docx",
-            display_name="Word",
-            description="docs",
-            content_hash="1",
-            owner_user_id=0,
-            tenant_id=51,
-            id=42,
-        )
-        tools = []
-        with patch("bisheng.api.services.assistant_skills.SkillStore") as store:
-            store.return_value.read_text.return_value = "instructions"
-            await bind_skill_tools([row], tools)
-            self.assertEqual(turn.facts, {})
-            await tools[-1].ainvoke({"name": row.name})
-            self.assertEqual(turn.facts, {})
-            await tools[-2].ainvoke({"name": row.name})
         links = [f"/bucket/{n}" for n in ("table.csv", "report.docx", "report.pdf", "main.py", "app.js")]
         turn.record_outputs({"file_list": links})
-        self.assertEqual(sum(kind == "file" for kind, _, _ in turn.facts), 3)
+        self.assertEqual(turn.facts, {})
+        self.assertEqual(turn.register_outputs(links[:3]), "Delivery recorded.")
         self.assertEqual(turn.register_outputs(links[-2:], "project-X", "v1"), "Delivery recorded.")
         self.assertNotEqual(turn.register_outputs(["/invalid"], "project-X", "v2"), "Delivery recorded.")
         await save_observation(turn, "failed", None)
@@ -287,8 +277,8 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         await save_observation(second, "success", 2)
         summary = await self.query()
         self.assertEqual(
-            (summary["skill_calls"], summary["file_outputs"], summary["code_versions"], summary["deliverables"]),
-            (1, 3, 1, 4),
+            (summary["file_outputs"], summary["code_versions"], summary["deliverables"]),
+            (3, 1, 4),
         )
         other = current_tenant_id.set(52)
         try:

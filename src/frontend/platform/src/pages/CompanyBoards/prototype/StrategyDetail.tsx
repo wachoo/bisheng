@@ -144,6 +144,7 @@ export function StrategyDetail(props: PrototypeDetailProps) {
 function DetailBody({ data, registers, target, period, open, board }: PrototypeDetailProps) {
   const { t: serviceText } = useTranslation("companyBoards", { keyPrefix: "sceneService" });
   const { t: caseText } = useTranslation("topicExample");
+  const { t: activityText } = useTranslation("activityCharts");
   const [, route, arg] = target.split(":");
   const trend = useBoardTrends(data, board).data?.months.find((m) => m.month === data.month);
   const { topics, scenes, plans, published, workers, depRanks, workerRanks } =
@@ -750,7 +751,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
                 </b>
                 <span>
                   有效{verb[k.kind]}{" "}
-                  {data.runtime.usage.some((u) => u.kind === k.kind)
+                  {rows.some((a) => a.kind === k.kind && totals(a.id) != null)
                     ? rows.filter((a) => a.kind === k.kind).reduce((n, a) => n + (totals(a.id) || 0), 0)
                     : "—"}{" "}
                   次
@@ -789,6 +790,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
             </>
           )}
         </div>
+        {type?.kind === "skill" && <p className="al-caption">{activityText("skillUsageScope")}</p>}
         {type && (
           <div className="va-columns">
             <article className="va-card">

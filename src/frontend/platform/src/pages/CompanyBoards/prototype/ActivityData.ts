@@ -97,19 +97,11 @@ export function aggregation(period?: TrendPeriod, asset?: string, department = "
         "successful",
       )
     : null;
-  const uses = (kind?: AssetKind) =>
-    hasEvents
-      ? rows.reduce(
-          (n, r) =>
-            n +
-            ((!kind || r.kind === kind) && kinds.includes(r.kind as AssetKind)
-              ? r.kind === "skill"
-                ? r.entered
-                : r.successful
-              : 0),
-          0,
-        )
-      : null;
+  const uses = (kind?: AssetKind) => {
+    const assets = rows.filter(r => kinds.includes(r.kind as AssetKind) && (!kind || r.kind === kind));
+    if (!hasEvents || (kind === "skill" && !assets.some(r => r.entered > 0))) return null;
+    return assets.reduce((total, row) => total + (row.kind === "skill" ? row.entered : row.successful), 0);
+  };
   const attempts = success + failed;
   const healthy = attempts ? success / attempts : null;
   const metered = rows.filter((r) => r.tokens !== null);

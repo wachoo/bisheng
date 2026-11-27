@@ -2,8 +2,13 @@
 
 From the repository root, in PowerShell, with the backend test image available:
 
+    $backend = (Resolve-Path 'src/backend').Path
+    $sources = foreach ($package in 'bisheng', 'bisheng_langchain', 'test') {
+        '--mount'
+        "type=bind,source=$backend/$package,target=/app/$package,readonly"
+    }
     $probe = (Resolve-Path 'features/v3.0.2/122-company-boards/acceptance/scene-feedback-observer.py').Path
-    docker run --rm --network none --mount "type=bind,source=$probe,target=/tmp/probe.py,readonly" --env PYTHONPATH=/app --entrypoint /bin/sh local/company-boards-backend:122 -c 'echo {} > /app/bisheng/config.yaml && /app/.venv/bin/python -B /tmp/probe.py'
+    docker run --pull never --rm --network none @sources --mount "type=bind,source=$probe,target=/tmp/probe.py,readonly" --env PYTHONPATH=/app --entrypoint /bin/sh local/company-boards-backend:122 -c 'echo {} > /tmp/board.yaml && config=/tmp/board.yaml /app/.venv/bin/python -B /tmp/probe.py'
 
 The test provides a fixed model reply, authenticated identities, an asset catalog
 and an existing chat session. Each case has a private SQLite file for both the
@@ -135,6 +140,8 @@ class SceneFeedbackObserverTest(unittest.TestCase):
             answer = db.get(ChatMessage, receipt.terminal_message_id)
             self.assertEqual((question.category, answer.category, answer.message, answer.user_id),
                              ("question", "answer", "ok", user))
+            self.assertEqual(question.chat_id, chat.chat_id)
+            self.assertEqual(answer.chat_id, chat.chat_id)
             return receipt.run_id, answer.id, chat.chat_id
 
     def test_T06_shared_employee(self):

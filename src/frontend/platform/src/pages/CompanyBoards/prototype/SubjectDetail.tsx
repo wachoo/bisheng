@@ -35,7 +35,7 @@ type Series = {
   date: string;
   success: number;
   failed: number;
-  entered: number;
+  entered: number | null;
 }[];
 function Trend({
   series,
@@ -56,7 +56,7 @@ function Trend({
     );
   const max = Math.max(
     1,
-    ...series.map((d) => d.success + d.failed + d.entered),
+    ...series.map((d) => d.success + d.failed + (d.entered ?? 0)),
   );
   return (
     <div
@@ -65,7 +65,7 @@ function Trend({
       aria-label="分期运行趋势"
     >
       {series.map((d, i) => {
-        const good = skill ? d.entered : d.success,
+        const good = skill ? (d.entered ?? 0) : d.success,
           all = good + d.failed,
           label =
             i % Math.ceil(series.length / 12) === 0 ? d.date.slice(5) : "";
@@ -91,10 +91,10 @@ function Trend({
           <div
             key={d.date}
             className="va-bin"
-            title={d.date + " 有效 " + good + "，失败 " + d.failed}
+            title={skill ? d.date + " · Skill " + fmt(d.entered) : d.date + " 有效 " + good + "，失败 " + d.failed}
           >
             <div>
-              <b>{all || ""}</b>
+              <b>{skill ? fmt(d.entered) : all || ""}</b>
               <i
                 style={{
                   height: (77 * all) / max + "%",
@@ -149,6 +149,7 @@ function Asset(
 ) {
   const { data, id, params, open } = props,
     asset = data.assets.find((a) => a.id === id);
+  const { t } = useTranslation("activityCharts");
   const [span, setSpan] = useState(
     windows.some(([k]) => k === params.get("window"))
       ? params.get("window")!
@@ -223,7 +224,7 @@ function Asset(
     worker = asset.kind === "employee",
     kb = asset.kind === "knowledge";
   const success = dates.reduce(
-      (n, d) => n + (skill ? d.entered : d.success),
+      (n, d) => n + (skill ? (d.entered ?? 0) : d.success),
       0,
     ),
     failed = dates.reduce((n, d) => n + d.failed, 0),
@@ -519,6 +520,7 @@ function Asset(
     <>
       {controls}
       <section className="va" data-va-single>
+        {skill && <p className="al-caption">{t("skillUsageScope")}</p>}
         <div className="va-kpis">
           {kpi(
             skill ? "使用次数" : "有效" + verb,

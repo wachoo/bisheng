@@ -1,13 +1,17 @@
-"""Run T01, T02, T03 and T10 against the company board HTTP routes and asset DAOs.
+r"""Run T01, T02, T03 and T10 against the company board HTTP routes and asset DAOs.
 
 Each case uses a fresh temporary SQLite file and an in-process ASGI client.
 The login dependency supplies a local administrator. Asset publication, catalog
 queries, department attribution, report writes and revisions use application code.
 
-From the repository root, with BACKEND_IMAGE set to the backend image under test:
+From the checkout root in a POSIX shell, using BACKEND_IMAGE for Python dependencies:
 
-    docker run --rm -i --network none -e PYTHONPATH=/app --entrypoint sh "$BACKEND_IMAGE" \
-        -c 'echo "{}" > /tmp/board.yaml; config=/tmp/board.yaml python -' \
+    docker run --pull never --rm -i --network none -e PYTHONPATH=/app \
+        --mount "type=bind,source=$PWD/src/backend/bisheng,target=/app/bisheng,readonly" \
+        --mount "type=bind,source=$PWD/src/backend/bisheng_langchain,target=/app/bisheng_langchain,readonly" \
+        --mount "type=bind,source=$PWD/src/backend/test,target=/app/test,readonly" \
+        --entrypoint sh "$BACKEND_IMAGE" \
+        -c 'echo "{}" > /tmp/board.yaml; config=/tmp/board.yaml /app/.venv/bin/python -B -' \
         < features/v3.0.2/122-company-boards/acceptance/planning-report-scenarios.py
 
 With an existing backend Python environment, run the file with src/backend on

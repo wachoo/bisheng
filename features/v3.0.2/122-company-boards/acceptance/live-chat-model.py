@@ -15,7 +15,7 @@ def requested_calls(data):
     messages = data.get("messages", [])
     user_at = max((i for i, m in enumerate(messages) if m["role"] == "user"), default=-1)
     prompt = str(messages[user_at].get("content", "")) if user_at >= 0 else ""
-    if "请应用报价复核规范" not in prompt and "BOARD-TOOLS" not in prompt:
+    if "请检索定价指引" not in prompt and "BOARD-TOOLS" not in prompt:
         return []
     done = {
         c["function"]["name"]
@@ -27,11 +27,8 @@ def requested_calls(data):
         name = fn["name"]
         if name in done:
             continue
-        if name == "use_assistant_skill":
-            args = {"name": "board1126-quote-check"}
-        elif name.startswith("knowledge_") and name[10:].isdigit():
-            fields = fn.get("parameters", {}).get("required", [])
-            args = {key: "采购报价应如何统一比价口径？" for key in fields}
+        if name.startswith("knowledge_") and name[10:].isdigit():
+            args = {"query": "采购报价应如何统一比价口径？"}
         elif "board1126_quote" in name.lower():
             args = {"supplier": "甲", "reject": "供应商已撤回原报价" in prompt or "BOARD-REJECT" in prompt}
         else:

@@ -326,7 +326,7 @@ export default function Activity(props: PrototypeViewProps) {
           name={t("本月资产使用次数")}
           value={fmt(group.uses())}
           unit={t("次")}
-          note={t("截至") + " " + data.cutoff + " · " + t("四类合计")}
+          note={t("截至") + " " + data.cutoff + " · " + t("observedUsageTotal")}
           to="asset-usage"
           detailTitle={t("资产台账 · 使用明细")}
           open={open}
@@ -363,7 +363,7 @@ export default function Activity(props: PrototypeViewProps) {
               />
             )}
           </div>
-          {!tokens && <p className="al-caption">{t("发布目录 · 已观测 Web 运行与逐月调用记录")}</p>}
+          {!tokens && <p className="al-caption">{t(kind === "skill" ? "skillUsageScope" : "发布目录 · 已观测 Web 运行与逐月调用记录")}</p>}
           <Chart
             selected={month}
             period={period}
@@ -578,6 +578,7 @@ function Detail(props: PrototypeDetailProps & { route: string; scope: string }) 
               ? "仅计入带有真实用量回执的 Web 模型请求。"
               : "交互轮次覆盖正式 Web 助手已结束且具备最终回复的根请求。",
           )}
+          {scope === "skill" && " " + t("skillUsageScope")}
         </p>
       </Panel>
     );
@@ -686,7 +687,7 @@ function Detail(props: PrototypeDetailProps & { route: string; scope: string }) 
       <div className="al-toolbar">{filterDept}</div>
       <div className="al-info">
         <strong>
-          {t("四类合计")} {fmt(group.uses())} {t("次")}
+          {t("observedUsageTotal")} {fmt(group.uses())} {t("次")}
         </strong>{" "}
         · {t("仅计入已观测的使用事件，一项业务任务可使用多项资产。")}
       </div>
@@ -697,7 +698,7 @@ function Detail(props: PrototypeDetailProps & { route: string; scope: string }) 
             name={t(kindNames[k])}
             value={fmt(group.uses(k))}
             unit={t("次")}
-            note={t(["有效业务执行", "成功检索", "Skill 使用记录", "成功工具调用"][i])}
+            note={t(["有效业务执行", "成功检索", "skillUsageScope", "成功工具调用"][i])}
             to={k}
             open={(id) => setKind(id)}
           />

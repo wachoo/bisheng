@@ -117,13 +117,13 @@ def summarize(counts, recent, board_departments):
         "observed_timing_coverage": timed / eligible if eligible else None,
         "tool_success": measured("tool", "success"),
         "tool_failure": measured("tool", "failed"),
-        "skill_calls": measured("skill", "entered"),
+        "skill_calls": by_status.get(("skill", "entered")),
         "knowledge_success": measured("knowledge", "success"),
         "file_outputs": measured("file", "success"),
         "code_versions": measured("version", "success"),
         "deliverables": by_status["file", "success"] + by_status["version", "success"] if counts else None,
-        "coverage_note": "统计正式 Web 助手对话中已采集的样本。普通文件取已登记文件和文档技能的输出。"
-        "代码版本取已登记项目版本及其文件清单。其他入口、未归集的文件及全范围计时分母尚未采全。",
+        "coverage_note": "统计正式 Web 助手对话中已采集的样本。Skill 使用次数仅含历史加载记录，灵思任务中的使用尚未采集。"
+        "普通文件按已登记的文件回执统计，代码版本按已登记的项目版本及其文件清单统计。其他入口及全范围计时分母尚未采全。",
         "recent_runs": [
             {
                 "id": row.run_id,

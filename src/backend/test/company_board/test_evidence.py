@@ -13,10 +13,11 @@ class ProviderReceiptTest(TestCase):
             SimpleNamespace(llm_output={"token_usage": {"prompt_tokens": 11, "completion_tokens": 3}}), run_id="model-1"
         )
         self.assertEqual(observer.tokens, {"model-1": (11, 3)})
-        observer.document_task = True
         outputs = ["https://files/a.png", "https://files/b.docx", "https://files/c.html", "https://files/code.js"]
         observer.record_outputs({"file_list": outputs})
-        observer.register_outputs(outputs[2:], "project", "v1")
+        self.assertFalse(any(key[0] == "file" for key in observer.facts))
+        self.assertEqual(observer.register_outputs(outputs[:2]), "Delivery recorded.")
+        self.assertEqual(observer.register_outputs(outputs[2:], "project", "v1"), "Delivery recorded.")
         self.assertEqual(
             [observer.categories[observer.output_links[k]] for k in outputs], ["image", "document", "page", "other"]
         )

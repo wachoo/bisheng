@@ -14,8 +14,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 
 current_observation = ContextVar("web_board_observation", default=None)
 
-# Known deliverable formats published by the built-in office/report skills.
-# Source, config, archive and ambiguous artifacts await explicit registration.
+# Classify files when the assistant registers a generated delivery.
 DOCUMENT_OUTPUT_SUFFIXES = {
     ".csv",
     ".doc",
@@ -59,7 +58,6 @@ class BoardObservation(BaseCallbackHandler):
         self.started_at = None
         self.input_message_id = None
         self.version_members = set()
-        self.document_task = False
         self.started = False
         self.incomplete = False
         self.lock = RLock()
@@ -148,8 +146,7 @@ class BoardObservation(BaseCallbackHandler):
             self.facts[key] = (status, datetime.now(UTC).replace(tzinfo=None))
 
     def record_outputs(self, output):
-        # The managed document generators explicitly publish standalone files.
-        # Other code interpreter calls do not identify project/version ownership.
+        # Bind registration to files returned by this turn's interpreter.
         if not isinstance(output, dict):
             return
         for link in output.get("file_list") or []:
@@ -171,8 +168,6 @@ class BoardObservation(BaseCallbackHandler):
                     else:
                         category = "other"
                     self.categories[key] = category
-                    if self.document_task and PurePosixPath(path).suffix.lower() in DOCUMENT_OUTPUT_SUFFIXES:
-                        self.record("file", self.asset_id, "success", key)
 
     def register_outputs(self, links, project="", version=""):
         """Only accept storage objects this run actually generated."""

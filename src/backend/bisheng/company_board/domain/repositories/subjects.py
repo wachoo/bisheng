@@ -12,6 +12,8 @@ async def asset_activity(tenant, asset, start, end, department, details, status,
     prefix, ident = asset.split(":", 1)
     kind = "employee" if prefix == "assistant" else prefix
     scope = [Event.tenant_id == tenant, Event.kind == kind, Event.asset_id == ident]
+    if kind == "skill":
+        scope.append(Event.status == "entered")
     if department:
         departments = await load_board_departments(tenant)
         # Old bookmarks can still carry "unassigned" or a leaf ID. Neither selects a department.
@@ -31,9 +33,11 @@ async def asset_activity(tenant, asset, start, end, department, details, status,
         boundaries.append((following, (day + timedelta(hours=8)).date().isoformat()))
         day = following
     bucket = case(*[(Event.occurred_at < stop, label) for stop, label in boundaries]) if boundaries else None
-    bins = {label: {"date": label, "success": 0, "failed": 0, "entered": 0} for _, label in boundaries}
+    bins = {
+        label: {"date": label, "success": 0, "failed": 0, "entered": None if kind == "skill" else 0}
+        for _, label in boundaries
+    }
     async with get_async_db_session() as db:
-        known = (await db.exec(select(func.count(Event.id)).where(*scope, Event.occurred_at < end))).one() > 0
         if bucket is not None:
             for label, state, number in (
                 await db.exec(
@@ -43,6 +47,10 @@ async def asset_activity(tenant, asset, start, end, department, details, status,
                 if state in {"entered", "success", "failed"}:
                     bins[label][state] = number
         last = (await db.exec(select(func.max(Event.occurred_at)).where(*base))).one()
+        # A historical Skill receipt only establishes usage in its own reporting period.
+        known = last is not None
+        if not known and kind != "skill":
+            known = (await db.exec(select(func.count(Event.id)).where(*scope, Event.occurred_at < start))).one() > 0
         result = {
             "series": list(bins.values()),
             "known": known,

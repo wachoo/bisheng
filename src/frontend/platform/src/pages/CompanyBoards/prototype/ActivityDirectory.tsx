@@ -208,6 +208,7 @@ export default function Directory({
       {toolbar}
       {historyNote}
       <section className="va" data-va-overview>
+        {category === "skill" && <p className="al-caption">{t("skillUsageScope")}</p>}
         <div className="va-kpis">
           {kpi(t(kindNames[category]) + " · " + t("数量"), published ? entries.length : null, t("项"))}
           {kpi(t(actions[category]), total, t("次"))}

@@ -128,6 +128,7 @@ async function verifyAssetDetails(page) {
   }
   const rate = (n, d) => d ? display(100 * n / d, 1) + "%" : "—";
   const failures = [];
+  assert.ok(overview.assets.some(a => a.kind === "skill"), "Use a catalog with an independent public Skill");
   let observed = 0;
   for (const asset of overview.assets) {
     try {
@@ -146,6 +147,12 @@ async function verifyAssetDetails(page) {
       const success = series.reduce((n, r) => n + r[key], 0);
       const failed = series.reduce((n, r) => n + r.failed, 0);
       const rows = periodRows.filter(r => r.asset_id === asset.id && r.kind === asset.kind);
+      if (skill) {
+        const expectedKnown = rows.some(r => r.entered > 0);
+        assert.equal(known, expectedKnown, "Skill coverage for the selected month");
+        for (const bucket of series)
+          assert.ok(bucket.entered === null || bucket.entered > 0, "Missing Skill receipts must remain unknown");
+      }
       assert.equal(success, rows.reduce((n, r) => n + r[skill ? "entered" : "successful"], 0));
       assert.equal(failed, rows.reduce((n, r) => n + r.failed, 0));
       if (known) observed++;

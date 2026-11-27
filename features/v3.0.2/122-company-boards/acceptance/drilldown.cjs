@@ -28,7 +28,7 @@ const overview={year:2026,month:5,cutoff:date,catalog_as_of:'2026-06-01',departm
   ledger,strategy:{employee_built:15,scene_launched:1,knowledge_verified:0,knowledge_planned:0},runtime:{
     detail_access:true,scope:'web',observed_runs:25,successful_tasks:25,failed_tasks:0,active_seconds:2000,timed_tasks:25,
     timing_coverage:1,observed_timing_coverage:1,usage:[],department_usage:[],recent_runs:[receipt],tool_success:0,
-    tool_failure:0,skill_calls:0,knowledge_success:0,file_outputs:0,code_versions:0,deliverables:0,coverage_note:''},
+    tool_failure:0,skill_calls:null,knowledge_success:0,file_outputs:0,code_versions:0,deliverables:0,coverage_note:''},
   satisfaction:{successful:25,linked:25,negative:1,positive_rate:0.96}};
 
 async function verify(page) {

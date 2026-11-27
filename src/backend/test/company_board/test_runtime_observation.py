@@ -27,6 +27,22 @@ from bisheng.tool.domain.services.executor import ToolExecutor, _result_status
 
 
 class WorkTimeTests(TestCase):
+    def test_only_complete_model_receipts_contribute_tokens(self):
+        turn = BoardObservation("employee", 8)
+        for call, usage in (
+            ("both", {"prompt_tokens": 600, "completion_tokens": 400}),
+            ("absent", {}),
+            ("input-only", {"prompt_tokens": 900}),
+        ):
+            turn.on_llm_start({}, [], run_id=call)
+            turn.on_llm_end(SimpleNamespace(llm_output={"token_usage": usage}, generations=[]), run_id=call)
+        self.assertEqual(turn.tokens, {"both": (600, 400)})
+        metered_calls = [
+            op for (kind, _, op), (status, _) in turn.facts.items()
+            if kind == "model" and status == "metered"
+        ]
+        self.assertEqual(metered_calls, ["both"])
+
     def test_pure_wait_and_parallel_inference(self):
         clock = Mock(side_effect=[0, 10, 20, 30, 40, 45, 48, 60])
         turn = BoardObservation("employee", 8, clock=clock)

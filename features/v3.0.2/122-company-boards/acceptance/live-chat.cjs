@@ -6,6 +6,7 @@ const fixture = require('./live-business-sample.cjs');
 const { chromium, request } = require(require.resolve('playwright', {paths: [process.cwd()]}));
 const baseURL = 'http://127.0.0.1:3001';
 const prefix = '/api/v1/company-boards/';
+const dailyAcknowledgement = '已收到您的工作安排';
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function business(context, method, url, data) {
@@ -18,13 +19,17 @@ async function business(context, method, url, data) {
 }
 
 async function snapshot(admin, period) {
-  const [board, issues] = await Promise.all([
+  const [board, issues, trends] = await Promise.all([
     business(admin, 'GET', prefix + 'overview?board=lead&' + period),
     business(admin, 'GET', prefix + 'feedback?' + period),
+    business(admin, 'GET', prefix + 'trends?board=lead&' + period),
   ]);
   const r = board.runtime;
+  const month = Number(new URLSearchParams(period).get('month'));
+  const rounds = trends.months[month - 1].rows.filter(row => row.kind === 'employee')
+    .reduce((total, row) => total + row.rounds, 0);
   return {
-    totals: {runs:r.observed_runs, success:r.successful_tasks, failed:r.failed_tasks,
+    totals: {runs:r.observed_runs, rounds, success:r.successful_tasks, failed:r.failed_tasks,
       skill:r.skill_calls, knowledge:r.knowledge_success, mcp:r.tool_success, mcp_failure:r.tool_failure,
       scene_uses:board.scene_service.uses, scene_users:board.scene_service.users,
       negative:board.satisfaction.negative, pending:issues.pending, closed:issues.closed},
@@ -34,7 +39,7 @@ async function snapshot(admin, period) {
 
 async function daily(user, model) {
   const req = await user.post('/api/v1/workstation/chat/completions', {timeout:140000,
-    data:{clientTimestamp:new Date().toISOString(), model, text:'已收到本周采购询价安排。请只回复“已收到采购安排”。'}});
+    data:{clientTimestamp:new Date().toISOString(), model, text:`已收到本周采购询价安排。请只回复“${dailyAcknowledgement}”。`}});
   if (!req.ok()) throw new Error('Daily chat HTTP ' + req.status());
   const packets = (await req.text()).split(/\r?\n/).filter(s=>s.startsWith('data:')).map(s=>JSON.parse(s.slice(5)));
   const last = packets.find(p=>p.final);
@@ -100,10 +105,10 @@ async function replay() {
     let receipt;
     let expected;
     if (action==='daily') {
-      expected = {runs:0, scene_uses:0};
+      expected = {runs:0, rounds:0, scene_uses:0};
       receipt = await daily(user,target);
     } else if (action==='assistant') {
-      expected = {success:1, scene_uses:1};
+      expected = {success:1, rounds:1, scene_uses:1};
       if (sample==='tools' || sample==='reject') Object.assign(expected,{skill:1, knowledge:1, [sample==='reject'?'mcp_failure':'mcp']:1});
       const prompt = sample==='tools' || sample==='reject'
         ? fixture.question + '请应用报价复核规范，检索定价指引，并查询供应商甲的报价。' +
@@ -129,7 +134,7 @@ async function replay() {
     } else throw new Error('Expected daily, assistant, rate, or resolve');
     let after = await snapshot(admin,period);
     function awaitingProjection() {
-      if (action==='assistant') return after.totals.runs===before.totals.runs;
+      if (action==='assistant') return after.totals.runs===before.totals.runs || after.totals.rounds===before.totals.rounds;
       if (action==='resolve') return !after.issues.some(i=>i.run_id===target && i.resolved_at);
       if (action==='rate' && Number(sample)===2) return after.totals.pending===before.totals.pending;
       return false;
@@ -140,7 +145,7 @@ async function replay() {
     }
     const delta = Object.fromEntries(Object.keys(before.totals).map(k=>[k,Number(after.totals[k])-Number(before.totals[k])]));
     const checks = {counts:Object.keys(expected).every(k=>delta[k]===expected[k])};
-    if(action==='daily') checks.savedAnswer=receipt.answer?.includes('已收到采购安排')===true;
+    if(action==='daily') checks.savedAnswer=receipt.answer?.includes(dailyAcknowledgement)===true;
     if(action==='assistant'){
       if(receipt.message && ['tools','reject'].includes(sample)){
         const rows = await business(user,'GET',`/api/v1/chat/history?flow_id=${target}&chat_id=${receipt.chat}&page_size=40`);

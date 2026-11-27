@@ -68,7 +68,7 @@ export function aggregation(period?: TrendPeriod, asset?: string, department = "
   const rows = (period?.rows || []).filter(
     (r) =>
       (!asset || r.asset_id === asset) &&
-      (department === "all" || (r.department_id?.toString() || "unassigned") === department),
+      (department === "all" || r.department_id?.toString() === department),
   );
   const count = (
     group: TrendRow[],

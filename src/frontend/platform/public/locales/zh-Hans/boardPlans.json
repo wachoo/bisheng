@@ -1,4 +1,6 @@
 {
+  "keepOriginalOwner": "保留原归属，可改选直属部门",
+  "departmentUnavailable": "所选部门不在公司直属部门名单中。",
   "defaultHint": "默认专题用于承接未指定专题的资产，无法删除。",
   "feature": "将「{{name}}」设为重点专题",
   "unfeature": "取消「{{name}}」的重点标记",

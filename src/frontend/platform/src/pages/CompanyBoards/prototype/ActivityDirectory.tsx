@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
 import type { TrendPeriod } from "@/controllers/API/activityTrends";
 import type { AssetKind, BoardAsset } from "@/controllers/API/companyBoards";
 import { aggregation, fmt, pct, kinds, kindNames } from "./ActivityData";
-import { Table, Link, useText } from "./ActivityWidgets";
+import { Table, Link, Options, useText } from "./ActivityWidgets";
 import type { PrototypeDetailProps } from "./types";
 
 function Card({ title, caption, children }: { title: string; caption?: string; children: ReactNode }) {
@@ -34,8 +35,12 @@ export default function Directory({
   const [route, scope] = props.target.split(":"),
     isNew = route === "activity-new",
     category = kinds.includes(scope as AssetKind) ? (scope as AssetKind) : null;
-  const [filter, setFilter] = useState(isNew && scope ? "department:" + scope : "all"),
+  const { t: planText } = useTranslation("boardPlans");
+  const scopedDepartment = isNew && scope && !category ? scope : null;
+  const [filter, setFilter] = useState("all"),
     [query, setQuery] = useState("");
+  if (scopedDepartment && !data.departments.some(d => String(d.id) === scopedDepartment))
+    return <p className="al-empty">{planText("departmentUnavailable")}</p>;
   const dates = new Map(
     data.ledger
       .filter((r) => r.kind === "release" && r.asset_key && r.effective_date && r.effective_date <= data.cutoff)
@@ -51,10 +56,11 @@ export default function Directory({
       .map((r) => [r.parent_id, r.fields.direction]),
   );
   const owners = new Map(data.departments.map((d) => [d.id, d.name])),
-    pool = (isNew ? fresh : published || []).filter((a) => !category || a.kind === category);
+    pool = (isNew ? fresh : published || []).filter(a => (!category || a.kind === category) &&
+      (!scopedDepartment || a.department_id?.toString() === scopedDepartment));
   const scoped = pool.filter(
     (a) =>
-      (filter === "all" || filter === a.kind || filter === "department:" + a.department_id) &&
+      (filter === "all" || filter === a.kind || (owners.has(a.department_id) && filter === "department:" + a.department_id)) &&
       [a.name, owners.get(a.department_id), a.id, a.kind === "knowledge" ? a.knowledge_category_name : profiles.get(a.id)]
         .join(" ")
         .toLowerCase()
@@ -76,7 +82,7 @@ export default function Directory({
           <Link to={"asset:" + a.id} open={open} title={a.name} />,
           t(kindNames[a.kind]),
           a.department_id != null ? (
-            <Link to={"department:" + a.department_id} open={open} title={owners.get(a.department_id) || "—"} />
+            <Link to={"department:" + a.department_id + "?view=published"} open={open} title={owners.get(a.department_id) || "—"} />
           ) : (
             "—"
           ),
@@ -91,20 +97,21 @@ export default function Directory({
     </button>
   );
   const searchLabel = t(isNew ? "搜索资产或部门" : category === "knowledge" ? "搜索资产、业务分类或部门" : "搜索资产、业务方向或部门");
-  const departments = data.departments.filter((d) => pool.some((a) => a.department_id === d.id));
   const historical = !isNew && data.catalog_as_of.slice(0, 7) !== data.cutoff.slice(0, 7);
   const historyNote = historical ? (
     <p className="al-caption">{t("历史目录仅展示已登记首发日期且当前仍在目录内的资产。")}</p>
   ) : null;
   const toolbar = (
     <div className={"al-toolbar" + (isNew ? " al-drill-toolbar" : "")}>
-      {!isNew && <span>{t("贡献部门")}</span>}
-      <div className="al-filter" role="group" aria-label={t(isNew ? "按资产类型筛选" : "贡献部门")}>
-        {btn("all", t("全部") + (isNew ? " " + pool.length : ""))}
-        {isNew
-          ? kinds.map((k) => btn(k, t(kindNames[k]) + " " + pool.filter((a) => a.kind === k).length))
-          : departments.map((d) => btn("department:" + d.id, d.name))}
-      </div>
+      {isNew ? (
+        <div className="al-filter" role="group" aria-label={t("按资产类型筛选")}>
+          {btn("all", t("全部") + " " + pool.length)}
+          {kinds.map(k => btn(k, t(kindNames[k]) + " " + pool.filter(a => a.kind === k).length))}
+        </div>
+      ) : (
+        <Options label={t("贡献部门")} value={filter} set={setFilter}
+          options={[["all", t("全部")], ...data.departments.map(d => ["department:" + d.id, d.name])]} />
+      )}
       <input
         className="al-search"
         placeholder={searchLabel}

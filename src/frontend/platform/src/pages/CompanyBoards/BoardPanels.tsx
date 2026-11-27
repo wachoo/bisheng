@@ -23,7 +23,7 @@ export function AssetDirectory({ overview, period }: AssetProps) {
   const names = new Map(departments.map(item => [item.id, item.name]));
   const countFor = (asset: BoardAsset) => runtime.usage.find(row => row.asset_id === asset.id && row.kind === asset.kind)?.count;
   const rows = assets.filter(asset => (kind === "all" || kind === asset.kind)
-    && (department === "all" || (asset.department_id == null ? "unknown" : String(asset.department_id)) === department)
+    && (department === "all" || asset.department_id?.toString() === department)
     && asset.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   const departmentName = (asset: BoardAsset) => asset.department_id == null ? t("unassigned") : names.get(asset.department_id) || t("unassigned");
   const reset = (fn: (v: string) => void, value: string) => { fn(value); setLimit(15); };
@@ -33,7 +33,7 @@ export function AssetDirectory({ overview, period }: AssetProps) {
       <Select {...labels} aria-label={t("assetType")} value={kind} onChange={v => reset(setKind, String(v))}
         options={["all", ...assetKinds].map(value => ({ value, label: t(value === "all" ? "allTypes" : "kind." + value) }))} />
       <Select {...labels} aria-label={t("department")} value={department} onChange={v => reset(setDepartment, String(v))}
-        options={[{ value: "all", label: t("allDepartments") }, { value: "unknown", label: t("unassigned") }, ...departments.map(d => ({value: String(d.id), label: d.name}))]} />
+        options={[{ value: "all", label: t("allDepartments") }, ...departments.map(d => ({value: String(d.id), label: d.name}))]} />
       <Input aria-label={t("searchAssets")} placeholder={t("searchAssets")} value={search} onChange={e => reset(setSearch, e.target.value)} />
     </div>
     <div className="cb-table-wrap"><table><thead><tr><th>{t("asset")}</th><th>{t("assetType")}</th><th>{t("department")}</th><th>{t("observedUses")}</th></tr></thead>

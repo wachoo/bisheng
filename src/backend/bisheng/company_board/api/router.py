@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, Query
 from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.common.schemas.api import resp_200
 from bisheng.company_board.domain.schemas.ledger import BoardKind, LedgerEdit, LedgerInput
-from bisheng.company_board.domain.services.boards import board_access, ledger_for, overview, record_entry
+from bisheng.company_board.domain.services.boards import board_access, board_request_scope, ledger_for, overview, record_entry
 
 from .asset_context import router as asset_context_router
 from .planning import router as planning_router
@@ -15,7 +15,7 @@ from .subjects import router as subjects_router
 from .supplement import router as supplement_router
 from .trends import router as trends_router
 
-router = APIRouter(prefix="/company-boards", tags=["Company boards"])
+router = APIRouter(prefix="/company-boards", tags=["Company boards"], dependencies=[Depends(board_request_scope)])
 router.include_router(asset_context_router)
 router.include_router(planning_router)
 router.include_router(representatives_router)

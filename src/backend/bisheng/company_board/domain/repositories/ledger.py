@@ -8,18 +8,25 @@ from sqlmodel import select
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
 from bisheng.common.errcode.http_error import NotFoundError
 from bisheng.company_board.domain.models.ledger import BoardLedger
-from bisheng.company_board.domain.repositories.planning_departments import validate_plan_departments
+from bisheng.company_board.domain.repositories.planning_departments import board_departments, validate_plan_departments
 from bisheng.company_board.domain.repositories.topic_state import topic_states
 from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.core.database import get_async_db_session
 from bisheng.database.models.app import App
 from bisheng.database.models.audit_log import AuditLog
-from bisheng.database.models.department import Department
 
 
 def public_row(row: BoardLedger) -> dict:
     return row.model_dump(mode="python", exclude={"operator_id", "tenant_id", "recorded_at"})
+
+
+def scene_owner(departments, previous, selected):
+    """Preserve a legacy raw owner when its reporting value is submitted unchanged."""
+    previous_unit = departments.resolve(previous.department_id) if previous else None
+    if selected is None and (previous is None or previous_unit is not None):
+        raise BoardLedgerInvalidError(msg="请选择公司直属部门作为承建单位")
+    return previous.department_id if previous and previous_unit == selected else selected
 
 
 async def list_ledger(tenant_id: int, year: int, as_of: date | None = None) -> list[dict]:
@@ -43,6 +50,10 @@ async def list_ledger(tenant_id: int, year: int, as_of: date | None = None) -> l
     )
     async with get_async_db_session() as session:
         rows = [public_row(row) for row in (await session.exec(query)).all()]
+        if any(row["department_id"] is not None for row in rows):
+            departments = await board_departments(session, tenant_id)
+            for row in rows:
+                row["department_id"] = departments.resolve(row["department_id"])
         states = await topic_states(session, tenant_id, year=year, cutoff=as_of)
         for row in rows:
             if row["kind"] == "topic":
@@ -158,6 +169,9 @@ async def release_info(tenant_id: int, cutoff: date) -> dict:
         for key, day in (await _app_audit_history(session, tenant_id, cutoff)).items():
             if key not in result or day < result[key][1]:
                 result[key] = (None, day)
+        if any(dept is not None for dept, _ in result.values()):
+            departments = await board_departments(session, tenant_id)
+            result = {asset: (departments.resolve(dept), day) for asset, (dept, day) in result.items()}
         return result
 
 
@@ -180,17 +194,6 @@ async def save_ledger(
     ident = entry_id or new_id(tenant_id, data)
     async with get_async_db_session() as session:
         fields = data.model_dump(exclude={"revision"})
-        if data.department_id is not None and data.kind != "scene":
-            department = await session.exec(
-                select(Department.id).where(
-                    Department.tenant_id == tenant_id,
-                    Department.id == data.department_id,
-                    Department.is_deleted == 0,
-                    Department.status == "active",
-                )
-            )
-            if department.first() is None:
-                raise BoardLedgerInvalidError(msg="部门不在当前租户的有效目录内")
         if data.parent_id:
             parent_kind = "scene" if data.kind == "release" else "topic"
             topic = await session.exec(
@@ -227,8 +230,14 @@ async def save_ledger(
             raise BoardLedgerInvalidError(msg="已登记的资产不可替换")
         if latest and latest.revision != expected:
             raise BoardLedgerConflictError()
-        if data.kind == "scene" and data.department_id is not None and (not latest or latest.department_id != data.department_id):
+        if data.department_id is not None:
             await validate_plan_departments(session, tenant_id, {data.department_id})
+        if data.kind == "scene":
+            fields["department_id"] = scene_owner(await board_departments(session, tenant_id), latest, data.department_id)
+        elif latest and latest.department_id is not None:
+            departments = await board_departments(session, tenant_id)
+            if departments.resolve(latest.department_id) == data.department_id:
+                fields["department_id"] = latest.department_id
         row = BoardLedger(id=ident, tenant_id=tenant_id, revision=expected + 1, operator_id=user_id, **fields)
         session.add(row)
         try:
@@ -238,4 +247,4 @@ async def save_ledger(
             # The composite primary key serializes concurrent revisions and POST retries.
             raise BoardLedgerConflictError() from exc
         await session.refresh(row)
-        return public_row(row)
+        return {**public_row(row), "department_id": data.department_id}

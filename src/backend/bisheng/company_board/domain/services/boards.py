@@ -8,10 +8,16 @@ from bisheng.common.errcode.http_error import UnAuthorizedError
 from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.feedback import satisfaction
 from bisheng.company_board.domain.repositories.ledger import list_ledger, release_info, save_ledger
+from bisheng.company_board.domain.repositories.planning_departments import department_scope
 from bisheng.company_board.domain.schemas.ledger import BoardKind, LedgerInput
 from bisheng.core.context.tenant import get_current_tenant_id, strict_tenant_filter
 from bisheng.database.models.role_access import WebMenuResource
 from bisheng.user.domain.models.user import UserDao
+
+
+async def board_request_scope():
+    with department_scope():
+        yield
 
 
 def tenant_for(user: UserPayload) -> int:

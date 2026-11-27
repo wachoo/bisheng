@@ -16,33 +16,9 @@ import {
   pct,
   useBoardTrends,
 } from "./ActivityData";
-import { Chart, Link, Metric, Panel, Table, TrendNotice, useText } from "./ActivityWidgets";
+import { Chart, Link, Metric, Options, Panel, Table, TrendNotice, useText } from "./ActivityWidgets";
 import type { PrototypeDetailProps, PrototypeViewProps } from "./types";
 
-export function Options({
-  label,
-  options,
-  value,
-  set,
-}: {
-  label: string;
-  options: string[][];
-  value: string;
-  set: (value: string) => void;
-}) {
-  return (
-    <label className="al-revision-select">
-      {label}
-      <select className="al-select" value={value} onChange={(e) => set(e.target.value)}>
-        {options.map(([key, name]) => (
-          <option key={key} value={key}>
-            {name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
 function Tabs({
   label,
   options,
@@ -519,7 +495,6 @@ function Detail(props: PrototypeDetailProps & { route: string; scope: string }) 
   const depOptions = [
     ["all", t("全公司")],
     ...data.departments.map((d) => [String(d.id), d.name]),
-    ["unassigned", t("未归属部门")],
   ];
   const topics = data.ledger.filter((r) => r.kind === "topic"),
     sceneOwners = new Map(data.ledger.filter((r) => r.kind === "scene").map((r) => [r.id, r.parent_id]));

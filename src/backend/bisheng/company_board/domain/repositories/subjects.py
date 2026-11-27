@@ -4,6 +4,7 @@ from sqlalchemy import case, func, or_
 from sqlmodel import select
 
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent as Event
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.core.database import get_async_db_session
 
 
@@ -11,10 +12,12 @@ async def asset_activity(tenant, asset, start, end, department, details, status,
     prefix, ident = asset.split(":", 1)
     kind = "employee" if prefix == "assistant" else prefix
     scope = [Event.tenant_id == tenant, Event.kind == kind, Event.asset_id == ident]
-    if department == "unassigned":
-        scope.append(Event.department_id.is_(None))
-    elif department:
-        scope.append(Event.department_id == int(department))
+    if department:
+        departments = await load_board_departments(tenant)
+        # Old bookmarks can still carry "unassigned" or a leaf ID. Neither selects a department.
+        direct_id = int(department) if department.isdecimal() else None
+        raw_ids = [raw for raw, direct in departments.by_id.items() if direct == direct_id]
+        scope.append(Event.department_id.in_(raw_ids))
     base = [*scope, Event.occurred_at >= start, Event.occurred_at < end]
     # Use Beijing calendar days up to 31 days, months for the annual view, weeks for 90 days.
     boundaries = []

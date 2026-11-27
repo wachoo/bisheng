@@ -4,6 +4,31 @@ import { useTranslation } from "react-i18next";
 import { fmt } from "./ActivityData";
 import "./ActivityMobile.css";
 
+export function Options({
+  label,
+  options,
+  value,
+  set,
+}: {
+  label: string;
+  options: string[][];
+  value: string;
+  set: (value: string) => void;
+}) {
+  return (
+    <label className="al-revision-select">
+      {label}
+      <select className="al-select" value={value} onChange={(e) => set(e.target.value)}>
+        {options.map(([key, name]) => (
+          <option key={key} value={key}>
+            {name}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 export function useText() {
   const { t } = useTranslation("activityCharts");
   return (s: string): string => String(t(s, { defaultValue: s, keySeparator: false }));

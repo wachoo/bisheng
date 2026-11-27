@@ -27,7 +27,6 @@ export interface PlanData {
   built: number;
   assets: { id: string; kind: string; name: string }[];
   departments: { id: number; name: string }[];
-  historical_departments?: { id: number; name: string }[];
   knowledge_progress: { id: string; completed: number }[];
   default_topic: string;
 }
@@ -38,7 +37,7 @@ interface ItemInput {
 }
 interface PlannedInput extends ItemInput {
   topic_id: string;
-  department_id: number;
+  department_id: number | null;
   planned_date: string | null;
   completed_date: string | null;
 }

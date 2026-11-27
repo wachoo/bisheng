@@ -36,7 +36,7 @@ class ActivityTrendsTest(unittest.TestCase):
                 id=ident,
                 run_id=kwargs.pop("run_id", "root"),
                 user_id=5,
-                department_id=8,
+                department_id=kwargs.pop("department_id", 8),
                 asset_id="helper",
                 tenant_id=kwargs.pop("tenant_id", 1),
                 kind=kind,
@@ -49,8 +49,9 @@ class ActivityTrendsTest(unittest.TestCase):
             session.add_all(
                 [
                     fact("e1", "employee", terminal_message_id=10, active_seconds=2.0),
-                    fact("e2", "employee", "failed", run_id="other", active_seconds=3.0),
+                    fact("e2", "employee", "failed", run_id="other", department_id=9, active_seconds=3.0),
                     fact("e3", "employee", "failed", run_id="private", tenant_id=2, active_seconds=700),
+                    fact("outsider", "tool", department_id=91),
                     fact("f", "file", output_category="image"),
                     fact("v", "version", output_category="page", occurred_at=after),
                     fact("member", "version_member", member_file_id="f", member_version_id="v", occurred_at=after),
@@ -61,9 +62,12 @@ class ActivityTrendsTest(unittest.TestCase):
                 ]
             )
             session.commit()
-            query, _ = trend_query(1, periods, "sqlite")
+            query, _ = trend_query(1, periods, "sqlite", {8: 7, 9: 7})
             rows = {(r.period, r.kind): r for r in session.exec(query)}
         early, year = rows[1, "employee"], rows[0, "employee"]
+        self.assertEqual(early.department_id, 7)
+        self.assertIsNone(rows[1, "tool"].department_id)
+        self.assertEqual(rows[1, "tool"].successful, 1)
         self.assertEqual(
             (early.successful, early.failed, early.timed, early.active_seconds, early.rounds), (1, 1, 2, 5, 1)
         )

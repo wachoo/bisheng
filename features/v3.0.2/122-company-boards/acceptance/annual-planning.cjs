@@ -29,6 +29,15 @@ async function main() {
     assert.equal(fixture, "http://127.0.0.1:17862");
     const [owner,...support]=data.departments;
     assert.deepEqual(data.departments.map(d=>d.name),["验证部门","支持单位甲","支持单位乙"]);
+    // The persisted May run belongs to subgroup 82 under the lead unit.
+    const may = await read("overview?board=lead&year="+year+"&month=5");
+    assert.deepEqual(may.runtime.department_usage,[{department_id:owner.id,count:1}]);
+    const mayTrends = await read("trends?board=lead&year="+year+"&month=5");
+    assert(mayTrends.year.rows.some(row=>row.kind==="employee" && row.department_id===owner.id));
+    const assetQuery = "asset-activity?asset=assistant%3A1&board=lead&year="+year+"&month=5&department=";
+    const detail = await read(assetQuery+owner.id);
+    assert.equal(detail.total,1);
+    assert.equal(detail.rows[0].id,"sample");
     assert(support.length>=2,"Fixture needs one lead and two supporting departments");
     const page=await context.newPage();
     page.setDefaultTimeout(9000);
@@ -46,6 +55,17 @@ async function main() {
       await dialog.waitFor({state:"hidden"});
     }
     await page.goto(base+"/board-ledger/annual?year="+year);
+    const oldScene = data.items.find(item=>item.id==="88c0e5dd-a52d-446d-bf4f-6109971f938e");
+    assert.equal(oldScene.department_id,null);
+    await button("编辑"+oldScene.name).click();
+    const revisedName = oldScene.name === "历史合同审核" ? "历史合同要点复核" : "历史合同审核";
+    await page.locator("#plan-name").fill(revisedName);
+    const savedLegacy = page.waitForRequest(req=>req.method()==="PUT" && req.url().endsWith("/planning/"+year));
+    await save();
+    assert.equal((await savedLegacy).postDataJSON().department_id,null);
+    const savedSceneWithoutUnit = (await read("planning/"+year)).items.find(item=>item.id===oldScene.id);
+    assert.equal(savedSceneWithoutUnit.name,revisedName);
+    assert.equal(savedSceneWithoutUnit.department_id,null);
     await button("编辑年度目标").click();
     await page.locator("#plan-employees").fill("15");
     await page.locator("#plan-scenes").fill("7");

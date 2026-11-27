@@ -1,5 +1,6 @@
 import { Fragment, useContext, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { userContext } from "@/contexts/userContext";
 import {
   getAssetActivity,
@@ -14,6 +15,7 @@ import {
   useBoardTrends,
 } from "./ActivityData";
 import { Link, Panel, Table } from "./ActivityWidgets";
+import { annualReleases, releaseKind } from "./StrategyModel";
 import { stamp } from "./MonitorParts";
 import type { PrototypeDetailProps } from "./types";
 
@@ -607,7 +609,15 @@ function Department(
     n == null
       ? "部门待归属"
       : data.departments.find((d) => d.id === n)?.name || "部门待归属";
-  const items = data.assets
+  const catalog = new Map(data.assets.map(a => [a.id, a]));
+  const pool = tab === "year" && props.board === "lead"
+    ? annualReleases(data).filter(row => row.department_id?.toString() === id).map(row => ({
+        id: row.asset_key ?? row.id, kind: releaseKind(row),
+        name: (row.asset_key && catalog.get(row.asset_key)?.name) || row.name,
+        department_id: row.department_id, published_at: row.effective_date,
+      }))
+    : data.assets;
+  const items = pool
     .filter(
       (a) =>
         (kind === "all" || a.kind === kind) &&
@@ -615,7 +625,7 @@ function Department(
     )
     .map((a) => {
       const facts = aggregation(point, a.id, id),
-        used = facts.uses(a.kind),
+        used = a.kind ? facts.uses(a.kind) : null,
         failures = facts.rows
           .filter((r) => r.kind === a.kind)
           .reduce((n, r) => n + r.failed, 0);
@@ -624,7 +634,7 @@ function Department(
     .filter(({ a, used, failures }) =>
       usage
         ? !!used || failures > 0
-        : String(a.department_id ?? "unassigned") === id &&
+        : a.department_id?.toString() === id &&
           (tab === "new"
             ? a.published_at?.slice(0, 7) === props.period
             : tab === "year"
@@ -668,6 +678,7 @@ function Department(
             ))}
           </select>
         )}
+        {usage && <span className="al-caption">Token · {fmt(aggregation(point, undefined, id).tokens)}</span>}
       </div>
       <Panel
         title={
@@ -716,7 +727,7 @@ function Department(
               : ["资产名称", "类型", "首次发布部门", "首次发布日期"]
           }
           rows={items.map(({ a, used, failures }) => [
-            <Link
+            catalog.has(a.id) ? <Link
               to={
                 "asset:" +
                 a.id +
@@ -724,8 +735,8 @@ function Department(
               }
               title={a.name}
               open={open}
-            />,
-            kindNames[a.kind],
+            /> : a.name,
+            a.kind ? kindNames[a.kind] : "—",
             a.department_id == null ? (
               owner(null)
             ) : (
@@ -755,10 +766,14 @@ function Department(
   );
 }
 export function SubjectDetail(props: PrototypeDetailProps) {
+  const { t } = useTranslation("boardPlans");
   const [target, query] = props.target.split("?"),
     split = target.indexOf(":"),
     id = target.slice(split + 1),
     params = new URLSearchParams(query);
+  const department = target.startsWith("department:") ? id : params.get("department");
+  if (department && !props.data.departments.some(d => String(d.id) === department))
+    return <p className="al-empty">{t("departmentUnavailable")}</p>;
   return target.startsWith("asset:") ? (
     <Asset {...props} id={id} params={params} />
   ) : (

@@ -1,10 +1,13 @@
 """Aggregate tenant-scoped Web facts without exposing users, messages or request IDs."""
 
-from sqlalchemy import DateTime, Integer, and_, case, distinct, func, literal, or_, text, union_all
+from collections import defaultdict
+
+from sqlalchemy import DateTime, Integer, and_, case, distinct, func, literal, null, or_, text, union_all
 from sqlmodel import select
 
 from bisheng.company_board.domain.models.feedback import BoardRating
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.core.database import get_async_db_session
 
 
@@ -17,7 +20,7 @@ def beijing_day(occurred_at, dialect):
         return func.date(occurred_at + text("INTERVAL '8 hours'"))
 
 
-def trend_query(tenant_id, periods, dialect):
+def trend_query(tenant_id, periods, dialect, department_ids):
     # Each period has its own cutoff for reclassified files and changed feedback.
     period = union_all(
         *(
@@ -34,6 +37,11 @@ def trend_query(tenant_id, periods, dialect):
     ratings = BoardRating.__table__.alias("rating")
     last = BoardRating.__table__.alias("last_rating")
     m, e, p = member.c, ev.c, period.c
+    members = defaultdict(list)
+    for raw_id, direct_id in department_ids.items():
+        members[direct_id].append(raw_id)
+    # Group before DISTINCT rounds and sums so sibling teams share one department row.
+    department = case(*[(e.department_id.in_(ids), key) for key, ids in members.items()]) if members else null()
 
     latest_rating = (
         select(ratings.c.id)
@@ -68,7 +76,7 @@ def trend_query(tenant_id, periods, dialect):
             p.period,
             e.kind,
             e.asset_id,
-            e.department_id,
+            department.label("department_id"),
             delivered_day.label("output_day"),
             output_category.label("output_category"),
             func.sum(case((e.status == "success", 1), else_=0)).label("successful"),
@@ -90,7 +98,7 @@ def trend_query(tenant_id, periods, dialect):
             e.kind.in_(["employee", "knowledge", "skill", "tool", "file", "version", "model"]),
             or_(e.kind != "file", ~belongs),
         )
-        .group_by(p.period, e.kind, e.asset_id, e.department_id, delivered_day, output_category)
+        .group_by(p.period, e.kind, e.asset_id, department, delivered_day, output_category)
     )
     unknown = select(func.min(m.occurred_at)).where(
         m.tenant_id == tenant_id, m.kind == "version_member", m.member_file_id.is_(None)
@@ -99,8 +107,9 @@ def trend_query(tenant_id, periods, dialect):
 
 
 async def grouped_trends(tenant_id, periods):
+    departments = await load_board_departments(tenant_id)
     async with get_async_db_session() as session:
-        query, unknown = trend_query(tenant_id, periods, session.get_bind().dialect.name)
+        query, unknown = trend_query(tenant_id, periods, session.get_bind().dialect.name, departments.by_id)
         result = (await session.exec(query)).all()
         first_unknown = (await session.exec(unknown)).one()
     return [dict(row._mapping) for row in result], first_unknown

@@ -34,6 +34,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const [scene, setScene] = useState(data.targets.scene?.toString() ?? "");
   const [topic, setTopic] = useState(item?.topic_id || selection.topic || "");
   const [owner, setOwner] = useState(item?.department_id || 0);
+  const keepOriginalOwner = item?.kind === "scene" && item.department_id == null;
   const [planned, setPlanned] = useState(item?.planned_date || "");
   const [completed, setCompleted] = useState(item?.completed_date || "");
   const [target, setTarget] = useState(item?.target?.toString() ?? "");
@@ -68,13 +69,6 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
   const start = year + "-01-01",
     end = year + "-12-31";
   const departments = data.departments.map((d) => ({ value: String(d.id), label: d.name }));
-  function departmentOptions(selected: string[]) {
-    const historical = selected.filter(id => !departments.some(d => d.value === id));
-    return [...departments, ...historical.map(id => ({
-      value: id,
-      label: data.historical_departments?.find(d => String(d.id) === id)?.name ?? t("archivedUnit", { id }),
-    }))];
-  }
   const catalogOptions = (data.assets ?? []).map(asset => ({
     value: asset.id,
     label: asset.name + " · " + t("assetType." + asset.id.split(":")[0]),
@@ -127,14 +121,14 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
       mutation.mutate({ ...base, kind, target: Number(target), planned_date: planned });
       return;
     }
-    if (!topic || !owner || (!item && !planned)) {
+    if (!topic || (!owner && !keepOriginalOwner) || (!item && !planned)) {
       setError(t("scopeRequired"));
       return;
     }
     const common = {
       ...base,
       topic_id: topic,
-      department_id: owner,
+      department_id: owner || null,
       planned_date: planned || null,
       completed_date: completed || null,
     };
@@ -242,13 +236,14 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                     />
                   </div>
                   <div>
-                    <label htmlFor="plan-owner">{t("owner")} *</label>
+                    <label htmlFor="plan-owner">{t("owner")}{keepOriginalOwner ? "" : " *"}</label>
                     <Select
                       {...labels}
                       id="plan-owner"
                       showSearch
+                      placeholder={keepOriginalOwner ? t("keepOriginalOwner") : undefined}
                       value={owner ? String(owner) : null}
-                      options={departmentOptions(owner ? [String(owner)] : [])}
+                      options={departments}
                       onChange={(v) => {
                         setOwner(Number(v));
                         setSupports(ids => ids.filter(id => id !== String(v)));
@@ -287,7 +282,7 @@ export function PlanEditor({ year, data, selection, onClose }: Props) {
                   <Select
                     {...labels} id="plan-supports" multiple showSearch allowClear
                     aria-label={t("supports")} value={supports}
-                    options={departmentOptions(supports).filter(d => d.value !== String(owner))}
+                    options={departments.filter(d => d.value !== String(owner))}
                     onChange={values => setSupports(values.map(String))}
                   />
                 </div>

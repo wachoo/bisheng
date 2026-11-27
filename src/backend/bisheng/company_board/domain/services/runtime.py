@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from bisheng.common.board_observation import BoardObservation
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.company_board.domain.repositories.runtime import insert_events, primary_department, runtime_rows
 from bisheng.core.context.tenant import DEFAULT_TENANT_ID, get_current_tenant_id
 
@@ -80,7 +81,7 @@ async def save_observation(observation, outcome, message_id):
         logger.exception("Company board could not store assistant run {}", observation.id)
 
 
-def summarize(counts, recent):
+def summarize(counts, recent, board_departments):
     by_status = Counter()
     usage = Counter()
     departments = Counter()
@@ -96,7 +97,9 @@ def summarize(counts, recent):
         ):
             prefix = "assistant" if kind == "employee" else kind
             usage[kind, f"{prefix}:{asset_id}"] += number
-            departments[department] += number
+            owner = board_departments.resolve(department)
+            if owner is not None:
+                departments[owner] += number
 
     eligible = by_status["employee", "success"] + by_status["employee", "failed"]
 
@@ -140,7 +143,7 @@ def summarize(counts, recent):
     }
 
 
-async def read_runtime(tenant_id, start, end):
+async def read_runtime(tenant_id, start, end, *, departments=None):
     if int(tenant_id) != (get_current_tenant_id() or DEFAULT_TENANT_ID):
         raise ValueError("Board tenant must match the request context")
     start_utc, end_utc = [
@@ -148,7 +151,9 @@ async def read_runtime(tenant_id, start, end):
         for value in (start, end)
     ]
     counts, recent, unresolved = await runtime_rows(start_utc, end_utc)
-    result = summarize(counts, recent)
+    if departments is None:
+        departments = await load_board_departments(tenant_id)
+    result = summarize(counts, recent, departments)
     if unresolved and result["file_outputs"]:
         result["file_outputs"] = None
         result["deliverables"] = None

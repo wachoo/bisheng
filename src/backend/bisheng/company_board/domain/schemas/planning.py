@@ -47,7 +47,7 @@ class Support(DateRange):
 
 class PlannedItem(Item):
     topic_id: UUID
-    department_id: int = Field(gt=0)
+    department_id: int | None = Field(default=None, gt=0)
     planned_date: date | None = None
     completed_date: date | None = None
 

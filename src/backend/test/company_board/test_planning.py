@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import create_async_engine
+from sqlmodel import select
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from bisheng.common.errcode.company_board import BoardLedgerConflictError, BoardLedgerInvalidError
@@ -15,9 +16,10 @@ from bisheng.company_board.domain.models.supplement import BoardSupplement
 from bisheng.company_board.domain.repositories import planning
 from bisheng.company_board.domain.repositories.ledger import save_ledger
 from bisheng.company_board.domain.repositories.scene_links import legacy_scene_assets, legacy_scene_links, managed_scene_assets
-from bisheng.company_board.domain.repositories.supplement import list_supplements
+from bisheng.company_board.domain.repositories.supplement import list_supplements, save_supplement
 from bisheng.company_board.domain.schemas.planning import Collection, Scene, Targets, Topic
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
+from bisheng.company_board.domain.schemas.supplement import SupplementInput
 from bisheng.core.context.tenant import current_tenant_id, set_current_tenant_id
 from bisheng.database.models.department import Department
 
@@ -115,39 +117,102 @@ class PlanningTest(unittest.IsolatedAsyncioTestCase):
             await db.commit()
         plan = await planning.read_plan(1, 2025)
         self.assertEqual([d["id"] for d in plan["departments"]], [3])
-        self.assertEqual({d["name"] for d in plan["historical_departments"]}, {"Unit 1", "Unit 2"})
+        self.assertEqual(plan["historical_departments"], [])
         scene = await self.item("scene")
-        await self.save(Scene(**fields, id=scene["id"], version=scene["version"], department_id=1,
-                              support_department_ids=[2]))
-        scene = await self.item("scene")
+        self.assertEqual((scene["department_id"], scene["supports"]), (3, []))
+        self.assertFalse(any(r["kind"] == "scene-team" for r in await list_supplements(1, None)))
         await self.save(Scene(**fields, id=scene["id"], version=scene["version"], department_id=3,
                               support_department_ids=[]))
+        async with self.session() as db:
+            raw = await db.exec(select(BoardLedger.department_id).where(BoardLedger.id == scene["id"]))
+            self.assertEqual(set(raw), {1})
+            raw_support = await db.exec(select(BoardSupplement.payload).where(BoardSupplement.kind == "scene-team"))
+            self.assertEqual([json.loads(item) for item in raw_support], [{"department":"2"}])
         scene = await self.item("scene")
         with self.assertRaises(BoardLedgerInvalidError):
             await self.save(Scene(**fields, id=scene["id"], version=scene["version"], department_id=1))
 
-    async def test_historical_unit_can_keep_or_shorten_its_period_but_cannot_be_renewed(self):
+    async def test_historical_unassigned_owner_can_edit_other_fields_without_reassignment(self):
+        await self.save(Topic(kind="topic", name="重大履约保障"))
+        topic = await self.item("topic")
+        base = dict(kind="scene", name="履约核查", topic_id=topic["id"], planned_date="2025-07-02")
+        legacy = LedgerInput(kind="scene", year=2025, parent_id=topic["id"], name=base["name"])
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Scene(**base))
+        with self.assertRaises(BoardLedgerInvalidError):
+            await save_ledger(1, 20, legacy)
+        await self.save(Scene(**base, department_id=1))
+        async with self.session() as db:
+            (await db.get(Department, 1)).parent_id = 80
+            await db.commit()
+        scene = await self.item("scene")
+        self.assertIsNone(scene["department_id"])
+        await self.save(Scene(**base, id=scene["id"], version=scene["version"], completed_date="2025-07-10"))
+        result = await save_ledger(1, 20, legacy.model_copy(update={"name":"合同履约核查", "department_id":None}),
+                                   scene["id"], 2)
+        self.assertIsNone(result["department_id"])
+        async with self.session() as db:
+            stored = await db.exec(select(BoardLedger.department_id).where(BoardLedger.id == scene["id"]))
+            self.assertEqual(set(stored), {1})
+        scene = await self.item("scene")
+        await self.save(Scene(**{**scene, "department_id":2}))
+        scene = await self.item("scene")
+        self.assertEqual(scene["department_id"], 2)
+        with self.assertRaises(BoardLedgerInvalidError):
+            await self.save(Scene(**{**scene, "department_id":None}))
+        with self.assertRaises(BoardLedgerInvalidError):
+            await save_ledger(1, 20, legacy, scene["id"], 4)
+
+    async def test_historical_supports_collapse_to_direct_units_and_removals_close_all_leaves(self):
         await self.save(Topic(kind="topic", name="Maintenance"))
         basic = dict(kind="scene", name="Quote", topic_id=(await self.item("topic"))["id"],
                      department_id=1, planned_date="2025-01-02")
-        await self.save(Scene(**basic, supports=[dict(department=2, start="2025-02-01", end="2026-01-10")]))
+        await self.save(Scene(**basic, supports=[dict(department=2, start="2025-02-01", end="2026-01-10"),
+                                                dict(department=3, start="2025-02-05", end="2026-01-05")]))
         async with self.session() as db:
-            (await db.get(Department, 2)).parent_id = 1
+            (await db.get(Department, 2)).parent_id = 3
             await db.commit()
         scene = await self.item("scene")
-        await self.save(Scene(**scene, support_department_ids=[2]))
+        self.assertEqual([(s["department"], s["start"], s["end"]) for s in scene["supports"]],
+                         [(3, date(2025,2,1), "2026-01-10")])
+        await self.save(Scene(**scene))
+        async with self.session() as db:
+            stored = (await db.exec(select(BoardSupplement).where(BoardSupplement.kind == "scene-team"))).all()
+            self.assertEqual({planning.fields(r)["department"] for r in stored}, {"2","3"})
+            self.assertTrue(all(r.revision == 1 for r in stored))
         scene = await self.item("scene")
-        old = scene["supports"][0]
-        self.assertEqual(old["end"], "2026-01-10")
-        for change in ({"end": None}, {"start": "2025-01-25"}, {"end": "2026-02-01"}):
-            with self.subTest(change=change), self.assertRaises(BoardLedgerInvalidError):
-                await self.save(Scene(**{**scene, "supports": [{**old, **change}]}))
-        await self.save(Scene(**{**scene, "supports": [{**old, "end": "2025-03-01"}]}))
-        expired = await self.item("scene")
+        await self.save(Scene(**scene, support_department_ids=[]))
+        self.assertEqual((await self.item("scene"))["supports"], [])
+
+    async def test_legacy_ledger_and_support_endpoints_accept_only_direct_departments(self):
+        await self.save(Topic(kind="topic", name="采购协同"))
+        topic = await self.item("topic")
+        await self.save(Scene(kind="scene", name="采购比价", topic_id=topic["id"], department_id=1,
+                              support_department_ids=[2], planned_date="2025-01-05"))
+        scene = await self.item("scene")
+        value = dict(kind="release", year=2025, name="比价助手", parent_id=scene["id"], asset_key="assistant:a")
+        for invalid in (81, 82, 83):
+            with self.assertRaises(BoardLedgerInvalidError):
+                await save_ledger(1, 20, LedgerInput(**value, department_id=invalid))
+        data = LedgerInput(**value, department_id=2)
+        released = await save_ledger(1, 20, data)
+        row = scene["supports"][0]
+        support = SupplementInput(kind="scene-team", id=row["id"], year=2025, revision=1, name="支持单位",
+                                  parent_id=scene["id"], date=row["start"], fields={"department":"82"})
         with self.assertRaises(BoardLedgerInvalidError):
-            await self.save(Scene(**expired, support_department_ids=[2]))
-        with self.assertRaises(BoardLedgerInvalidError):
-            await self.save(Scene(**{**expired, "supports": [{**expired["supports"][0], "end": None}]}))
+            await save_supplement(1, 20, support, set())
+        async with self.session() as db:
+            (await db.get(Department, 2)).parent_id = 3
+            await db.commit()
+        result = await save_ledger(1, 20, data.model_copy(update={"department_id":3}), released["id"], 1)
+        self.assertEqual(result["department_id"], 3)
+        result = await save_supplement(1, 20, support.model_copy(update={"fields":{"department":"3"}}), set())
+        self.assertEqual(result["fields"], {"department":"3"})
+        async with self.session() as db:
+            stored = await db.exec(select(BoardLedger.department_id).where(BoardLedger.id == released["id"]))
+            self.assertEqual(set(stored), {2})
+            stored = await db.exec(select(BoardSupplement.payload).where(BoardSupplement.id == row["id"]))
+            self.assertEqual({json.loads(r)["department"] for r in stored}, {"2"})
 
     async def test_targets_and_nested_scene_changes_are_atomic(self):
         await self.save(Targets(kind="targets", employee=10, scene=20))

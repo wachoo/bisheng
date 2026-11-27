@@ -7,6 +7,7 @@ import {
   constructionAssetTarget,
   kinds,
   rankedScenes,
+  releaseKind,
   sceneAssetIds,
   strategyRows,
   strategyTopicAssets,
@@ -194,7 +195,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
     />
   );
   const assetIds = (scene: string) => Array.from(sceneAssetIds(data, registers, scene));
-  const support = (scene: string) => [
+  const support = (scene: string, owner: number | null) => [
     ...new Set(
       registers
         .filter(
@@ -204,7 +205,8 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
             r.date <= data.cutoff &&
             (!r.fields.end || r.fields.end >= data.cutoff),
         )
-        .map((r) => Number(r.fields.department)),
+        .map((r) => Number(r.fields.department))
+        .filter(id => id !== owner && data.departments.some(d => d.id === id)),
     ),
   ];
   const filters = (opts: [string, string][]) =>
@@ -342,10 +344,10 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
       (r) =>
         (topic === "all" || topic === r.parent_id) &&
         (department === "all"
-          ? mode !== "support" || support(r.id).length > 0
+          ? mode !== "support" || support(r.id, r.department_id).length > 0
           : (mode !== "support" && String(r.department_id) === department) ||
-            (mode !== "owner" && support(r.id).includes(Number(department)))) &&
-        match(r.name, top(r.parent_id), dept(r.department_id)),
+            (mode !== "owner" && support(r.id, r.department_id).includes(Number(department)))) &&
+        match(r.name, top(r.parent_id), dept(r.department_id), ...support(r.id, r.department_id).map(dept)),
     );
     return (
       <>
@@ -386,7 +388,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
                 top(r.parent_id),
                 assetIds(r.id).length,
                 dept(r.department_id),
-                support(r.id).map(dept).join("、") || "—",
+                support(r.id, r.department_id).map(dept).join("、") || "—",
                 r.effective_date && r.effective_date <= data.cutoff ? r.effective_date : "待投产",
               ])}
             />
@@ -437,7 +439,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
               [
                 usage?.topic_name || top(s.parent_id),
                 dept(s.department_id),
-                support(s.id).map(dept).join("、") || "—",
+                support(s.id, s.department_id).map(dept).join("、") || "—",
                 s.effective_date || "待投产",
               ],
             ]}
@@ -599,11 +601,11 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
                     .filter((r) => match(r.name))
                     .map((r) => [
                       depRanks.findIndex((x) => x.count === r.count) + 1,
-                      link("department:" + r.id, r.name),
+                      link("department:" + r.id + "?view=year", r.name),
                       ...kinds.map(
                         (k) =>
                           published.filter(
-                            (a) => a.department_id === r.id && asset(a.asset_key)?.kind === k.kind,
+                            (a) => a.department_id === r.id && releaseKind(a) === k.kind,
                           ).length,
                       ),
                       r.count,
@@ -678,7 +680,7 @@ function DetailBody({ data, registers, target, period, open, board }: PrototypeD
       rows={rows.map((a) => [
         link("asset:" + a.id, a.name),
         kindLabel(a.id),
-        a.department_id ? link("department:" + a.department_id, dept(a.department_id)) : dept(null),
+        a.department_id ? link("department:" + a.department_id + "?view=published", dept(a.department_id)) : dept(null),
         a.published_at || published.find((r) => r.asset_key === a.id)?.effective_date || "—",
       ])}
     />

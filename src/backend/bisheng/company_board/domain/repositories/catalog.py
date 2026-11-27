@@ -2,11 +2,11 @@ import json
 
 from sqlalchemy import case, func
 from sqlmodel import select
+from bisheng.company_board.domain.repositories.planning_departments import board_departments
 
 from bisheng.core.database import get_async_db_session
 from bisheng.database.models.app import APP_STATE_ONLINE, App
 from bisheng.database.models.assistant import Assistant, AssistantStatus
-from bisheng.database.models.department import Department
 from bisheng.database.models.flow import Flow, FlowStatus, FlowType
 from bisheng.knowledge.domain.models.knowledge import AuthTypeEnum, Knowledge, KnowledgeState, KnowledgeTypeEnum
 from bisheng.linsight.domain.models.linsight_skill import LinsightSkill
@@ -90,12 +90,7 @@ async def load_catalog(tenant_id: int) -> tuple[list[dict], list[dict]]:
         ),
     ]
     async with get_async_db_session() as session:
-        rows = await session.exec(
-            select(Department.id, Department.name)
-            .where(Department.tenant_id == tenant_id, Department.is_deleted == 0, Department.status == "active")
-            .order_by(Department.name, Department.id)
-        )
-        departments = [{"id": ident, "name": name} for ident, name in rows.all()]
+        departments = (await board_departments(session, tenant_id)).options
         assets = []
         for kind, prefix, query in sources:
             for ident, name, description, *group in (await session.exec(query)).all():

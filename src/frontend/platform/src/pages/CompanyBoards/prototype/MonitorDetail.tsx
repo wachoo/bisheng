@@ -193,7 +193,7 @@ function Ledger({
                 </>,
                 kindNames[row.kind],
                 dept ? (
-                  <button className="al-link" onClick={() => props.open("department:" + row.department_id, dept)}>
+                  <button className="al-link" onClick={() => props.open("department:" + row.department_id + "?view=published", dept)}>
                     {dept} ↗
                   </button>
                 ) : (

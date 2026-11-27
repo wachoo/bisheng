@@ -22,6 +22,7 @@ from bisheng.company_board.domain.services.runtime import WebAssistantObservatio
 from bisheng.core.context.tenant import current_tenant_id
 from bisheng.core.database.tenant_filter import register_tenant_filter_events
 from bisheng.database.models.assistant import AssistantStatus
+from bisheng.database.models.department import Department
 from bisheng.tool.domain.services.executor import ToolExecutor, _result_status
 
 
@@ -53,6 +54,7 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.engine.dispose)
         async with self.engine.begin() as conn:
             await conn.run_sync(BoardRuntimeEvent.__table__.create)
+            await conn.run_sync(Department.__table__.create)
         register_tenant_filter_events()
 
         @asynccontextmanager
@@ -61,8 +63,16 @@ class LocalWebRuntimeTests(IsolatedAsyncioTestCase):
                 yield db
 
         self.enterContext(patch("bisheng.company_board.domain.repositories.runtime.get_async_db_session", session))
+        self.enterContext(patch("bisheng.company_board.domain.repositories.planning_departments.get_async_db_session", session))
+        async with session() as db:
+            db.add_all([
+                Department(id=1, tenant_id=51, dept_id="company", name="葛洲坝供应链公司"),
+                Department(id=114, tenant_id=51, dept_id="unit", name="采购中心", parent_id=1),
+                Department(id=115, tenant_id=51, dept_id="group", name="询价组", parent_id=114),
+            ])
+            await db.commit()
         self.enterContext(
-            patch("bisheng.company_board.domain.services.runtime.primary_department", AsyncMock(return_value=114))
+            patch("bisheng.company_board.domain.services.runtime.primary_department", AsyncMock(return_value=115))
         )
 
     async def query(self):

@@ -191,10 +191,7 @@ export function Filters({
       key: "department",
       title: "归属部门",
       all: "全部部门",
-      items: [
-        ...props.data.departments.map((d) => ({ id: String(d.id), name: d.name })),
-        { id: "unknown", name: "归属待核实" },
-      ],
+      items: props.data.departments.map((d) => ({ id: String(d.id), name: d.name })),
     },
     {
       key: "kind",

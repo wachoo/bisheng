@@ -1,4 +1,4 @@
-import type { AssetKind, BoardOverview, SceneUsage } from "@/controllers/API/companyBoards";
+import type { AssetKind, BoardOverview, LedgerRow, SceneUsage } from "@/controllers/API/companyBoards";
 import type { PrototypeViewProps } from "./types";
 
 export function rankedScenes(scenes: SceneUsage[], cutoff: string) {
@@ -24,26 +24,31 @@ export const kinds: { kind: AssetKind; label: string; unit: string; color: strin
   { kind: "tool", label: "工具/MCP", unit: "项", color: "var(--al-amber)" },
 ];
 
+export function releaseKind(release: LedgerRow): AssetKind | null {
+  const prefix = release.asset_key?.split(":")[0];
+  if (prefix === "assistant" || prefix === "app" || prefix === "flow") return "employee";
+  return prefix === "knowledge" || prefix === "skill" || prefix === "tool" ? prefix : null;
+}
+
+export function annualReleases(data: BoardOverview) {
+  return data.ledger.filter(row => row.kind === "release" && row.effective_date &&
+    row.effective_date <= data.cutoff && Number(row.effective_date.slice(0, 4)) === data.year);
+}
+
 export function strategyRows(data: BoardOverview) {
   const topics = data.ledger.filter((row) => row.kind === "topic");
   const scenes = data.ledger.filter((row) => row.kind === "scene");
   const plans = data.ledger.filter((row) => row.kind === "release");
-  const published = plans.filter(
-    (row) =>
-      row.effective_date &&
-      row.effective_date <= data.cutoff &&
-      Number(row.effective_date.slice(0, 4)) === data.year,
-  );
+  const published = annualReleases(data);
   const workers = published.filter((row) => /^(assistant|flow|app):/.test(row.asset_key || ""));
   const depCounts = new Map<number, number>();
   for (const row of published)
     if (row.department_id != null)
       depCounts.set(row.department_id, (depCounts.get(row.department_id) || 0) + 1);
-  const depRanks = Array.from(depCounts, ([id, count]) => ({
-    id,
-    count,
-    name: data.departments.find((d) => d.id === id)?.name || "未归属",
-  })).sort((a, b) => b.count - a.count || a.id - b.id);
+  const depRanks = data.departments
+    .map(d => ({ ...d, count: depCounts.get(d.id) || 0 }))
+    .filter(d => d.count > 0)
+    .sort((a, b) => b.count - a.count || a.id - b.id);
   const workerRanks = data.runtime.usage
     .filter((r) => r.kind === "employee")
     .map((r) => ({

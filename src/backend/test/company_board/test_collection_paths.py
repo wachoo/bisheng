@@ -28,6 +28,7 @@ from bisheng.assistant.domain.services import published_assistant_service as ass
 from bisheng.common.chat.client import ChatClient
 from bisheng.common.chat.clients import workflow_client
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
+from bisheng.company_board.domain.repositories.planning_departments import BoardDepartments
 from bisheng.company_board.domain.services.runtime import read_runtime
 from bisheng.company_board.domain.services.scene_usage import annual_service
 from bisheng.core.context.tenant import current_tenant_id
@@ -384,7 +385,9 @@ class CollectionPathTests(IsolatedAsyncioTestCase):
         today = (datetime.utcnow() + timedelta(hours=8)).date()
         year, end = date(today.year, 1, 1), datetime(today.year + 1, 1, 1)
         annual = await annual_service(TENANT, year, end, entries, {1: keys, 2: [keys[0]]}, catalog)
-        runtime = await read_runtime(TENANT, datetime.combine(year, datetime.min.time()), end)
+        runtime = await read_runtime(
+            TENANT, datetime.combine(year, datetime.min.time()), end, departments=BoardDepartments([], {23: 23})
+        )
         board = {k: runtime[k] for k in ("successful_tasks", "failed_tasks", "timed_tasks")}
         board.update(annual)
         self.assertEqual((board["successful_tasks"], board["failed_tasks"], board["timed_tasks"]), (4, 1, 5))

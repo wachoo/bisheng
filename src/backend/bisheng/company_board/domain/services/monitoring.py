@@ -7,6 +7,7 @@ from bisheng.company_board.domain.repositories.catalog import load_catalog
 from bisheng.company_board.domain.repositories.feedback import feedback_snapshot
 from bisheng.company_board.domain.repositories.ledger import list_ledger, release_departments
 from bisheng.company_board.domain.repositories.monitoring import monthly_terminals, own_excerpts, run_receipt
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.company_board.domain.repositories.scene_links import legacy_scene_links, managed_scene_assets
 from bisheng.company_board.domain.services.asset_context import attach_asset_topics
 from bisheng.company_board.domain.services.boards import reporting_period, require_access, tenant_for
@@ -52,7 +53,7 @@ def monthly_scope(assets, records, ownership, cutoff, topic, scene, department, 
         if (topic and topic != asset.get("topic_id") and not topic_scenes) or (scene and scene not in topic_scenes):
             continue
         owner = ownership.get(asset["id"])
-        if department and department != ("unknown" if owner is None else str(owner)):
+        if department and (owner is None or department != str(owner)):
             continue
         if kind and asset["kind"] != kind:
             continue
@@ -166,5 +167,5 @@ async def read_run(user, run_id, year, month):
         "ended_at": iso_utc(row.occurred_at),
         "status": row.status,
         "active_seconds": row.active_seconds,
-        "department_id": row.department_id,
+        "department_id": (await load_board_departments(tenant)).resolve(row.department_id),
     }

@@ -125,7 +125,7 @@ function Detail(props: PrototypeDetailProps) {
   return <p className="al-empty">{t("navigation.unknownDetail")}</p>;
 }
 export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
-  const { t } = useTranslation("companyBoards");
+  const { t } = useTranslation(["companyBoards","boardPlans"]);
   const { user } = useContext(userContext);
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate(),
@@ -267,6 +267,7 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
     monitor: Monitor,
   }[current.view];
   const failed = [access, overview, rows].find((q) => q.isError);
+  const monitorDepartment = params.get("om-department");
   return (
     <div ref={viewport} className="company-board-screen" onScroll={saveScroll}>
       <div
@@ -294,6 +295,17 @@ export function CompanyBoardPage({ board }: { board: CompanyBoard }) {
               {access.data && !allowed
                 ? t("denied")
                 : t("loading")}
+            </p>
+          ) : board === "monitor" && monitorDepartment &&
+            !props.data.departments.some(d => String(d.id) === monitorDepartment) ? (
+            <p role="status" className="al-empty">
+              {t("boardPlans:departmentUnavailable")}{" "}
+              <button className="al-link" onClick={() => {
+                const next = new URLSearchParams(params);
+                next.delete("om-department");
+                next.delete("om-page");
+                setParams(next, {replace: true});
+              }}>{t("allDepartments")}</button>
             </p>
           ) : (
             <>

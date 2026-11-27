@@ -10,9 +10,9 @@ from bisheng.common.errcode.company_board import BoardLedgerConflictError, Board
 from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.company_board.domain.models.supplement import BoardSupplement as Row
 from bisheng.company_board.domain.repositories.asset_projection import project_asset_rows
+from bisheng.company_board.domain.repositories.planning_departments import board_departments, validate_plan_departments
 from bisheng.company_board.domain.schemas.supplement import PARENTS
 from bisheng.core.database import get_async_db_session
-from bisheng.database.models.department import Department
 
 
 def public(row):
@@ -54,8 +54,25 @@ async def list_supplements(tenant, cutoff, kinds=None):
     )
     async with get_async_db_session() as db:
         result = (await db.exec(statement.order_by(Row.business_date, Row.id))).all()
-    records = [public(r) for r in result if r.kind != "asset-binding"]
-    records = [r for r in records if r["kind"] not in {"scene-team", "recognition"} or not r["fields"].get("_removed")]
+        records = [public(r) for r in result if r.kind != "asset-binding"]
+        records = [r for r in records if r["kind"] not in {"scene-team", "recognition"} or not r["fields"].get("_removed")]
+        scenes = {row["parent_id"] for row in records if row["kind"] == "scene-team"}
+        if scenes:
+            departments = await board_departments(db, tenant)
+            owners = {}
+            for scene, owner in (await db.exec(select(BoardLedger.id, BoardLedger.department_id).where(
+                BoardLedger.tenant_id == tenant, BoardLedger.id.in_(scenes), BoardLedger.kind == "scene"
+            ).order_by(BoardLedger.revision.desc()))).all():
+                owners.setdefault(scene, departments.resolve(owner))
+            visible = []
+            for row in records:
+                if row["kind"] == "scene-team":
+                    department = departments.resolve(int(row["fields"]["department"]))
+                    if department is None or department == owners.get(row["parent_id"]):
+                        continue
+                    row["fields"]["department"] = str(department)
+                visible.append(row)
+            records = visible
     bindings = [r for r in result if r.kind == "asset-binding"]
     if bindings:
         return await project_asset_rows(tenant, cutoff, kinds, records, bindings)
@@ -140,19 +157,17 @@ async def save_supplement(tenant, user_id, data, asset_ids):
             ).first()
             if not scene or scene.year != data.year or scene.parent_id != data.parent_id:
                 raise BoardLedgerInvalidError(msg="案例须使用所属专题的场景")
+        payload = dict(data.fields)
         if data.kind == "scene-team":
-            department = (
-                await db.exec(
-                    select(Department.id).where(
-                        Department.tenant_id == tenant,
-                        Department.id == int(data.fields["department"]),
-                        Department.is_deleted == 0,
-                        Department.status == "active",
-                    )
-                )
-            ).first()
-            if department is None:
-                raise BoardLedgerInvalidError(msg="支持单位不存在或不属于当前公司")
+            selected = int(data.fields["department"])
+            await validate_plan_departments(db, tenant, {selected})
+            departments = await board_departments(db, tenant)
+            if selected == departments.resolve(found.department_id):
+                raise BoardLedgerInvalidError(msg="承建单位无需重复列为支持单位")
+            if current:
+                original = json.loads(current.payload)["department"]
+                if departments.resolve(int(original)) == selected:
+                    payload["department"] = original
         if data.kind in {"scene-asset", "case"}:
             referenced = [
                 x.strip() for x in data.fields.get("assets", data.fields.get("asset", "")).split(",") if x.strip()
@@ -168,7 +183,7 @@ async def save_supplement(tenant, user_id, data, asset_ids):
             name=data.name,
             parent_id=data.parent_id,
             business_date=data.date,
-            payload=json.dumps(data.fields, ensure_ascii=False),
+            payload=json.dumps(payload, ensure_ascii=False),
             operator_id=user_id,
             recorded_at=datetime.now(UTC).replace(tzinfo=None),
         )
@@ -179,4 +194,4 @@ async def save_supplement(tenant, user_id, data, asset_ids):
             await db.rollback()
             raise BoardLedgerConflictError() from exc
         await db.refresh(row)
-        return public(row)
+        return {**public(row), "fields": data.fields}

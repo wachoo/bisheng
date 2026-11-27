@@ -1,4 +1,6 @@
 {
+  "keepOriginalOwner": "Keep the original assignment or choose a direct department",
+  "departmentUnavailable": "The selected department is outside the company’s list of direct departments.",
   "defaultHint": "The default topic is required for assets without an assigned topic.",
   "feature": "Feature {{name}}",
   "unfeature": "Unfeature {{name}}",

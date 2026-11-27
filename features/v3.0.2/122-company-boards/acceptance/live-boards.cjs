@@ -15,10 +15,26 @@ async function main() {
     const body = await response.json();
     assert.equal(body.status_code,200);
     const data = body.data;
+    const plan = await (await page.request.get(base + "/api/v1/company-boards/planning/2026")).json();
+    assert.equal(plan.status_code,200);
+    assert.deepEqual(data.departments, plan.data.departments);
+    const companyName = "葛洲坝供应链公司";
+    const search = await (await page.request.get(base + "/api/v1/departments/search", {params:{keyword:companyName}})).json();
+    function flatten(nodes) { return nodes.flatMap(row=>[row,...flatten(row.children || [])]); }
+    const roots = flatten(search.data.roots).filter(row=>row.name===companyName && row.status==="active");
+    assert.equal(roots.length,1);
+    const children = await (await page.request.get(base + "/api/v1/departments/children", {params:{parent_id:roots[0].id}})).json();
+    const directIds = children.data.filter(row=>row.status==="active").map(row=>row.id);
+    const departmentIds = new Set(data.departments.map(row => row.id));
+    assert.deepEqual([...departmentIds].sort((a,b)=>a-b),directIds.sort((a,b)=>a-b));
+    const knownDepartment = row => row.department_id == null || departmentIds.has(row.department_id);
+    assert.ok([...data.assets, ...data.ledger, ...data.scene_usage].every(knownDepartment));
+    assert.ok(data.runtime.department_usage.every(row => departmentIds.has(row.department_id)));
     const annualResponse = await page.request.get(base + "/api/v1/company-boards/overview?board=lead&year=2026");
     const annual = (await annualResponse.json()).data;
     const trendResponse = await page.request.get(base + "/api/v1/company-boards/trends?board=lead&year=2026&month=11");
     const series = (await trendResponse.json()).data;
+    assert.ok([series.year,series.last90,...series.months].every(period => period.rows.every(knownDepartment)));
     const ytd = series.year;
     function count(kinds, field) {
       return ytd.rows.filter(row => kinds.includes(row.kind)).reduce((total,row) => {
@@ -86,12 +102,66 @@ async function main() {
         await screenshot("live-impact");
       }
       if (url.includes("activity")) {
-        const uses = data.runtime.department_usage.reduce((n,row)=>n+row.count,0);
+        const uses = ["successful_tasks","knowledge_success","tool_success","skill_calls"]
+          .reduce((total,field)=>total+(data.runtime[field] ?? 0),0);
         await metric("asset-usage",series.months[10].rows.length ? uses+"次" : null);
       }
     }
     await screenshot("live-monitor");
-    console.log("Four pages rendered; strategy service totals, deployment count, knowledge total and employee drilldown reconciled.");
+    const expectedNames = data.departments.map(d => d.name);
+    const monitorDepartment = page.locator('[data-op-field="department"]');
+    assert.deepEqual(await monitorDepartment.locator("option").allTextContents(),["全部部门", ...expectedNames]);
+    await page.goto(base + "/monitorboard?" + params + "&om-department=unknown");
+    await page.getByText("所选部门不在公司直属部门名单中。",{exact:false}).first().waitFor();
+    await page.getByRole("button",{name:"全部部门",exact:true}).click();
+    await monitorDepartment.waitFor();
+    assert.equal(await monitorDepartment.inputValue(),"");
+    await page.goto(base + "/leadboard?view=activity&" + params + "&detail=usage-ledger");
+    const activityDepartment = page.locator("#al-detail:visible label").filter({hasText:"使用部门"}).locator("select");
+    await activityDepartment.waitFor();
+    assert.deepEqual(await activityDepartment.locator("option").allTextContents(),["全公司", ...expectedNames]);
+    await page.goto(base + "/leadboard?view=activity&" + params + "&detail=activity-catalog");
+    const directoryDepartment = page.locator("#al-detail:visible label").filter({hasText:"贡献部门"}).locator("select");
+    await directoryDepartment.waitFor();
+    assert.deepEqual(await directoryDepartment.locator("option").allTextContents(),["全部", ...expectedNames]);
+    const month = data.cutoff.slice(0,7);
+    const releases = new Set(data.ledger.filter(row => row.kind === "release" &&
+      row.effective_date?.startsWith(month) && row.effective_date <= data.cutoff).map(row => row.asset_key));
+    const fresh = data.assets.filter(a => a.published_at
+      ? a.published_at.startsWith(month) && a.published_at <= data.cutoff : releases.has(a.id));
+    const department = fresh.find(a => departmentIds.has(a.department_id))?.department_id ?? data.departments[0].id;
+    const scoped = fresh.filter(a => a.department_id === department);
+    await page.goto(base + "/leadboard?view=activity&" + params + "&detail=activity-new:" + department);
+    const detail = page.locator("#al-detail:visible");
+    for (const kind of ["employee","knowledge","skill","tool","all"]) {
+      const expected = scoped.filter(a => kind === "all" || a.kind === kind);
+      const filter = detail.locator('[data-filter="'+kind+'"]');
+      await filter.click();
+      assert.equal(Number((await filter.innerText()).split(" ").pop()),expected.length);
+      const ids = await detail.locator('tbody [data-detail^="asset:"]').evaluateAll(buttons =>
+        buttons.map(b => b.dataset.detail.slice(6)).sort());
+      assert.deepEqual(ids,expected.map(a => a.id).sort());
+    }
+    await page.goto(base + "/leadboard?view=activity&" + params + "&detail=activity-new:null");
+    await detail.getByText("所选部门不在公司直属部门名单中。",{exact:true}).waitFor();
+    await page.goto(base + "/leadboard?" + params + "&detail=department:unassigned");
+    await page.locator("#al-detail:visible").getByText("所选部门不在公司直属部门名单中。",{exact:true}).waitFor();
+    const published = data.ledger.filter(r => r.kind === "release" && r.effective_date?.startsWith("2026-") &&
+      r.effective_date <= data.cutoff && departmentIds.has(r.department_id));
+    const byOwner = data.departments.map(d => ({...d, count:published.filter(r => r.department_id === d.id).length}))
+      .sort((a,b)=> b.count-a.count || a.id-b.id);
+    if (byOwner[0].count) {
+      const first = byOwner[0];
+      await page.goto(base + "/leadboard?" + params);
+      await board.locator(".rankline").filter({hasText:first.name}).first().click();
+      await detail.getByRole("heading",{name:"年度首次发布 · "+first.count+" 项",exact:true}).waitFor();
+      assert.equal(await detail.locator("tbody tr").count(),first.count);
+      await screenshot("department-year");
+      await page.goto(base + "/leadboard?" + params + "&detail=strategy:department-ranking");
+      await detail.getByRole("button",{name:first.name+" ↗",exact:true}).click();
+      await detail.getByRole("heading",{name:"年度首次发布 · "+first.count+" 项",exact:true}).waitFor();
+    }
+    console.log("Four pages, department filters, invalid saved links, and strategy and runtime totals reconciled.");
   } finally {await browser.close();}
 }
 main().catch(e => {console.error(e.message);process.exitCode=1;});

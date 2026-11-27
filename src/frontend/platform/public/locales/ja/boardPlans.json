@@ -1,4 +1,6 @@
 {
+  "keepOriginalOwner": "元の所属を維持するか、直属部門を選択",
+  "departmentUnavailable": "選択した部門は会社の直属部門に含まれていません。",
   "defaultHint": "所属未指定の資産に使用する既定テーマは削除できません。",
   "feature": "「{{name}}」を重点に設定",
   "unfeature": "「{{name}}」の重点指定を解除",

@@ -117,7 +117,10 @@ class PublicationTest(unittest.IsolatedAsyncioTestCase):
         async with self.session() as db:
             db.add_all(
                 [
-                    Department(id=10, tenant_id=1, dept_id="d10", name="原部门"),
+                    Department(id=1, tenant_id=1, dept_id="c1", name="葛洲坝供应链公司"),
+                    Department(id=2, tenant_id=1, dept_id="d2", name="采购中心", parent_id=1),
+                    Department(id=10, tenant_id=1, dept_id="d10", name="原部门", parent_id=2),
+                    Department(id=11, tenant_id=1, dept_id="d11", name="外部单位"),
                     Department(id=20, tenant_id=2, dept_id="d20", name="其他租户部门"),
                     UserDepartment(id=1, user_id=7, department_id=20),
                     UserDepartment(id=2, user_id=7, department_id=10),
@@ -177,6 +180,11 @@ class PublicationTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((actual["flow:w"].department_id, actual["flow:w"].year), (10, 2026))
         self.assertTrue(all(r.effective_date == self.day for r in actual.values()))
         self.assertEqual(await ledger.release_info(1, date(2025, 12, 31)), {})
+        self.assertEqual(await ledger.release_info(1, self.day), {
+            "assistant:a": (None, self.day), "flow:w": (2, self.day)
+        })
+        rows = await ledger.list_ledger(1, 2026, self.day)
+        self.assertEqual({r["asset_key"]:r["department_id"] for r in rows}, {"assistant:a":None,"flow:w":2})
 
     @staticmethod
     def application(ident, tenant=1):

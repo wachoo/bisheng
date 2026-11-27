@@ -102,7 +102,8 @@ export default function Strategy({ data, period, open, registers, board }: Proto
   const hasSample = !!(caseRow?.fields.output || caseRow?.fields.sampleTable);
   const allCaseIds = strategyTopicAssets(data, registers, topic?.id);
   const topicAssets = data.assets.filter((a) => allCaseIds.has(a.id));
-  const caseDepts = new Set(topicAssets.flatMap((a) => (a.department_id == null ? [] : [a.department_id])));
+    const ownerIds = new Set(topicAssets.map(a => a.department_id));
+    const caseDepts = data.departments.filter(d => ownerIds.has(d.id));
   return (
     <div ref={frame} id="strategy-cockpit">
       {root &&
@@ -274,7 +275,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                       <h3 className="focus-topic-name" aria-live="polite">{topic.name}</h3>
                       <div className="topic-stats">
                         <button className="text-btn" disabled={!topic} onClick={launchTopic}>
-                          贡献部门 <strong>{caseDepts.size}</strong> 个
+                          贡献部门 <strong>{caseDepts.length}</strong> 个
                         </button>
                         <button className="text-btn" disabled={!topic} onClick={launchTopic}>
                           已发布资产 <strong>{topicAssets.length}</strong> 项
@@ -354,7 +355,7 @@ export default function Strategy({ data, period, open, registers, board }: Proto
                           <button
                             key={r.id}
                             className="rankline"
-                            onClick={() => open("department:" + r.id, r.name)}
+                            onClick={() => open("department:" + r.id + "?view=year", r.name)}
                           >
                             <span className="pos">{depRanks.findIndex((d) => d.count === r.count) + 1}</span>
                             <span>{r.name}</span>

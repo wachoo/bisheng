@@ -20,6 +20,7 @@ from bisheng.company_board.domain.models.ledger import BoardLedger
 from bisheng.database.models.audit_log import AuditLog
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.models.supplement import BoardSupplement
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.database.models.department import Department
 from bisheng.knowledge.domain.models.knowledge import Knowledge
 
@@ -34,7 +35,7 @@ async def session():
 
 async def catalog(_tenant):
     return (
-        [{"id": i, "name": name} for i, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1)],
+        (await load_board_departments(_tenant)).options,
         [{"id":"assistant:2","kind":"employee","name":"验证备选员工","department_id":None}] + [
             {"id": prefix + ":1", "kind": kind, "department_id": None, "name": "验证" + name}
             for kind, prefix, name in [
@@ -81,12 +82,18 @@ async def lifespan(_app):
         db.add(Department(id=82, dept_id="fixture-leaf", name="部门下属业务组", tenant_id=1, parent_id=1))
         for idx, name in enumerate(("验证部门", "支持单位甲", "支持单位乙"), 1):
             db.add(Department(id=idx, dept_id=f"fixture-{idx}", name=name, tenant_id=1, parent_id=81))
+        legacy_topic = "dcb30174-bcd0-4837-b09f-54e47b8d5820"
+        db.add(BoardLedger(tenant_id=1, year=2026, revision=1, operator_id=9, kind="topic",
+                           id=legacy_topic, name="历史合同专题"))
+        db.add(BoardLedger(tenant_id=1, year=2026, revision=1, operator_id=9, kind="scene",
+                           id="88c0e5dd-a52d-446d-bf4f-6109971f938e", parent_id=legacy_topic,
+                           department_id=81, name="历史合同审核"))
         db.add(
             BoardRuntimeEvent(
                 id="sample",
                 run_id="sample",
                 user_id=9,
-                department_id=1,
+                department_id=82,
                 tenant_id=1,
                 kind="employee",
                 asset_id="1",

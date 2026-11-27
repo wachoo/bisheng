@@ -2,18 +2,64 @@ import unittest
 from contextlib import asynccontextmanager
 from datetime import date, datetime
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlmodel.ext.asyncio.session import AsyncSession
 
 from bisheng.company_board.domain.models.runtime_event import BoardRuntimeEvent
 from bisheng.company_board.domain.repositories import monitoring as repo
+from bisheng.company_board.domain.repositories import subjects
+from bisheng.company_board.domain.repositories.planning_departments import BoardDepartments
+from bisheng.company_board.domain.services import monitoring
 from bisheng.company_board.domain.services.monitoring import add_terminal_stats, monthly_scope
+from bisheng.company_board.domain.services.runtime import summarize
 from bisheng.core.context.tenant import current_tenant_id
 
 
 class MonitoringTest(unittest.IsolatedAsyncioTestCase):
+    async def test_department_run_list_and_usage_match_and_keep_unassigned_in_company_total(self):
+        engine = create_async_engine("sqlite+aiosqlite://")
+        self.addAsyncCleanup(engine.dispose)
+        departments = BoardDepartments([], {15: 15, 16: 15, 17: 15, 18: 18})
+        start, end = datetime(2026, 1, 1), datetime(2026, 1, 2)
+        raw_ids = [15, 16, 17, 18, 1, 2, None]
+        async with engine.begin() as conn:
+            await conn.run_sync(BoardRuntimeEvent.__table__.create)
+
+        @asynccontextmanager
+        async def session():
+            async with AsyncSession(engine, expire_on_commit=False) as db:
+                yield db
+
+        async with session() as db:
+            for index, raw_id in enumerate(raw_ids):
+                db.add(BoardRuntimeEvent(id=str(index), run_id=str(index), user_id=2, tenant_id=1,
+                                         kind="employee", asset_id="app", status="success", department_id=raw_id,
+                                         occurred_at=start))
+            await db.commit()
+        counts = [("employee", "app", "success", raw, 1, 0, None) for raw in raw_ids]
+        summary = summarize(counts, [], departments)
+        self.assertEqual(summary["successful_tasks"], 7)
+        self.assertEqual(summary["department_usage"], [
+            {"department_id": 15, "count": 3}, {"department_id": 18, "count": 1},
+        ])
+        with patch.object(subjects, "get_async_db_session", session), patch.object(
+            subjects, "load_board_departments", AsyncMock(return_value=departments)
+        ):
+            for selected, expected in [("15", 3), ("18", 1), ("16", 0), ("2", 0), ("unassigned", 0), ("", 7)]:
+                activity = await subjects.asset_activity(1, "assistant:app", start, end, selected, True, "", "", 1)
+                self.assertEqual(activity["total"], expected, selected)
+                self.assertEqual(activity["series"][0]["success"], expected, selected)
+                self.assertEqual(len(activity["rows"]), expected, selected)
+        with patch.object(repo, "get_async_db_session", session), patch.object(
+            monitoring, "load_board_departments", AsyncMock(return_value=departments)
+        ), patch.object(monitoring, "require_access", AsyncMock(return_value={"resolve": False, "manage": True})):
+            viewer = SimpleNamespace(tenant_id=1, user_id=99)
+            for run_id, expected in [("1", 15), ("3", 18), ("4", None)]:
+                receipt = await monitoring.read_run(viewer, run_id, 2026, 1)
+                self.assertEqual(receipt["department_id"], expected)
+
     def test_reuse_and_release_deduplicate_and_honor_end_date(self):
         assets = [{"id": "tool:1", "kind": "tool", "name": "A"}]
         records = [

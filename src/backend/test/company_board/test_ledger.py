@@ -13,6 +13,7 @@ from bisheng.company_board.domain.repositories.ledger import list_ledger, save_l
 from bisheng.company_board.domain.schemas.ledger import LedgerInput
 from bisheng.company_board.domain.services.boards import strategic_totals
 from bisheng.database.models.audit_log import AuditLog
+from bisheng.database.models.department import Department
 
 
 class LedgerTest(unittest.IsolatedAsyncioTestCase):
@@ -22,6 +23,11 @@ class LedgerTest(unittest.IsolatedAsyncioTestCase):
             await connection.run_sync(BoardLedger.__table__.create)
             await connection.run_sync(AuditLog.__table__.create)
             await connection.run_sync(BoardSupplement.__table__.create)
+            await connection.run_sync(Department.__table__.create)
+        async with AsyncSession(self.engine) as db:
+            db.add_all([Department(id=1, dept_id="company", tenant_id=1, name="葛洲坝供应链公司"),
+                        Department(id=2, dept_id="procurement", parent_id=1, tenant_id=1, name="采购")])
+            await db.commit()
 
         @asynccontextmanager
         async def session():
@@ -68,7 +74,7 @@ class LedgerTest(unittest.IsolatedAsyncioTestCase):
     async def test_tenant_year_parent_and_strategic_totals(self):
         topic = await save_ledger(1, 7, LedgerInput(kind="topic", year=2026, name="采购"))
         scene = LedgerInput(
-            kind="scene", year=2026, name="比价", parent_id=topic["id"], effective_date=date(2026, 9, 1)
+            kind="scene", year=2026, name="比价", parent_id=topic["id"], department_id=2, effective_date=date(2026, 9, 1)
         )
         with self.assertRaises(BoardLedgerInvalidError):
             await save_ledger(2, 8, scene)

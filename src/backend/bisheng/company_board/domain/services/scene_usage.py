@@ -2,6 +2,7 @@ from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 
 from bisheng.company_board.domain.repositories.asset_context import first_binding_dates
+from bisheng.company_board.domain.repositories.planning_departments import load_board_departments
 from bisheng.company_board.domain.repositories.scene_links import legacy_scene_links
 from bisheng.company_board.domain.repositories.scene_usage import employee_service_counts, scene_inputs
 
@@ -161,6 +162,10 @@ async def read_scene_report(tenant, month_start, end, managed, catalog, monthly_
         )
     mappings, assets = scene_relationships(entries, links, first_edits, managed, cutoff)
     rows = reconcile_scenes(entries, mappings, assets, events, year, month_start.date(), trailing, cutoff)
+    if rows:
+        departments = await load_board_departments(tenant)
+        for row in rows:
+            row["department_id"] = departments.resolve(row["department_id"])
     current_links = {r.id: sorted(assets[r.id]) for r in entries if r.kind == "scene" and r.year <= year.year}
     if monthly_only:
         fields = {

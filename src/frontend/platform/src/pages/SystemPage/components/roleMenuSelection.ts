@@ -2,6 +2,12 @@ export const WORKBENCH_PARENT_ID = "workstation"
 export const ADMIN_PARENT_ID = "admin"
 
 export const WORKBENCH_CHILD_MENUS = ["home", "apps", "subscription", "knowledge_space"] as const
+export const COMPANY_BOARD_MENUS = [
+  "company_leadboard",
+  "company_monitorboard",
+  "company_board_ledger",
+  "company_board_feedback",
+] as const
 export const ADMIN_CHILD_MENUS = [
   "board",
   "model",
@@ -39,6 +45,7 @@ export const DEFAULT_ENABLED_MENU_IDS = [
 ] as const
 
 export const CHILD_DEPENDENTS: Record<string, readonly string[]> = {
+  company_monitorboard: ["company_board_ledger", "company_board_feedback"],
   home: [TASK_MODE_MENU_ID],
   build: ["create_app"],
   knowledge: ["create_knowledge"],
@@ -55,6 +62,7 @@ const SELECTABLE_MENU_IDS = new Set<string>([
   ...WORKBENCH_CHILD_MENUS,
   TASK_MODE_MENU_ID,
   ...ADMIN_CHILD_MENUS,
+  ...COMPANY_BOARD_MENUS,
 ])
 
 /**

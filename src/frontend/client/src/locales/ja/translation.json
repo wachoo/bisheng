@@ -1,4 +1,7 @@
 {
+  "com_company_boards": "会社ダッシュボード",
+  "com_company_leadboard": "経営看板",
+  "com_company_monitorboard": "運用監視",
   "admin": "管理者",
   "bisheng": "{{bisheng}}",
   "cancel": "キャンセル",

@@ -196,6 +196,12 @@
     "wecomLogin": "WeCom でログイン"
   },
   "menu": {
+    "companyBoardRoleScope": "経営看板、台帳、フィードバック対応は会社全体のロールに付与します。部門ロールには運用監視を付与できます。",
+    "companyBoards": "会社ダッシュボード",
+    "companyLeadboard": "経営看板",
+    "companyMonitorboard": "運用監視",
+    "companyBoardLedger": "台帳入力",
+    "companyBoardFeedback": "フィードバック対応",
     "tenant": "テナント",
     "languageChinese": "中文",
     "languageJapanese": "日本語",

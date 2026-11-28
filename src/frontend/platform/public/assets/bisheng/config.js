@@ -5,5 +5,7 @@
 window.APP_CONFIG = {
     // Hide Japanese from the language switcher and prevent it from being
     // auto-selected by browser/locale detection. Set to false to re-enable.
-    disableJa: true
+    disableJa: true,
+    // Controls sidebar visibility only. Page access follows role grants.
+    companyBoardMenus: { dashboard: true, leadboard: true, monitorboard: true }
 };

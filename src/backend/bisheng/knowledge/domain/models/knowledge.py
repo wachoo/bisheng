@@ -260,6 +260,8 @@ class KnowledgeDao(KnowledgeBase):
         async with get_async_db_session() as session:
             statement = update(Knowledge).where(col(Knowledge.id) == knowledge_id)
             statement = statement.values(state=state.value, update_time=update_time or datetime.now())
+            if state == KnowledgeState.PUBLISHED:
+                statement = statement.execution_options(catalog_publication=("knowledge", knowledge_id))
             await session.exec(statement)
             await session.commit()
 
@@ -268,6 +270,8 @@ class KnowledgeDao(KnowledgeBase):
         with get_sync_db_session() as session:
             statement = update(Knowledge).where(col(Knowledge.id) == knowledge_id)
             statement = statement.values(state=state.value, update_time=update_time or datetime.now())
+            if state == KnowledgeState.PUBLISHED:
+                statement = statement.execution_options(catalog_publication=("knowledge", knowledge_id))
             session.exec(statement)
             session.commit()
 

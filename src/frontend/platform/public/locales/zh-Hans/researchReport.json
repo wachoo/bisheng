@@ -1,0 +1,69 @@
+{
+  "fields": {
+    "name": "课题名称",
+    "project": "所属项目",
+    "ai": "AI 课题",
+    "start": "开始日期",
+    "end": "结题日期",
+    "status": "状态"
+  },
+  "metrics": {
+    "projects": "年度实施科研项目数（项）",
+    "ai_projects": "其中 AI 项目数（项）",
+    "active_ai_projects": "当前在研 AI 项目数（项）",
+    "budget": "在研 AI 项目全周期预算（万元）",
+    "spending": "年度 AI 经费净支出（万元）",
+    "outstanding": "合同本年度待收款（万元）",
+    "valued_scenes": "估值场景数（个）",
+    "labor_value": "预计年度等效人工价值（万元）",
+    "direct_savings": "预计年度直接费用节约（万元）",
+    "equivalent_days": "交付物等效人工工作量（人天）",
+    "equivalent_value": "交付物折算人工产值（万元）"
+  },
+  "groups": {
+    "projects": "科研项目",
+    "finance": "科研经费与经营",
+    "value": "场景价值与交付成效"
+  },
+  "tabs": {
+    "projects": "项目",
+    "subjects": "课题"
+  },
+  "views": {
+    "research": "科研项目与课题",
+    "spending": "年度 AI 经费支出",
+    "budget": "在研项目预算",
+    "receivables": "合同本年度待收款",
+    "forecast": "预估年度 AI 产值"
+  },
+  "subjects": "年度实施课题",
+  "addSubject": "添加课题",
+  "subjectCount": "共 {{all}} 项，其中 AI 课题 {{ai}} 项",
+  "allSubjects": "年度实施课题数",
+  "aiSubjects": "其中 AI 课题数",
+  "projectShare": "AI 项目占比",
+  "subjectShare": "AI 课题占比",
+  "forecastTotal": "预估年度产值合计（万元）",
+  "active": "实施中",
+  "closed": "已结题",
+  "yes": "是",
+  "no": "否",
+  "noSubjects": "本期暂无课题记录",
+  "invalidCounts": "请核对项目数：在研 AI 项目数 ≤ 年度 AI 项目数 ≤ 科研项目总数。",
+  "invalidSubject": "请检查课题名称、所属项目及实施日期，课题应在本年度截至填报月的期间内实施。",
+  "month": "填报月份",
+  "monthName": "{{month}} 月",
+  "asOf": "最近填报于 {{year}} 年 {{month}} 月",
+  "legacy": "历史台账汇总",
+  "empty": "本年度尚未填报",
+  "futureYear": "可在相应年度开始后填报科研与经营数据。",
+  "save": "保存本月数据",
+  "saved": "本月数据已保存",
+  "remove": "移除",
+  "removeNamed": "移除课题 {{name}}",
+  "notEntered": "未填",
+  "retry": "重新加载",
+  "loading": "正在读取…",
+  "previous": "上一页",
+  "next": "下一页"
+}

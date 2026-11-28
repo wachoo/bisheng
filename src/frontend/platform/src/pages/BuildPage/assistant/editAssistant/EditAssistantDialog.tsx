@@ -1,4 +1,6 @@
 // @ts-strict-ignore
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
+import { showApiError } from "@/controllers/request";
 import { Button, Input, Textarea, notification } from '@bisheng/ui';
 import AppAvator from "@/components/bs-comp/cardComponent/avatar";
 
@@ -7,11 +9,13 @@ import { DialogClose, DialogContent, DialogFooter, DialogHeader, DialogTitle } f
 import Avator from "@/components/bs-ui/input/avator";
 
 import { uploadFileWithProgress } from "@/modals/UploadModal/upload";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-export default function EditAssistantDialog({ logo, viewLogo, name, desc, onSave, loca }) {
+export default function EditAssistantDialog({ assetId, logo, viewLogo, name, desc, onSave, loca }) {
 
+    const assetContext = useRef<AssetContextHandle>(null);
+    const [saving, setSaving] = useState(false);
     const { t } = useTranslation()
     // State for form fields
     const [formData, setFormData] = useState({ logo: '', name: '', desc: '' });
@@ -67,7 +71,7 @@ export default function EditAssistantDialog({ logo, viewLogo, name, desc, onSave
 
 
     // Handle form submission
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         if ((String((formData.name) ?? '').length > 50) || (String((formData.desc) ?? '').length > 1000)) return;
 
         e.preventDefault();
@@ -75,7 +79,15 @@ export default function EditAssistantDialog({ logo, viewLogo, name, desc, onSave
         // console.log('Form data:', errors);
         if (!isValid) return notification.open({ type: 'error', title: String(t('prompt') ?? ''), description: (Object.keys(errors).map(key => errors[key])).filter(Boolean).join('\n') })
 
-        onSave(formData)
+        setSaving(true);
+        try {
+            await assetContext.current!.persist("assistant", async () => assetId);
+            onSave(formData);
+        } catch (error) {
+            showApiError(error);
+        } finally {
+            setSaving(false);
+        }
     };
 
     const uploadAvator = (file) => {
@@ -88,7 +100,7 @@ export default function EditAssistantDialog({ logo, viewLogo, name, desc, onSave
         formData.logo ? __APP_ENV__.BASE_URL + (formData.viewLogo || formData.logo) : '',
         [formData.logo])
 
-    return <DialogContent className="sm:max-w-[625px] bg-background-login">
+    return <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto bg-background-login">
         <DialogHeader>
             <DialogTitle>{t('build.editAssistant')}</DialogTitle>
         </DialogHeader>
@@ -116,11 +128,12 @@ export default function EditAssistantDialog({ logo, viewLogo, name, desc, onSave
                 {errors.desc && <p className="bisheng-tip mt-1">{errors.desc}</p>}
             </div>
         </div>
+        <AssetContextFields ref={assetContext} assetKey={"assistant:" + assetId} />
         <DialogFooter>
             <DialogClose>
                 <Button variant="outlined" type="button" color="default">{t('build.cancel')}</Button>
             </DialogClose>
-            <Button type="submit" onClick={handleSubmit} disabled={(String((formData.name) ?? '').length > 50) || (String((formData.desc) ?? '').length > 1000)}>{t('build.confirm')}</Button>
+            <Button type="submit" onClick={handleSubmit} disabled={saving || (String((formData.name) ?? '').length > 50) || (String((formData.desc) ?? '').length > 1000)}>{t('build.confirm')}</Button>
         </DialogFooter>
     </DialogContent>
 };

@@ -256,9 +256,10 @@ class AppDao:
             values["current_version_id"] = current_version_id
         if pending_version_id is not _UNSET:
             values["pending_version_id"] = pending_version_id
-        result = await session.exec(
-            update(App).where(App.id == app_id, col(App.state).in_(from_states)).values(**values)
-        )
+        statement = update(App).where(App.id == app_id, col(App.state).in_(from_states)).values(**values)
+        if to_state == APP_STATE_ONLINE:
+            statement = statement.execution_options(catalog_publication=("app", app_id))
+        result = await session.exec(statement)
         return bool(result.rowcount)
 
     @classmethod

@@ -244,6 +244,7 @@ class ChatManager:
         session_subject=None,
         execution_snapshot: dict | None = None,
         message_admission: Callable[[], AbstractAsyncContextManager[ChatMessageExecution]] | None = None,
+        board_sink: Callable | None = None,
     ):
         start_time = time.time()
         client_key = generate_uuid()
@@ -258,6 +259,7 @@ class ChatManager:
                 work_type,
                 websocket,
                 graph_data=graph_data,
+                board_sink=board_sink,
                 session_subject=session_subject,
                 execution_snapshot=execution_snapshot,
             )

@@ -1,3 +1,4 @@
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Input, Textarea, notification } from '@bisheng/ui';
 import { Outlined } from "bisheng-icons";
 
@@ -25,6 +26,7 @@ interface LibraryDialogProps {
 export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode = 'create', currentLib = null }: LibraryDialogProps) {
     const { t } = useTranslation('knowledge')
     const { user } = useContext(userContext)
+    const assetContext = useRef<AssetContextHandle>(null);
     const expectedTenant = useRef<number | null>(null)
     const wasOpen = useRef(false)
     useEffect(() => {
@@ -123,28 +125,30 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
         setIsSubmitting(true);
         try {
             if (mode === 'create') {
-                await createFileLib({
+                await assetContext.current!.persist("knowledge", async () => ((await createFileLib({
                     name,
                     description: desc,
                     model: modelId,
                     expected_tenant_id: expectedTenant.current,
                     type: 1
-                }).then((response) => {
-                    const res = response as unknown as { id: string | number };
+                })) as unknown as {id:string | number}).id).then(id => {
                     (window as Window & { libname?: [string, string] }).libname = [name, desc];
-                    navigate(isImport ? `/filelib/qalib/upload/${res.id}` : `/filelib/qalib/${res.id}`);
+                    navigate(isImport ? `/filelib/qalib/upload/${id}` : `/filelib/qalib/${id}`);
                     onOpenChange(false);
                 }).finally(() => {
                     setIsSubmitting(false)
                 });
 
             } else {
-                await updateKnowledge({
+                await assetContext.current!.persist("knowledge", async () => {
+                    await updateKnowledge({
                     model_id: modelId,
                     model_type: "embedding",
                     knowledge_id: currentLib!.id,
                     knowledge_name: name,
                     description: desc
+                    });
+                    return currentLib!.id;
                 });
                 notification.open({ type: "success", description: String(t('updateSuccess') ?? '') });
                 onOpenChange(false);
@@ -159,7 +163,7 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[625px]">
+            <DialogContent className="sm:max-w-[625px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>{mode === 'create' ? t('lib.createLibrary', { ns: 'bs' }) : t('knowledgeSettings', { ns: 'bs' })}</DialogTitle>
                 </DialogHeader>
@@ -179,11 +183,11 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
                     <div className="">
                         <label htmlFor="name" className="bisheng-label">{t('system.libraryName', { ns: 'bs' })}</label>
                         <span className="text-red-500">*</span>
-                        <Input name="name" ref={nameRef} placeholder={t('lib.enterLibraryName', { ns: 'bs' })} className={"col-span-3"} />
+                        <Input name="name" ref={nameRef} defaultValue={mode === "edit" ? currentLib?.name : ""} placeholder={t('lib.enterLibraryName', { ns: 'bs' })} className={"col-span-3"} />
                     </div>
                     <div className="">
                         <label htmlFor="desc" className="bisheng-label">{t('knowledgeDesc')}</label>
-                        <Textarea id="desc" ref={descRef} placeholder={t('pleaseEnterDesc')} rows={8} textareaClassName={"col-span-3"} />
+                        <Textarea id="desc" ref={descRef} defaultValue={mode === "edit" ? currentLib?.description : ""} placeholder={t('pleaseEnterDesc')} rows={8} textareaClassName={"col-span-3"} />
                     </div>
                     <div className="">
                         <label htmlFor="model" className="bisheng-label">{t('embeddingModel')}</label>
@@ -217,6 +221,7 @@ export function QaLibraryDialog({ datalist, open, onOpenChange, onLoadEnd, mode 
                         )}
                     </div>
                 </div>
+                <AssetContextFields knowledge ref={assetContext} assetKey={mode === "edit" && currentLib ? "knowledge:" + currentLib.id : undefined} />
                 <DialogFooter>
                     <DialogClose>
                         <Button variant="outlined" color="default">{t('cancel')}</Button>

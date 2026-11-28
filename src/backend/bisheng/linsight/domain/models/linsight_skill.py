@@ -276,6 +276,8 @@ class LinsightSkillDao:
                 .where(col(LinsightSkill.owner_user_id) == owner_user_id)
                 .values(enabled=enabled, update_time=datetime.now())
             )
+            if enabled and owner_user_id == 0:
+                statement = statement.execution_options(catalog_publication=("skill", tid, name))
             result = await session.exec(statement)
             await session.commit()
             return result.rowcount > 0

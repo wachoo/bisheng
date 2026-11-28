@@ -197,6 +197,12 @@
     "bottomText": "Bisheng"
   },
   "menu": {
+    "companyBoardRoleScope": "Company-wide roles may receive leadership, register and feedback permissions. Department roles may receive monitoring access.",
+    "companyBoards": "Company dashboards",
+    "companyLeadboard": "Leadership",
+    "companyMonitorboard": "Monitoring",
+    "companyBoardLedger": "Edit registers",
+    "companyBoardFeedback": "Resolve feedback",
     "tenant": "Tenant",
     "languageChinese": "中文",
     "languageJapanese": "日本語",

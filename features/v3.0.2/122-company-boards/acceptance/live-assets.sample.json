@@ -1,0 +1,271 @@
+{
+  "year": 2026,
+  "month": 11,
+  "assets": {
+    "knowledge": 1,
+    "skill": 6,
+    "toolset": 20,
+    "tool": 42,
+    "employees": [
+      "836c9ec6389a424b8481343bad0abc49",
+      "d55272b8e29e415d856d5eda24348b16"
+    ]
+  },
+  "steps": [
+    {
+      "step": "创建公开问答知识库",
+      "expected": {
+        "knowledge": 1,
+        "classified": 0
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 0,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 0
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 0
+      }
+    },
+    {
+      "step": "知识库关联年度业务分类",
+      "expected": {
+        "knowledge": 0,
+        "classified": 1
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 0
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      }
+    },
+    {
+      "step": "添加一条采购验收问答",
+      "expected": {
+        "knowledge": 0,
+        "classified": 0
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      }
+    },
+    {
+      "step": "通过 MCP 发现并创建报价工具",
+      "expected": {
+        "tool": 1
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 39,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      }
+    },
+    {
+      "step": "创建管理员公共 Skill",
+      "expected": {
+        "skill": 1
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 4,
+        "built": 0,
+        "classified": 1
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 0,
+        "classified": 1
+      }
+    },
+    {
+      "step": "创建草稿采集验收1126·采购报价助手",
+      "expected": {
+        "employee": 0,
+        "built": 0
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 0,
+        "classified": 1
+      },
+      "after": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 0,
+        "classified": 1
+      }
+    },
+    {
+      "step": "正式上线采集验收1126·采购报价助手",
+      "expected": {
+        "employee": 1,
+        "built": 1
+      },
+      "before": {
+        "employee": 0,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 0,
+        "classified": 1
+      },
+      "after": {
+        "employee": 1,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 1,
+        "classified": 1
+      }
+    },
+    {
+      "step": "创建草稿采集验收1126·履约核查助手",
+      "expected": {
+        "employee": 0,
+        "built": 0
+      },
+      "before": {
+        "employee": 1,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 1,
+        "classified": 1
+      },
+      "after": {
+        "employee": 1,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 1,
+        "classified": 1
+      }
+    },
+    {
+      "step": "正式上线采集验收1126·履约核查助手",
+      "expected": {
+        "employee": 1,
+        "built": 1
+      },
+      "before": {
+        "employee": 1,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 1,
+        "classified": 1
+      },
+      "after": {
+        "employee": 2,
+        "knowledge": 1,
+        "tool": 40,
+        "skill": 5,
+        "built": 2,
+        "classified": 1
+      }
+    }
+  ],
+  "qa_retrieval": [
+    {
+      "query": "验收采购报价的复核规则是什么？",
+      "backend": "Milvus",
+      "hits": [
+        {
+          "file": 1,
+          "question": "验收采购报价的复核规则是什么？",
+          "stored_answer": "验收规则 K-1126：比较含税总价、交期，并留存复核记录。",
+          "assistant_chunk": "{<chunk_id></chunk_id>\n<knowledge_base_id>1</knowledge_base_id>\n<knowledge_base_name>采集验收1126·采购规则问答库</knowledge_base_name>\n<file_title></file_title>\n<file_abstract></file_abstract>\n<paragraph_content>验收采购报价的复核规则是什么？</paragraph_content>}"
+        }
+      ]
+    },
+    {
+      "query": "验收采购报价的复核规则是什么？",
+      "backend": "Elasticsearch",
+      "hits": [
+        {
+          "file": 1,
+          "question": "验收采购报价的复核规则是什么？",
+          "stored_answer": "验收规则 K-1126：比较含税总价、交期，并留存复核记录。",
+          "assistant_chunk": "{<chunk_id></chunk_id>\n<knowledge_base_id>1</knowledge_base_id>\n<knowledge_base_name>采集验收1126·采购规则问答库</knowledge_base_name>\n<file_title></file_title>\n<file_abstract></file_abstract>\n<paragraph_content>验收采购报价的复核规则是什么？</paragraph_content>}"
+        }
+      ]
+    },
+    {
+      "query": "采购比价时怎样核对含税报价？",
+      "backend": "Milvus",
+      "hits": [
+        {
+          "file": 1,
+          "question": "验收采购报价的复核规则是什么？",
+          "stored_answer": "验收规则 K-1126：比较含税总价、交期，并留存复核记录。",
+          "assistant_chunk": "{<chunk_id></chunk_id>\n<knowledge_base_id>1</knowledge_base_id>\n<knowledge_base_name>采集验收1126·采购规则问答库</knowledge_base_name>\n<file_title></file_title>\n<file_abstract></file_abstract>\n<paragraph_content>验收采购报价的复核规则是什么？</paragraph_content>}"
+        }
+      ]
+    },
+    {
+      "query": "采购比价时怎样核对含税报价？",
+      "backend": "Elasticsearch",
+      "hits": [
+        {
+          "file": 1,
+          "question": "验收采购报价的复核规则是什么？",
+          "stored_answer": "验收规则 K-1126：比较含税总价、交期，并留存复核记录。",
+          "assistant_chunk": "{<chunk_id></chunk_id>\n<knowledge_base_id>1</knowledge_base_id>\n<knowledge_base_name>采集验收1126·采购规则问答库</knowledge_base_name>\n<file_title></file_title>\n<file_abstract></file_abstract>\n<paragraph_content>验收采购报价的复核规则是什么？</paragraph_content>}"
+        }
+      ]
+    }
+  ]
+}

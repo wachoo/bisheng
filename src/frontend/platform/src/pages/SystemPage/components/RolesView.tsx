@@ -14,6 +14,7 @@ import { ColumnResizeHandle } from "@/components/bs-ui/table/useResizableColumns
 import { cname } from "@/components/bs-ui/utils";
 import {
   ADMIN_CHILD_MENUS,
+  COMPANY_BOARD_MENUS,
   ADMIN_PARENT_ID,
   TASK_MODE_MENU_ID,
   WORKBENCH_CHILD_MENUS,
@@ -415,6 +416,20 @@ export function RolesView({ controller }: RolesViewProps) {
                           onClick={(e) => e.stopPropagation()}
                         />
                         <span>{m.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="rounded-md border p-3">
+                  <h3 className="mb-3 text-base font-semibold">{t("menu.companyBoards")}</h3>
+                  {departmentId !== "none" && <p className="mb-2 text-xs text-muted-foreground">{t("menu.companyBoardRoleScope")}</p>}
+                  <div className="flex flex-wrap gap-3">
+                    {COMPANY_BOARD_MENUS.map((id, index) => (
+                      <label key={id} className="inline-flex items-center gap-2 text-sm">
+                        <Switch checked={isMenuEnabled(id)}
+                          disabled={isMenuLoading || menuLoadFailed || (departmentId !== "none" && id !== "company_monitorboard") || (index > 1 && !isMenuEnabled("company_monitorboard"))}
+                          onCheckedChange={checked => toggleMenuItem("", COMPANY_BOARD_MENUS, id, checked)} />
+                        {t(["menu.companyLeadboard", "menu.companyMonitorboard", "menu.companyBoardLedger", "menu.companyBoardFeedback"][index])}
                       </label>
                     ))}
                   </div>

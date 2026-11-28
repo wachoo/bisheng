@@ -31,6 +31,7 @@ from bisheng.chat_session.api.router import router as session_router
 from bisheng.citation.api.router import router as citation_router
 from bisheng.commercial_license.api.router import router as commercial_license_router
 from bisheng.common.services.config_service import settings
+from bisheng.company_board.api.router import router as company_board_router
 from bisheng.department.api.router import router as department_router
 from bisheng.dev_toolkit.api.router import router as dev_toolkit_router
 from bisheng.dsh.api.router import router as dsh_router
@@ -127,6 +128,7 @@ router.include_router(commercial_license_router)
 router.include_router(admin_router)
 router.include_router(approval_router)
 router.include_router(brand_router)
+router.include_router(company_board_router)
 router.include_router(sensitive_word_policy_router)
 # Open API management face (features/v3.0.0-beta1/053): service accounts,
 # personal tokens, scope catalogue and skill-pack distribution — session auth,

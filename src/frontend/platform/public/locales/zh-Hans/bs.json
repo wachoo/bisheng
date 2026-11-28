@@ -197,6 +197,12 @@
     "wecomLogin": "企业微信登录"
   },
   "menu": {
+    "companyBoardRoleScope": "公司级角色可分配领导看板、台账及反馈处置权限。部门角色可分配监控汇总权限。",
+    "companyBoards": "公司看板",
+    "companyLeadboard": "领导看板",
+    "companyMonitorboard": "监控看板",
+    "companyBoardLedger": "台账填报",
+    "companyBoardFeedback": "反馈处置",
     "tenant": "租  户",
     "languageChinese": "中文",
     "languageJapanese": "日本語",

@@ -1,0 +1,178 @@
+{
+  "observed_on": "2026-11-26",
+  "cases": [
+    {
+      "case": 1,
+      "entry": "web_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 71,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 1,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 2,
+      "entry": "web_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 71,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 1,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 3,
+      "entry": "web_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 72,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 1,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 4,
+      "entry": "web_assistant",
+      "asset": "0000000000000000000000000000000b",
+      "user": 71,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 1,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 5,
+      "entry": "web_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 72,
+      "outcome": "failed",
+      "expected_employee_events": 1,
+      "employee_events": 1,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 6,
+      "entry": "preview_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 73,
+      "outcome": "success",
+      "expected_employee_events": 0,
+      "employee_events": 0,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 7,
+      "entry": "open_assistant",
+      "asset": "0000000000000000000000000000000a",
+      "user": 73,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 0,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 8,
+      "entry": "web_workflow",
+      "asset": "0000000000000000000000000000000c",
+      "user": 73,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 0,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    },
+    {
+      "case": 9,
+      "entry": "open_workflow",
+      "asset": "0000000000000000000000000000000c",
+      "user": 74,
+      "outcome": "success",
+      "expected_employee_events": 1,
+      "employee_events": 0,
+      "telemetry": [
+        "application_alive",
+        "application_process"
+      ]
+    }
+  ],
+  "business_expected": {
+    "uses": 7,
+    "users": 4
+  },
+  "board": {
+    "successful_tasks": 4,
+    "failed_tasks": 1,
+    "timed_tasks": 5,
+    "uses": 4,
+    "users": 2,
+    "employees": [
+      {
+        "asset_id": "assistant:0000000000000000000000000000000a",
+        "name": "A",
+        "scenes": [
+          {
+            "id": 1,
+            "name": "Purchasing"
+          },
+          {
+            "id": 2,
+            "name": "Shared"
+          }
+        ],
+        "uses": 3,
+        "users": 2,
+        "monitored": true
+      },
+      {
+        "asset_id": "assistant:0000000000000000000000000000000b",
+        "name": "B",
+        "scenes": [
+          {
+            "id": 1,
+            "name": "Purchasing"
+          }
+        ],
+        "uses": 1,
+        "users": 1,
+        "monitored": true
+      },
+      {
+        "asset_id": "flow:0000000000000000000000000000000c",
+        "name": "Workflow",
+        "scenes": [
+          {
+            "id": 1,
+            "name": "Purchasing"
+          }
+        ],
+        "uses": 0,
+        "users": 0,
+        "monitored": false
+      }
+    ]
+  }
+}

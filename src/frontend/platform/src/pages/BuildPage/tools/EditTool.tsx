@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Dropdown, DropdownChevron, DropdownItem, Input, Textarea, toast } from '@bisheng/ui';
 import { bsConfirm } from "@/components/bs-ui/alertDialog/useConfirm";
 
@@ -128,6 +129,7 @@ export const TestDialog = forwardRef<{
     </Dialog>
 })
 const EditTool = forwardRef((props: any, ref) => {
+    const assetContext = useRef<AssetContextHandle>(null);
     const [editShow, setShow] = useState(false)
     const setEditShow = (bln) => {
         if (!bln) {
@@ -255,8 +257,8 @@ const EditTool = forwardRef((props: any, ref) => {
         }
         const methodApi = delShow ? updateTool : createTool
         setSaveLoading(true)
-        methodApi(data).then(res => {
-            if (!res) return
+        assetContext.current.persist("toolset", async () => (await methodApi(data)).id).then(id => {
+            if (!id) return
             // save
             setEditShow(false)
             props.onReload()
@@ -291,6 +293,7 @@ const EditTool = forwardRef((props: any, ref) => {
                     <SheetTitle>{delShow ? t('edit') : t('create')}{t('tools.createCustomTool')}</SheetTitle>
                 </SheetHeader>
                 <div className="mt-4 overflow-y-auto h-screen pb-40">
+                    <AssetContextFields ref={assetContext} assetKey={delShow ? "toolset:" + fromDataRef.current.id : undefined} />
                     {/* name */}
                     <label htmlFor="open" className="px-6">{t('tools.name')}</label>
                     <div className="px-6 mb-4" >

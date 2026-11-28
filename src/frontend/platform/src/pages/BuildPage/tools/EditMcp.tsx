@@ -1,4 +1,5 @@
 // @ts-strict-ignore
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Dropdown, DropdownChevron, DropdownItem, Input, Textarea, toast } from '@bisheng/ui';
 import { Outlined } from "bisheng-icons";
 
@@ -118,6 +119,7 @@ const TestDialog = forwardRef((props, ref) => {
 
 // Main component  TODO(refactor, state confusion)
 const McpServerEditorDialog = forwardRef<{ open: (...args: unknown[]) => void }, { existingNames?: string[]; onReload: () => void }>(({ existingNames = [], onReload }, ref) => {
+    const assetContext = useRef<AssetContextHandle>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isEditMode, setIsEditMode] = useState(false);
     const [availableTools, setAvailableTools] = useState([]);
@@ -287,14 +289,14 @@ const McpServerEditorDialog = forwardRef<{ open: (...args: unknown[]) => void },
             const apiMethod = isEditMode ? updateTool : createTool;
             const { openapiSchema, ...other } = latestFormData.current;
 
-            await apiMethod({
+            await assetContext.current.persist("toolset", async () => (await apiMethod({
                 ...serverRef.current,
                 ...other,
                 description: serverRef.current.description,
                 openapi_schema: openapiSchema,
                 is_preset: 2
-            }).then((res) => {
-                if (!res) return;
+            })).id).then(id => {
+                if (!id) return;
                 toast.show({ type: "success", message: String(t('skills.saveSuccessful') ?? '') });
                 setIsDialogOpen(false);
                 onReload();
@@ -340,6 +342,7 @@ const McpServerEditorDialog = forwardRef<{ open: (...args: unknown[]) => void },
                     </SheetHeader>
 
                     <div className="mt-4 space-y-6 px-6 overflow-y-auto h-[calc(100vh-200px-var(--license-banner-h,0px))]">
+                        <AssetContextFields ref={assetContext} assetKey={isEditMode ? "toolset:" + (serverRef.current as { id?: number }).id : undefined} />
                         {/* Name input */}
                         <div>
                             <label className="">{t('tools.name')}</label>

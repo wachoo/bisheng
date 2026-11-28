@@ -102,6 +102,9 @@ def on_worker_init(*args, **kwargs):
 
     get_worker_loop()  # start the persistent loop thread before any task arrives
     run_async_task(lambda: initialize_app_context(settings, instance_role="celery"))
+    from bisheng.company_board.domain.repositories.publication import install_publication_tracking
+
+    install_publication_tracking()
     _register_worker_permission_contexts()
     _register_app_publish_composition()
     queues = bisheng_celery.amqp.queues

@@ -1,0 +1,21 @@
+{
+  "label": "代表案例数字员工",
+  "choose": "选择该专题的数字员工",
+  "noEmployees": "该专题暂无已上线的数字员工",
+  "unavailable": "原员工已下线或移出专题",
+  "save": "保存",
+  "clear": "清除原选择",
+  "loadFailed": "未能读取专题代表案例。",
+  "retry": "重试",
+  "loading": "正在读取代表案例…",
+  "viewEmployee": "查看数字员工",
+  "empty": "此专题尚未选择代表案例数字员工。",
+  "case": "代表案例",
+  "employee": "数字员工",
+  "initiativeCase": "专题代表案例",
+  "previousFeatured": "上一个重点专题",
+  "nextFeatured": "下一个重点专题",
+  "noFeatured": "暂无重点专题，可在专题管理中点亮五角星。",
+  "noCompletionRate": "暂无可计算完成率的分类",
+  "knowledgeIntake": "业务知识接入"
+}

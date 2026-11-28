@@ -28,6 +28,6 @@
 | [`api/`](api/) | 接口文档(filelib 纯检索、知识空间/知识库接口、[MCP 服务](../src/backend/docs/api/open-mcp.md)、[模型协议面](api/model-gateway.md)) |
 | [`PRD/`](PRD/) | 现行迭代的产品 PRD 与技术方案(按 `{版本} {主题} PRD/` 组织;3.0 起按版本分子目录,如 [`3.0-beta2/`](PRD/3.0-beta2/)、[`3.0-release/`](PRD/3.0-release/)) |
 | [`customer-guides/`](customer-guides/) | **对外口径**使用说明(如[多租户产品使用说明](customer-guides/多租户产品使用说明.md))——面向客户/实施,不含实现细节;PRD 与产品方案放 [`PRD/`](PRD/) |
-| [`observability/`](observability/) | BS_METRIC 指标日志契约(监控团队解析依据) |
+| [`observability/`](observability/) | BS_METRIC 指标日志契约（监控团队解析依据）及[公司看板数据采集与指标口径](observability/company-board-metrics.md) |
 | [`私有化部署/`](私有化部署/) | 部署文档 |
 | [`blog/`](blog/) | 设计科普(如"企业权限体系的前世今生") |

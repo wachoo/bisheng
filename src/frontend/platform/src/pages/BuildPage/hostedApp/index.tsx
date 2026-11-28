@@ -13,6 +13,7 @@
  * which lands here as an inline notice. The alternative — a real 403 — makes
  * the platform interceptor navigate the whole SPA to `/403`.
  */
+import { EditableAssetContext } from "@/pages/CompanyBoards/AssetContextFields"
 import { appActionState } from "./appActions"
 import { AppSecretSettings } from "./publish/AppSecretSettings"
 import { LoadingIcon } from "@/components/bs-icons/loading"
@@ -155,6 +156,7 @@ export function HostedAppDetail() {
                     <CapabilityListCard capabilities={publishStatus.capabilities} />
                   )}
                   {actions.edit && <AppSecretSettings appId={app.app_id} canManage={actions.edit} canRebuild={actions.rebuild} />}
+                  {actions.edit && <EditableAssetContext kind="app" id={app.app_id} />}
                   {actions.managePermission && <VisibilityScopeSection app={app} />}
                 </div>
               </Panel>

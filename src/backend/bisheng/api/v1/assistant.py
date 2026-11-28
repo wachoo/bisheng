@@ -12,6 +12,7 @@ from bisheng.common.chat.types import WorkType
 from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.common.errcode.base import BaseErrorCode
 from bisheng.common.errcode.http_error import NotFoundError, UnAuthorizedError
+from bisheng.company_board.domain.services.runtime import WebAssistantObservation
 from bisheng.core.cache.redis_manager import get_redis_client
 from bisheng.database.models.assistant import Assistant
 from bisheng.permission.application.business_authorization import (
@@ -256,7 +257,15 @@ async def chat(
             resource_id=assistant_id,
             action="use",
         )
-        await chat_manager.dispatch_client(websocket, assistant_id, chat_id, login_user, WorkType.GPTS, websocket)
+        await chat_manager.dispatch_client(
+            websocket,
+            assistant_id,
+            chat_id,
+            login_user,
+            WorkType.GPTS,
+            websocket,
+            board_sink=WebAssistantObservation.begin,
+        )
     except UnAuthorizedError:
         await websocket.close(
             code=http_status.WS_1008_POLICY_VIOLATION,

@@ -19,7 +19,7 @@ from bisheng.common.models.base import SQLModelSerializable
 from bisheng.core.database import get_async_db_session, get_sync_db_session
 from bisheng.core.database.dialect_helpers import UPDATE_TIME_SERVER_DEFAULT, JsonType
 from bisheng.database.constants import AdminRole
-from bisheng.database.models.role_access import RoleAccess
+from bisheng.database.models.role_access import RoleAccess, RoleAccessDao
 from bisheng.database.models.user_role import UserRole
 
 
@@ -107,9 +107,11 @@ class RoleDao(RoleBase):
 
     @classmethod
     def get_role_by_groups(
-        cls, group: list[int], keyword: str | None = None, page: int = 0, limit: int = 0
+        cls, group: list[int], keyword: str | None = None, page: int = 0, limit: int = 0, *, exclude_company_roles: bool = False
     ) -> list[Role]:
         statement = select(Role).where(Role.id > AdminRole)
+        if exclude_company_roles:
+            statement = statement.where(Role.id.not_in(RoleAccessDao.company_board_roles_query()))
         if group:
             statement = statement.where(Role.group_id.in_(group))
         if keyword:
@@ -121,8 +123,10 @@ class RoleDao(RoleBase):
             return session.exec(statement).all()
 
     @classmethod
-    def count_role_by_groups(cls, group: list[int], keyword: str | None = None) -> int:
+    def count_role_by_groups(cls, group: list[int], keyword: str | None = None, *, exclude_company_roles: bool = False) -> int:
         statement = select(func.count(Role.id)).where(Role.id > AdminRole)
+        if exclude_company_roles:
+            statement = statement.where(Role.id.not_in(RoleAccessDao.company_board_roles_query()))
         if group:
             statement = statement.where(Role.group_id.in_(group))
         if keyword:
@@ -237,6 +241,7 @@ class RoleDao(RoleBase):
         keyword: str | None = None,
         department_ids: list[int] | None = None,
         tenant_custom_roles_only: bool = False,
+        exclude_company_roles: bool = False,
     ):
         """Build statement for visible roles: global + current tenant, excluding AdminRole.
 
@@ -284,6 +289,8 @@ class RoleDao(RoleBase):
                 )
         elif tenant_custom_roles_only:
             stmt = stmt.where(Role.role_type == "tenant")
+        if exclude_company_roles:
+            stmt = stmt.where(Role.id.not_in(RoleAccessDao.company_board_roles_query()))
         return stmt
 
     @classmethod
@@ -295,6 +302,7 @@ class RoleDao(RoleBase):
         limit: int = 10,
         department_ids: list[int] | None = None,
         tenant_custom_roles_only: bool = False,
+        exclude_company_roles: bool = False,
     ) -> list[Role]:
         """Get visible roles for role list API (AD-09).
 
@@ -308,6 +316,7 @@ class RoleDao(RoleBase):
             keyword,
             department_ids,
             tenant_custom_roles_only,
+            exclude_company_roles,
         )
         stmt = stmt.order_by(Role.create_time.desc())
         if page and limit:
@@ -323,6 +332,7 @@ class RoleDao(RoleBase):
         keyword: str | None = None,
         department_ids: list[int] | None = None,
         tenant_custom_roles_only: bool = False,
+        exclude_company_roles: bool = False,
     ) -> int:
         """Count visible roles (companion for aget_visible_roles)."""
         from bisheng.core.context.tenant import bypass_tenant_filter
@@ -332,6 +342,7 @@ class RoleDao(RoleBase):
             keyword,
             department_ids,
             tenant_custom_roles_only,
+            exclude_company_roles,
         )
         stmt = select(func.count()).select_from(base_stmt.subquery())
         with bypass_tenant_filter():

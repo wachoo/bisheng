@@ -2,7 +2,6 @@ from typing import Optional
 
 from loguru import logger
 
-from bisheng.api.services.chat_imp import comment_answer
 from bisheng.api.v1.schemas import AddChatMessages, ChatInput
 from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.common.errcode.http_error import NotFoundError, ServerError, UnAuthorizedError
@@ -165,38 +164,14 @@ class ChatMessageService:
         ChatMessageDao.delete_by_message_id(user_id, message_id)
 
     @staticmethod
-    def like_response(data: ChatInput) -> None:
-        """Process like/dislike with session counter updates."""
-        message_id = data.message_id
-        message = ChatMessageDao.get_message_by_id(data.message_id)
-        if not message:
-            raise NotFoundError.http_exception()
+    def like_response(data: ChatInput, user: UserPayload) -> None:
+        from fastapi import HTTPException
 
-        if message.liked == data.liked:
-            return
+        from bisheng.chat_session.domain.repositories.web_rating import save_web_rating
 
-        like_count = 0
-        dislike_count = 0
-        if message.liked == LikedType.UNRATED.value:
-            if data.liked == LikedType.LIKED.value:
-                like_count = 1
-            elif data.liked == LikedType.DISLIKED.value:
-                dislike_count = 1
-        elif message.liked == LikedType.LIKED.value:
-            like_count = -1
-            if data.liked == LikedType.DISLIKED.value:
-                dislike_count = 1
-        elif message.liked == LikedType.DISLIKED.value:
-            dislike_count = -1
-            if data.liked == LikedType.LIKED.value:
-                like_count = 1
-
-        message.liked = data.liked
-        ChatMessageDao.update_message_model(message)
-        logger.info('k=s act=liked message_id={} liked={}', message_id, data.liked)
-
-        MessageSessionDao.add_like_count(message.chat_id, like_count)
-        MessageSessionDao.add_dislike_count(message.chat_id, dislike_count)
+        if data.liked not in {choice.value for choice in LikedType}:
+            raise HTTPException(status_code=422, detail="Invalid feedback rating")
+        save_web_rating(_resolve_leaf_tenant_id(user), user.user_id, data.message_id, data.liked)
 
     @staticmethod
     def mark_copied(message_id: int) -> None:
@@ -209,6 +184,7 @@ class ChatMessageService:
             MessageSessionDao.add_copied_count(message.chat_id, 1)
 
     @staticmethod
-    def comment_on_answer(message_id: int, comment: str) -> None:
-        """Add a comment to a message answer."""
-        comment_answer(message_id, comment)
+    def comment_on_answer(message_id: int, comment: str, user: UserPayload) -> None:
+        from bisheng.chat_session.domain.repositories.web_rating import save_web_comment
+
+        save_web_comment(_resolve_leaf_tenant_id(user), user.user_id, message_id, comment)

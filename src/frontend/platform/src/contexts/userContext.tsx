@@ -172,12 +172,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (location.pathname === '/desktop-login' || hasDesktopLoginReturnTo()) return
 
             const BASE_URL = __APP_ENV__.BASE_URL
+            const requestedPath = location.pathname.replace(BASE_URL, '').replace(/\/+$/, '')
+            // Board-only accounts can use their assigned route independently of the admin console.
+            if ((requestedPath === '/leadboard' && web_menu.includes('company_leadboard')) ||
+                (requestedPath === '/monitorboard' && web_menu.includes('company_monitorboard')) ||
+                (/^\/board-ledger(?:\/|$)/.test(requestedPath) && web_menu.includes('company_monitorboard') && web_menu.includes('company_board_ledger'))) return
 
             // v2.5 角色菜单使用 admin 作为管理端父级；旧数据可能仍为 backend（WebMenuResource 遗留）
             const adminMenuKeys = new Set([
                 'backend',
                 'admin',
                 'board',
+                'company_leadboard',
+                'company_monitorboard',
                 'model',
                 'log',
                 'knowledge',
@@ -231,6 +238,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 // 403
                 const MENU_KEY_MAP: Record<string, string> = {
                     '/dashboard': 'board',
+                    '/leadboard': 'company_leadboard',
+                    '/monitorboard': 'company_monitorboard',
                     '/build/apps': 'build',
                     '/filelib': 'knowledge',
                     '/dataset': 'dataset',

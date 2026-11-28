@@ -4,6 +4,7 @@ import { notification } from '@bisheng/ui';
 
 import axios from "axios";
 import i18next from "i18next";
+import { rememberBoardLoginReturnTo } from "@/utils/loginReturnTo";
 import { managementRequestScope,requiresManagementScope,guardManagementResponse } from './managementScope';
 
 window.addEventListener('storage', event => {
@@ -225,6 +226,7 @@ export async function handleRequestError(cause) {
         error.presentation = 'global';
         if (sessionKickInProgress) return Promise.reject(error);
         if (isSessionKickedEnvelope(error) && beginSessionKick(error)) return Promise.reject(error);
+        rememberBoardLoginReturnTo(__APP_ENV__.BASE_URL || '');
         const hadSession = !!localStorage.getItem('ws_token') || !!localStorage.getItem('UUR_INFO');
         localStorage.removeItem('ws_token');
         const thirdPartyLoginUrl = localStorage.getItem('THIRD_PARTY_LOGIN_URL');

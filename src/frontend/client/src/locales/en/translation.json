@@ -1,4 +1,7 @@
 {
+  "com_company_boards": "Company dashboards",
+  "com_company_leadboard": "Leadership dashboard",
+  "com_company_monitorboard": "Operations dashboard",
   "admin": "Administrator",
   "bisheng": "{{bisheng}}",
   "cancel": "Cancel",

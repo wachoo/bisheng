@@ -10,6 +10,7 @@ import { useGetBsConfig } from '~/hooks/queries/data-provider';
 import { cn } from '~/utils';
 import { getPlatformAdminPanelUrl } from '~/utils/platformAdminUrl';
 import { UserPopMenu } from '../UserPopMenu';
+import { CompanyBoardLinks } from '../CompanyBoardLinks';
 import { useWorkbenchNavLinks } from '../useWorkbenchNavLinks';
 import { SidebarConversationList } from './SidebarConversationList';
 import { SidebarProjects } from './SidebarProjects';
@@ -162,6 +163,7 @@ export function WorkbenchSidebar({ hidden = false }: WorkbenchSidebarProps) {
         <div className="min-h-0 flex-1" />
       )}
 
+      <CompanyBoardLinks />
       <div className="h-px w-full shrink-0 bg-border-base" />
       {/* Two controls, one row chrome: both 32px tall with the nav rows' 8px radius and
           fill-1 hover — the account button stretches, the admin link is the 32px square. */}

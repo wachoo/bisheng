@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { consumeLoginReturnTo, hasDesktopLoginReturnTo, rememberDesktopLoginReturnTo } from './loginReturnTo'
+import { consumeLoginReturnTo, hasDesktopLoginReturnTo, rememberBoardLoginReturnTo, rememberDesktopLoginReturnTo } from './loginReturnTo'
 beforeEach(() => {
     const values = new Map<string, string>()
     vi.stubGlobal('localStorage', {
@@ -33,6 +33,14 @@ describe('desktop SSO handoff', () => {
         localStorage.setItem('LOGIN_PATHNAME_AT', String(Date.now() - 700000))
         expect(hasDesktopLoginReturnTo()).toBe(false)
     })
+})
+
+it('restores a protected board view and month once after sign-in', () => {
+    const href = 'http://bisheng.example/tenant-web/leadboard?view=impact&period=2026-11'
+    vi.stubGlobal('location', new URL(href))
+    rememberBoardLoginReturnTo('/tenant-web')
+    expect(consumeLoginReturnTo()).toBe(href)
+    expect(consumeLoginReturnTo()).toBeNull()
 })
 
 

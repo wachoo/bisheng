@@ -62,6 +62,7 @@ export default function Header({ loca, onSave, onLine, onTabChange, canEdit: can
                 </DialogTrigger>
                 {
                     editShow && <EditAssistantDialog
+                        assetId={assistantId}
                         logo={assistantState.logo || ''}
                         viewLogo={assistantState.viewLogo || ''}
                         name={assistantState.name}

@@ -30,6 +30,7 @@ from bisheng.citation.domain.services.citation_prompt_helper import (
     is_web_citation_tool,
     is_web_fetch_tool,
 )
+from bisheng.common.board_observation import current_observation, observe_knowledge
 from bisheng.common.constants.enums.telemetry import ApplicationTypeEnum
 from bisheng.common.errcode.assistant import (
     AssistantAutoLLMError,
@@ -155,7 +156,7 @@ class AssistantCitationToolWrapper(BaseTool):
         if self.citation_collector:
             self.citation_collector.extend(items)
 
-    def _run(self, query: str = "", **kwargs: Any) -> Any:
+    def _run(self, query: str = "", run_manager=None, **kwargs: Any) -> Any:
         if is_web_fetch_tool(self.tool):
             return self._append_fetch_citation(
                 self.tool.invoke({"url": kwargs.get("url", "")}, config=kwargs.get("config"))
@@ -170,10 +171,11 @@ class AssistantCitationToolWrapper(BaseTool):
         # the chat per search — named after the retriever instead of the
         # knowledge base, so it read "知识库已被删除", carrying the raw Document
         # dump as its output.
-        retrieval_result = self.tool.knowledge_retriever_tool._run(query)
+        with observe_knowledge(self.tool.name, run_manager):
+            retrieval_result = self.tool.knowledge_retriever_tool._run(query)
         return self._format_knowledge_results(retrieval_result)
 
-    async def _arun(self, query: str = "", **kwargs: Any) -> Any:
+    async def _arun(self, query: str = "", run_manager=None, **kwargs: Any) -> Any:
         if is_web_fetch_tool(self.tool):
             return await self._aappend_fetch_citation(
                 await self.tool.ainvoke({"url": kwargs.get("url", "")}, config=kwargs.get("config"))
@@ -185,7 +187,8 @@ class AssistantCitationToolWrapper(BaseTool):
         if not self._has_knowledge_rag_tool():
             return await self.tool.ainvoke({"query": query}, config=kwargs.get("config"))
 
-        retrieval_result = await self.tool.knowledge_retriever_tool._arun(query)
+        with observe_knowledge(self.tool.name, run_manager):
+            retrieval_result = await self.tool.knowledge_retriever_tool._arun(query)
         return await self._aformat_knowledge_results(retrieval_result)
 
 
@@ -208,8 +211,9 @@ class AssistantAgent(AssistantUtils):
     - When there is time information involved in a question, such as recently6Months, yesterday, last year, etc., you need to use the time tool to query the time information.
     """
 
-    def __init__(self, assistant_info: Assistant, chat_id: str, invoke_user_id: int):
+    def __init__(self, assistant_info: Assistant, chat_id: str, invoke_user_id: int, *, board_deliveries: bool = False):
         self.assistant = assistant_info
+        self.board_deliveries = board_deliveries
 
         # To record the data tracking points
         self.invoke_user_id = invoke_user_id
@@ -307,6 +311,21 @@ class AssistantAgent(AssistantUtils):
                 llm=self.llm,
                 callbacks=callbacks,
             )
+
+        if getattr(self, "board_deliveries", False) and any(tool.name == "bisheng_code_interpreter" for tool in tools):
+            from langchain_core.tools import StructuredTool
+
+            def register_delivery(file_links: list[str], project: str = "", version: str = "") -> str:
+                """Register generated deliverables, including intermediate files. Supply the exact URLs
+                returned by the interpreter. For a programming task, pass its stable company project identifier and
+                explicit version label with all member files to record one version. For independent
+                ordinary files leave project and version empty. Call before reporting completion."""
+                observation = current_observation.get()
+                if observation is None:
+                    return "No active Web task."
+                return observation.register_outputs(file_links, project, version)
+
+            tools.append(StructuredTool.from_function(register_delivery, name="register_assistant_delivery"))
 
         # F041: split knowledge spaces (type=3) from document / QA KBs by row.type.
         link_knowledge_ids = [link.knowledge_id for link in flow_links if link.knowledge_id]

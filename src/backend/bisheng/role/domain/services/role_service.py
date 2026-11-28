@@ -24,7 +24,7 @@ from bisheng.common.errcode.role import (
 from bisheng.core.database import get_async_db_session
 from bisheng.database.constants import AdminRole
 from bisheng.database.models.role import Role, RoleDao
-from bisheng.database.models.role_access import AccessType, RoleAccess, RoleAccessDao
+from bisheng.database.models.role_access import COMPANY_WIDE_BOARD_KEYS, AccessType, RoleAccess, RoleAccessDao
 from bisheng.role.domain.schemas.role_schema import (
     RoleCreateRequest,
     RoleListResponse,
@@ -144,6 +144,7 @@ class RoleService:
         async with get_async_db_session() as session:
             session.add(role)
             await session.flush()
+            await cls._assert_company_menu_assignment(menu_ids, login_user)
             await cls._replace_menu_access_in_session(session, role.id, menu_ids)
             await session.commit()
             await session.refresh(role)
@@ -235,7 +236,11 @@ class RoleService:
         view_tenant = login_user.tenant_id
         if bool(getattr(login_user, "is_global_super", False)):
             view_tenant = None if is_management_all_tenants() else get_admin_scope_tenant_id() or view_tenant
+        binding_filter = (
+            {"exclude_company_roles": True} if include_global_for_binding and permission_level not in {"admin", "tenant_admin"} else {}
+        )
         roles = await RoleDao.aget_visible_roles(
+            **binding_filter,
             tenant_id=view_tenant,
             keyword=keyword,
             page=page,
@@ -244,6 +249,7 @@ class RoleService:
             tenant_custom_roles_only=tenant_custom_roles_only,
         )
         total = await RoleDao.acount_visible_roles(
+            **binding_filter,
             tenant_id=view_tenant,
             keyword=keyword,
             department_ids=department_ids,
@@ -454,6 +460,7 @@ class RoleService:
             db_role.update_time = func.now()
 
             session.add(db_role)
+            await cls._assert_company_menu_assignment(menu_ids, login_user)
             await cls._replace_menu_access_in_session(session, role_id, menu_ids)
             await session.commit()
             await session.refresh(db_role)
@@ -521,6 +528,7 @@ class RoleService:
             # even when the app host clock drifts.
             db_role.update_time = func.now()
             session.add(db_role)
+            await cls._assert_company_menu_assignment(normalized, login_user)
             await cls._replace_menu_access_in_session(session, role_id, normalized)
             await session.commit()
             await session.refresh(db_role)
@@ -783,6 +791,21 @@ class RoleService:
             if s not in out:
                 out.append(s)
         return out
+
+    @classmethod
+    async def non_delegable_company_role_ids(cls, role_ids: set[int], login_user) -> set[int]:
+        if not role_ids or login_user.is_admin():
+            return set()
+        protected = await RoleAccessDao.acompany_board_role_ids(role_ids)
+        if protected and await cls._get_permission_level(login_user) == "tenant_admin":
+            return set()
+        return protected
+
+    @classmethod
+    async def _assert_company_menu_assignment(cls, menu_ids: list[str], login_user) -> None:
+        if COMPANY_WIDE_BOARD_KEYS.intersection(menu_ids) and not login_user.is_admin():
+            if await cls._get_permission_level(login_user) != "tenant_admin":
+                raise RolePermissionDeniedError(msg="Company-wide board permissions require a tenant administrator")
 
     @classmethod
     async def _replace_menu_access_in_session(

@@ -72,6 +72,17 @@ export function consumeLoginReturnTo(): string | null {
 /** Capture desktop navigation before the first user-info request can redirect on 401. */
 export function rememberDesktopLoginReturnTo(): void {
     if (location.pathname !== '/desktop-login') return
+    rememberCurrentUrl()
+}
+
+/** Retain a protected board bookmark, including its month and selected view, through sign-in. */
+export function rememberBoardLoginReturnTo(base: string): void {
+    const path = location.pathname.replace(/\/+$/, '')
+    const prefix = base.replace(/\/+$/, '')
+    if (path === prefix + '/leadboard' || path === prefix + '/monitorboard') rememberCurrentUrl()
+}
+
+function rememberCurrentUrl(): void {
     try {
         localStorage.setItem(LOGIN_PATHNAME_KEY, location.href)
         localStorage.setItem(LOGIN_PATHNAME_AT_KEY, String(Date.now()))

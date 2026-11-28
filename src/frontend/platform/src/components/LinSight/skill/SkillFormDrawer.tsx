@@ -1,3 +1,4 @@
+import { AssetContextFields, type AssetContextHandle } from "@/pages/CompanyBoards/AssetContextFields";
 import { Button, Input, Textarea, notification } from '@bisheng/ui';
 // F035: create / edit a tenant custom skill (form path — SKILL.md only).
 // Rendered as a right-side drawer on the same rail as the detail sheet, so
@@ -38,6 +39,7 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
     const [description, setDescription] = useState("");
     const [content, setContent] = useState("");
     const [errors, setErrors] = useState<FieldErrors>({});
+    const assetContext = useRef<AssetContextHandle>(null);
     const [saving, setSaving] = useState(false);
     // Once the admin edits the skill ID by hand, stop auto-suggesting.
     const idTouchedRef = useRef(false);
@@ -128,11 +130,10 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
             content,
         };
         try {
-            if (editing) {
-                await skillApi.updateSkillForm(editing.name, payload);
-            } else {
-                await skillApi.createSkillForm(payload);
-            }
+            await assetContext.current!.persist("skill", async () => {
+                const detail = editing ? await skillApi.updateSkillForm(editing.name, payload) : await skillApi.createSkillForm(payload);
+                return detail.id;
+            });
             notification.open({ type: "success", description: String(t("skillManage.saved") ?? '') });
             onOpenChange(false);
             onSaved();
@@ -172,7 +173,7 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
                 </div>
 
                 {/* body — top fields fixed, the SKILL.md body textarea fills remaining height */}
-                <div className="flex-1 min-h-0 overflow-hidden flex flex-col gap-4 px-6 py-5">
+                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-4 px-6 py-5">
                     <div>
                         {fieldLabel(t("skillManage.form.displayName"), t("skillManage.form.displayNameDesc"))}
                         <Input value={displayName} maxLength={255} placeholder={t("skillManage.form.displayNamePh")} onChange={(e) => handleDisplayNameChange(e.target.value)} showCount />
@@ -200,7 +201,7 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
                         {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
                     </div>
                     {/* content — flexes to fill the full-height drawer, a tall calm authoring canvas */}
-                    <div className="flex flex-col flex-1 min-h-0">
+                    <div className="flex min-h-40 flex-1 flex-col">
                         {fieldLabel(t("skillManage.form.content"), t("skillManage.form.contentDesc"))}
                         <Textarea value={content} placeholder={t("skillManage.form.contentPh")} onChange={(e) => {
                                 setContent(e.target.value);
@@ -208,6 +209,7 @@ export function SkillFormDrawer({ open, editing, onOpenChange, onSaved }: SkillF
                             }} textareaClassName={"h-full resize-none font-mono text-sm"} className={"flex-1 min-h-0"} />
                         {errors.content && <p className="text-xs text-red-500 mt-1">{errors.content}</p>}
                     </div>
+                    <AssetContextFields ref={assetContext} assetKey={editing ? "skill:" + editing.id : undefined} />
                 </div>
 
                 {/* footer — actions only */}

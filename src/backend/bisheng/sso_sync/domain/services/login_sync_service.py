@@ -653,7 +653,13 @@ class LoginSyncService:
                 for role_id in (getattr(dept, "default_role_ids", None) or [])
                 if role_id is not None and int(role_id) != AdminRole
             }
-            target_role_ids.update(default_role_ids)
+            # SSO membership synchronization has no role-granting operator. A
+            # legacy department default must not silently elevate the account.
+            from bisheng.database.models.role_access import RoleAccessDao
+
+            new_defaults = default_role_ids - target_role_ids
+            protected = await RoleAccessDao.acompany_board_role_ids(new_defaults)
+            target_role_ids.update(new_defaults - protected)
 
         need_add = sorted(target_role_ids - current_role_ids)
         need_del = sorted(current_role_ids - target_role_ids)

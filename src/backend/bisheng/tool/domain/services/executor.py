@@ -9,6 +9,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import ArgsSchema, BaseTool
 from pydantic import Field, SkipValidation
 
+from bisheng.common.board_observation import current_observation
 from bisheng.common.constants.enums.telemetry import ApplicationTypeEnum, BaseTelemetryTypeEnum, StatusEnum
 from bisheng.common.dependencies.user_deps import UserPayload
 from bisheng.common.schemas.telemetry.event_data_schema import ToolInvocationEventData
@@ -46,18 +47,53 @@ class ToolInitializationError(RuntimeError):
         super().__init__(f'Tool "{tool_name}" (id={tool_id}) initialization failed: {type(cause).__name__}: {cause}')
 
 
+class _FailedToolResult(str):
+    """Retain the Linsight error response while reporting its actual terminal state."""
+
+
+def _result_status(tool, result):
+    if isinstance(result, _FailedToolResult):
+        return StatusEnum.FAILED
+    if tool.tool_is_preset == ToolPresetType.MCP.value and isinstance(result, str):
+        # BaseMcpClient returns a JSON protocol envelope or its transport failure.
+        if result.startswith("Tool call failed: "):
+            return StatusEnum.FAILED
+        try:
+            result = json.loads(result)
+        except ValueError:
+            return StatusEnum.SUCCESS
+    if isinstance(result, dict):
+        if tool.tool_is_preset == ToolPresetType.MCP.value and result.get("isError") is True:
+            return StatusEnum.FAILED
+        if tool.tool_key == "bisheng_code_interpreter" and (result.get("error") or result.get("exitcode", 0) != 0):
+            return StatusEnum.FAILED
+    return StatusEnum.SUCCESS
+
+
+def _observe_result(tool, kwargs, status, result):
+    observation = current_observation.get()
+    if observation is None:
+        return
+    logical_id = (kwargs.get("config") or {}).get("metadata", {}).get("tool_call_id")
+    run_id = getattr(kwargs.get("run_manager"), "run_id", None)
+    operation = logical_id or observation.call_ids.get(run_id, run_id)
+    observation.record("tool", tool.tool_id, "success" if status == StatusEnum.SUCCESS else "failed", operation)
+    if tool.tool_key == "bisheng_code_interpreter":
+        observation.record_outputs(result)
+
+
 def wrapper_tool(func):
     @functools.wraps(func)
     async def inner(*args, **kwargs):
-        # Here you can add logic to record tool usage
         self: ToolExecutor = args[0]
-        status = StatusEnum.SUCCESS
+        result = None
+        status = StatusEnum.FAILED
         try:
-            return await func(*args, **kwargs)
-        except Exception as e:
-            status = StatusEnum.FAILED
-            raise e
+            result = await func(*args, **kwargs)
+            status = _result_status(self, result)
+            return result
         finally:
+            _observe_result(self, kwargs, status, result)
             await telemetry_service.log_event(**self.get_invoke_log_data(status))
 
     return inner
@@ -66,16 +102,15 @@ def wrapper_tool(func):
 def wrapper_tool_sync(func):
     @functools.wraps(func)
     def inner(*args, **kwargs):
-        # Here you can add logic to record tool usage
         self: ToolExecutor = args[0]
-        status = StatusEnum.SUCCESS
+        result = None
+        status = StatusEnum.FAILED
         try:
-            return func(*args, **kwargs)
-        except Exception as e:
-            status = StatusEnum.FAILED
-            raise e
+            result = func(*args, **kwargs)
+            status = _result_status(self, result)
+            return result
         finally:
-            # RecordTelemetryJournal
+            _observe_result(self, kwargs, status, result)
             telemetry_service.log_event_sync(**self.get_invoke_log_data(status))
 
     return inner
@@ -547,9 +582,11 @@ class ToolExecutor(BaseTool):
                 from loguru import logger as _logger
 
                 _logger.warning(f"linsight tool '{self.tool_name}' failed: {e}")
-                return json.dumps(
-                    {"状态": "失败", "错误信息": f"工具 {self.tool_name} 调用失败: {e}"},
-                    ensure_ascii=False,
+                return _FailedToolResult(
+                    json.dumps(
+                        {"状态": "失败", "错误信息": f"工具 {self.tool_name} 调用失败: {e}"},
+                        ensure_ascii=False,
+                    )
                 )
         return await self.tool_instance._arun(*args, **kwargs)
 

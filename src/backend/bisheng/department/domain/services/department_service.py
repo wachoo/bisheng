@@ -987,6 +987,20 @@ class DepartmentTopologyProjectionService:
 
 
 class DepartmentService:
+    @staticmethod
+    async def _allowed_default_roles(requested, existing, login_user) -> list[int]:
+        from bisheng.database.constants import AdminRole
+        from bisheng.role.domain.services.role_service import RoleService
+
+        requested = list(dict.fromkeys(int(role_id) for role_id in requested or []))
+        prior = set(existing or [])
+        protected = await RoleService.non_delegable_company_role_ids(set(requested) | prior, login_user)
+        if (set(requested) - prior) & (protected | {AdminRole}):
+            raise DepartmentInvalidRolesError()
+        # A form may omit roles that the operator cannot see. Preserve those
+        # bindings, while allowing normal edits to all their assignable roles.
+        return requested + sorted((prior & protected) - set(requested))
+
     @classmethod
     async def acreate_department(
         cls,
@@ -1035,7 +1049,8 @@ class DepartmentService:
                     parent_id=data.parent_id,
                     tenant_id=getattr(parent, "tenant_id", None),
                     sort_order=data.sort_order,
-                    default_role_ids=data.default_role_ids,
+                    default_role_ids=(await cls._allowed_default_roles(data.default_role_ids, [], login_user)
+                                      if data.default_role_ids is not None else None),
                     source="local",
                     external_id=dept_id,
                     status="active",
@@ -1366,7 +1381,9 @@ class DepartmentService:
             if data.sort_order is not None:
                 dept.sort_order = data.sort_order
             if data.default_role_ids is not None:
-                dept.default_role_ids = data.default_role_ids
+                dept.default_role_ids = await cls._allowed_default_roles(
+                    data.default_role_ids, dept.default_role_ids, login_user
+                )
 
             session.add(dept)
             await session.commit()
@@ -1376,10 +1393,7 @@ class DepartmentService:
             await cls.aset_admins(dept_id, list(data.admin_user_ids), login_user)
 
         if data.apply_default_roles_to_existing_members:
-            raw_grant = (
-                list(data.default_role_ids) if data.default_role_ids is not None else list(dept.default_role_ids or [])
-            )
-            role_ids_for_grant = [int(x) for x in raw_grant if x is not None]
+            role_ids_for_grant = [int(x) for x in (dept.default_role_ids or []) if x is not None]
             async with get_async_db_session() as session:
                 member_rows = await session.exec(
                     select(UserDepartment.user_id).where(
@@ -2346,6 +2360,9 @@ class DepartmentService:
                 )
                 roles = (await session.exec(stmt)).all()
 
+        from bisheng.role.domain.services.role_service import RoleService
+
+        protected = await RoleService.non_delegable_company_role_ids({r.id for r in roles}, login_user)
         return [
             {
                 "id": r.id,
@@ -2353,7 +2370,7 @@ class DepartmentService:
                 "role_type": r.role_type,
                 "department_id": r.department_id,
             }
-            for r in roles
+            for r in roles if r.id not in protected
         ]
 
     @staticmethod
@@ -2435,6 +2452,10 @@ class DepartmentService:
                 )
                 roles = (await session.exec(stmt)).all()
 
+        from bisheng.role.domain.services.role_service import RoleService
+
+        protected = await RoleService.non_delegable_company_role_ids({r.id for r in roles}, login_user)
+        roles = [r for r in roles if r.id not in protected]
         catalog: dict = {}
         for dept in depts:
             scope_ids = scope_by_dept_id.get(dept.dept_id, set())

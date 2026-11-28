@@ -926,6 +926,8 @@ async def user_addrole(
             )
             admin_roles.update(one.id for one in visible_roles["data"])
 
+        protected = await RoleService.non_delegable_company_role_ids(admin_roles, login_user)
+        admin_roles.difference_update(protected)
         if not admin_roles:
             raise HTTPException(status_code=500, detail="No rights")
         # Do the intersection to get the list of roles visible to the user group administrator

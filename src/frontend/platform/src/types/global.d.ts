@@ -34,6 +34,7 @@ declare global {
         APP_CONFIG?: {
             /** Hide Japanese from the language switcher and locale auto-detection. */
             disableJa?: boolean;
+            companyBoardMenus?: { dashboard?: boolean; leadboard?: boolean; monitorboard?: boolean };
         };
     }
 
